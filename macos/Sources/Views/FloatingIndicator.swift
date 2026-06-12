@@ -181,18 +181,25 @@ private struct CrabOverlayView: View {
     let height: CGFloat
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var spriteFrameIndex = 0
+    @State private var idleOffset: CGFloat = 0
     @State private var processingPulse = false
 
     var body: some View {
         ZStack(alignment: .trailing) {
             SpriteWallCrab(
                 showsBoomMic: state.showsBoomMic,
+                frameIndex: spriteFrameIndex,
                 showsProcessing: state.isProcessing,
                 processingPulse: processingPulse,
                 attentionMessage: attentionMessage
             )
+            .offset(y: idleOffset)
         }
         .frame(width: CrabOverlayLayout.width, height: height, alignment: .trailing)
+        .task(id: "\(state.showsBoomMic)-\(reduceMotion)") {
+            await animateIdleCrawl()
+        }
         .task(id: state.isProcessing) {
             await animateProcessingBadge()
         }
@@ -204,6 +211,40 @@ private struct CrabOverlayView: View {
             return message
         }
         return nil
+    }
+
+    private func animateIdleCrawl() async {
+        if state.showsBoomMic || reduceMotion {
+            idleOffset = 0
+            spriteFrameIndex = 0
+            return
+        }
+
+        let maxOffset = max((height - 76) / 2, 18)
+        var crawlDirection: CGFloat = Bool.random() ? -1 : 1
+
+        while !Task.isCancelled {
+            let stepCount = Int.random(in: 4...8)
+
+            for _ in 0..<stepCount {
+                if Task.isCancelled { return }
+
+                let nextOffset = idleOffset + crawlDirection * CGFloat.random(in: 3...6)
+                idleOffset = min(max(nextOffset, -maxOffset), maxOffset)
+                spriteFrameIndex += 1
+
+                if abs(idleOffset) >= maxOffset - 2 {
+                    crawlDirection *= -1
+                }
+
+                try? await Task.sleep(nanoseconds: 150_000_000)
+            }
+
+            if Bool.random() {
+                crawlDirection *= -1
+            }
+            try? await Task.sleep(nanoseconds: UInt64.random(in: 650_000_000...1_100_000_000))
+        }
     }
 
     private func animateProcessingBadge() async {
@@ -221,6 +262,7 @@ private struct CrabOverlayView: View {
 
 private struct SpriteWallCrab: View {
     let showsBoomMic: Bool
+    let frameIndex: Int
     let showsProcessing: Bool
     let processingPulse: Bool
     let attentionMessage: String?
@@ -282,7 +324,10 @@ private struct SpriteWallCrab: View {
     private var currentImage: NSImage? {
         let frames = showsBoomMic ? imageStore.boomMicFrames : imageStore.idleFrames
         guard !frames.isEmpty else { return nil }
-        return frames[0]
+        if showsBoomMic {
+            return frames[0]
+        }
+        return frames[abs(frameIndex) % frames.count]
     }
 }
 
