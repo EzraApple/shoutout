@@ -7,6 +7,7 @@ enum Defaults {
     static let showInDock = "showInDock"
     static let dimSystemAudio = "dimSystemAudio"
     static let overlayStyle = "overlayStyle"
+    static let requestPermissionsOnLaunch = "requestPermissionsOnLaunch"
 }
 
 // MARK: - App State
@@ -110,6 +111,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             // Load model in background (recording is allowed even before it's ready)
             Task {
                 await transcriptionService.loadModel()
+            }
+        }
+
+        if overlayPreviewState == nil,
+            UserDefaults.standard.bool(forKey: Defaults.requestPermissionsOnLaunch)
+        {
+            Task { @MainActor in
+                RuntimeLog.write("permissions diagnostic request-on-launch start")
+                permissions.requestAccessibility()
+                permissions.requestInputMonitoring()
+                _ = await permissions.requestMicrophone()
             }
         }
 
