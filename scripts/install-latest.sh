@@ -17,6 +17,17 @@ cleanup() {
 }
 trap cleanup EXIT
 
+reset_hotkey_permissions_if_existing_install_used_unstable_signature() {
+    [[ -d "$INSTALL_PATH" ]] || return
+
+    local requirement
+    requirement="$(codesign -d -r- "$INSTALL_PATH" 2>&1 || true)"
+    if [[ "$requirement" == *"cdhash"* && "$requirement" != *"identifier \"${BUNDLE_ID}\""* ]]; then
+        tccutil reset Accessibility "$BUNDLE_ID" >/dev/null 2>&1 || true
+        tccutil reset ListenEvent "$BUNDLE_ID" >/dev/null 2>&1 || true
+    fi
+}
+
 install_bundle() {
     local app_bundle="$1"
 
@@ -33,6 +44,7 @@ install_bundle() {
     fi
 
     pkill -x ShoutOut >/dev/null 2>&1 || true
+    reset_hotkey_permissions_if_existing_install_used_unstable_signature
     mkdir -p "$INSTALL_DIR"
     rm -rf "$INSTALL_PATH"
     cp -R "$app_bundle" "$INSTALL_PATH"

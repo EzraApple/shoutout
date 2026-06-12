@@ -18,7 +18,6 @@ install-local: build
 	open "$$HOME/Applications/Shout Out.app"
 
 reset-permissions:
-	tccutil reset Microphone com.ezraapple.shoutout || true
 	tccutil reset Accessibility com.ezraapple.shoutout || true
 	tccutil reset ListenEvent com.ezraapple.shoutout || true
 	defaults write com.ezraapple.shoutout requestPermissionsOnLaunch -bool true

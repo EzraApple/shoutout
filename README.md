@@ -50,7 +50,7 @@ On first launch, grant:
 
 If macOS does not show a prompt, open System Settings → Privacy & Security and enable Shout Out under those three sections.
 
-If Accessibility or Input Monitoring looks checked but Shout Out still says it is missing, clear the stale macOS privacy rows once and reopen the app:
+If Accessibility or Input Monitoring looks checked but Shout Out still says it is missing, clear the stale hotkey privacy rows once and reopen the app:
 
 ```bash
 make reset-permissions
