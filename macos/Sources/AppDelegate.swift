@@ -44,6 +44,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var currentIndicatorState: IndicatorState = .idle
     private var audioLevelCancellable: AnyCancellable?
     private var indicatorDismissTask: Task<Void, Never>?
+    private var shortcutUnavailableMessage: String?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         UserDefaults.standard.register(defaults: [
@@ -74,6 +75,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             Task { @MainActor in
                 self?.permissions.refresh()
                 self?.setupHotkey()
+                self?.refreshOverlay()
             }
         }
 
@@ -98,7 +100,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         Task { @MainActor in
-            showIndicator(state: overlayPreviewState ?? .idle)
+            showIndicator(state: overlayPreviewState ?? currentIdleIndicatorState())
         }
     }
 
@@ -116,20 +118,69 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Hotkey Setup
 
     private func setupHotkey() {
-        guard permissions.hasAccessibility, permissions.hasInputMonitoring else { return }
+        guard appState == .idle else { return }
 
+        permissions.refresh()
+        guard permissions.hasAccessibility, permissions.hasInputMonitoring else {
+            shortcutUnavailableMessage = nil
+            showIndicator(state: currentIdleIndicatorState())
+            return
+        }
+
+        hotkeyManager.onRecordArmed = { [weak self] in
+            self?.armRecording()
+        }
+        hotkeyManager.onRecordCancelled = { [weak self] in
+            self?.cancelArmedRecording()
+        }
         hotkeyManager.onRecordStart = { [weak self] in
             self?.startRecording()
         }
         hotkeyManager.onRecordStop = { [weak self] in
             self?.stopRecordingAndTranscribe()
         }
-        hotkeyManager.start()
+        hotkeyManager.onShortcutUnavailable = { [weak self] message in
+            self?.shortcutUnavailableMessage = message
+            self?.showTransientAttention(message)
+        }
+
+        if hotkeyManager.start() {
+            shortcutUnavailableMessage = nil
+            if currentIndicatorState.hasAttention {
+                showIndicator(state: currentIdleIndicatorState())
+            }
+        }
     }
 
     // MARK: - Recording Flow
 
+    private func armRecording() {
+        guard appState == .idle else { return }
+        showIndicator(state: .armed)
+    }
+
+    private func cancelArmedRecording() {
+        guard appState == .idle else { return }
+        finishIndicator()
+    }
+
     private func startRecording() {
+        guard appState == .idle else { return }
+
+        permissions.refresh()
+        guard permissions.hasMicrophone else {
+            hotkeyManager.cancelRecording()
+            Task { @MainActor in
+                let granted = await permissions.requestMicrophone()
+                if granted {
+                    finishIndicator()
+                } else {
+                    showTransientAttention("Mic off")
+                }
+            }
+            return
+        }
+
         do {
             recordingStartedAt = Date()
             audioDucker.beginDuckingIfEnabled()
@@ -147,6 +198,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         } catch {
             recordingStartedAt = nil
             audioDucker.endDucking()
+            appState = .idle
+            updateMenuBarIcon(state: .idle)
+            hotkeyManager.cancelRecording()
+            showTransientAttention("Mic failed")
             print("Failed to start recording: \(error)")
         }
     }
@@ -170,7 +225,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             audioDucker.endDucking()
             appState = .idle
             updateMenuBarIcon(state: .idle)
-            finishIndicator()
+            showTransientAttention("No audio")
             return
         }
 
@@ -200,11 +255,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                         finishIndicator()
                     }
                 } else {
-                    finishIndicator()
+                    showTransientAttention("No speech")
                 }
             } catch {
                 print("Transcription failed: \(error)")
-                finishIndicator()
+                showTransientAttention("Transcription failed")
             }
         }
     }
@@ -287,15 +342,26 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func finishIndicator() {
-        currentIndicatorState = .idle
+        let idleState = currentIdleIndicatorState()
+        currentIndicatorState = idleState
         if currentOverlayStyle == .crab {
-            showIndicator(state: .idle)
+            showIndicator(state: idleState)
         } else {
             dismissIndicator()
         }
     }
 
     func refreshOverlay() {
+        if appState != .idle {
+            showIndicator(state: currentIndicatorState)
+            return
+        }
+
+        if currentIndicatorState == .idle || currentIndicatorState.hasAttention {
+            showIndicator(state: currentIdleIndicatorState())
+            return
+        }
+
         if currentOverlayStyle == .crab {
             showIndicator(state: currentIndicatorState)
         } else if currentIndicatorState == .idle {
@@ -318,6 +384,36 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             ?? .crab
     }
 
+    private func currentIdleIndicatorState() -> IndicatorState {
+        if let shortcutUnavailableMessage {
+            return .attention(message: shortcutUnavailableMessage)
+        }
+
+        if !permissions.hasAccessibility {
+            return .attention(message: "Access off")
+        }
+
+        if !permissions.hasInputMonitoring {
+            return .attention(message: "Input off")
+        }
+
+        if !permissions.hasMicrophone {
+            return .attention(message: "Mic off")
+        }
+
+        return .idle
+    }
+
+    private func showTransientAttention(_ message: String) {
+        indicatorDismissTask?.cancel()
+        indicatorDismissTask = nil
+        showIndicator(state: .attention(message: message))
+        indicatorDismissTask = Task {
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            finishIndicator()
+        }
+    }
+
     private func requestedOverlayPreviewState() -> IndicatorState? {
         guard let rawState = ProcessInfo.processInfo.environment["SHOUTOUT_OVERLAY_PREVIEW"] else {
             return nil
@@ -326,12 +422,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         switch rawState.lowercased() {
         case "idle":
             return .idle
+        case "armed":
+            return .armed
         case "recording":
             return .recording(level: 0.75)
         case "processing":
             return .processing
         case "done":
             return .done(text: "Yuxin")
+        case "attention":
+            return .attention(message: "Mic off")
         default:
             return nil
         }
@@ -341,14 +441,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         switch style {
         case .crab:
             guard let screen = NSScreen.main else {
-                return NSRect(x: 0, y: 0, width: 112, height: crabHeight)
+                return NSRect(x: 0, y: 0, width: CrabOverlayLayout.width, height: crabHeight)
             }
 
             let screenFrame = screen.visibleFrame
             return NSRect(
-                x: screenFrame.maxX - 124,
+                x: screenFrame.maxX - CrabOverlayLayout.width,
                 y: screenFrame.minY + (screenFrame.height - crabHeight) / 2,
-                width: 112,
+                width: CrabOverlayLayout.width,
                 height: crabHeight
             )
         case .capsule:
@@ -386,7 +486,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         let renderer = ImageRenderer(
             content: AppOverlayView(style: style, state: state, crabHeight: crabHeight)
-                .frame(width: 112, height: crabHeight)
+                .frame(width: CrabOverlayLayout.width, height: crabHeight)
         )
         renderer.scale = NSScreen.main?.backingScaleFactor ?? 2
 
@@ -431,8 +531,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         let screenFrame = screen.visibleFrame
         let height = currentCrabHeight()
-        let width: CGFloat = 112
-        let x = screenFrame.maxX - width - 12
+        let width = CrabOverlayLayout.width
+        let x = screenFrame.maxX - width
         let y = screenFrame.minY + (screenFrame.height - height) / 2
 
         panel.setFrame(

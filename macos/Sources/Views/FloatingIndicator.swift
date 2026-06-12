@@ -1,10 +1,13 @@
+import AppKit
 import SwiftUI
 
 enum IndicatorState: Equatable, Sendable {
     case idle
+    case armed
     case recording(level: Float)
     case processing
     case done(text: String)
+    case attention(message: String)
 
     var isRecording: Bool {
         if case .recording = self {
@@ -12,6 +15,33 @@ enum IndicatorState: Equatable, Sendable {
         }
         return false
     }
+
+    var showsBoomMic: Bool {
+        switch self {
+        case .armed, .recording:
+            return true
+        case .idle, .processing, .done, .attention:
+            return false
+        }
+    }
+
+    var recordingLevel: Float {
+        if case .recording(let level) = self {
+            return level
+        }
+        return showsBoomMic ? 0.22 : 0
+    }
+
+    var hasAttention: Bool {
+        if case .attention = self {
+            return true
+        }
+        return false
+    }
+}
+
+enum CrabOverlayLayout {
+    static let width: CGFloat = 72
 }
 
 enum OverlayStyle: String, Sendable {
@@ -29,7 +59,7 @@ struct AppOverlayView: View {
         switch style {
         case .crab:
             CrabOverlayView(state: state, height: crabHeight)
-                .frame(width: 112, height: crabHeight)
+                .frame(width: CrabOverlayLayout.width, height: crabHeight)
         case .capsule:
             if state == .idle {
                 EmptyView()
@@ -56,6 +86,16 @@ struct FloatingIndicatorView: View {
                 switch state {
                 case .idle:
                     EmptyView()
+                case .armed:
+                    Circle()
+                        .fill(.red.opacity(0.85))
+                        .frame(width: 10, height: 10)
+                        .scaleEffect(pulse ? 1.18 : 1.0)
+                        .animation(
+                            .easeInOut(duration: 0.55).repeatForever(autoreverses: true),
+                            value: pulse
+                        )
+                        .onAppear { pulse = true }
                 case .recording:
                     Circle()
                         .fill(.red)
@@ -74,6 +114,10 @@ struct FloatingIndicatorView: View {
                     Image(systemName: "checkmark.circle.fill")
                         .foregroundStyle(.green)
                         .font(.system(size: 16))
+                case .attention:
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                        .font(.system(size: 15, weight: .semibold))
                 }
             }
             .frame(width: 18)
@@ -82,6 +126,20 @@ struct FloatingIndicatorView: View {
             switch state {
             case .idle:
                 EmptyView()
+
+            case .armed:
+                HStack(spacing: 4) {
+                    ForEach(0..<5, id: \.self) { i in
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(.red.opacity(0.85))
+                            .frame(width: 4, height: barHeight(for: i, level: 0.22))
+                    }
+                }
+                .frame(height: 24)
+
+                Text("Ready")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(.primary)
 
             case .recording(let level):
                 // Waveform bars
@@ -98,6 +156,16 @@ struct FloatingIndicatorView: View {
                 Text("Listening...")
                     .font(.system(size: 14, weight: .medium))
                     .foregroundStyle(.primary)
+
+            case .attention(let message):
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+                    .font(.system(size: 15, weight: .semibold))
+
+                Text(message)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
 
             case .processing:
                 Text("Transcribing")
@@ -151,133 +219,154 @@ private struct CrabOverlayView: View {
     let state: IndicatorState
     let height: CGFloat
 
-    @State private var walkFrame = false
+    @State private var spriteFrameIndex = 0
     @State private var idleOffset: CGFloat = 0
 
     var body: some View {
-        PixelCrab(isRecording: state.isRecording, walkFrame: walkFrame)
-            .offset(y: state.isRecording ? 0 : idleOffset)
-            .frame(width: 112, height: height, alignment: .center)
-            .task(id: state.isRecording) {
-                await animate(in: height)
-            }
+        ZStack(alignment: .trailing) {
+            SpriteWallCrab(
+                showsBoomMic: state.showsBoomMic,
+                frameIndex: spriteFrameIndex,
+                attentionMessage: attentionMessage
+            )
+            .offset(y: idleOffset)
+        }
+        .frame(width: CrabOverlayLayout.width, height: height, alignment: .trailing)
+        .task(id: state.showsBoomMic || state.isRecording) {
+            await animate(in: height, active: state.showsBoomMic || state.isRecording)
+        }
         .allowsHitTesting(false)
     }
 
-    private func animate(in height: CGFloat) async {
-        if state.isRecording {
-            withAnimation(.easeOut(duration: 0.2)) {
-                idleOffset = 0
-                walkFrame = false
+    private var attentionMessage: String? {
+        if case .attention(let message) = state {
+            return message
+        }
+        return nil
+    }
+
+    private func animate(in height: CGFloat, active: Bool) async {
+        if active {
+            while !Task.isCancelled {
+                spriteFrameIndex += 1
+                try? await Task.sleep(nanoseconds: 150_000_000)
             }
             return
         }
 
-        let maxOffset = max((height - 92) / 2, 18)
+        let maxOffset = max((height - 76) / 2, 18)
+        var crawlDirection: CGFloat = Bool.random() ? -1 : 1
         while !Task.isCancelled {
-            withAnimation(.easeInOut(duration: Double.random(in: 2.8...5.2))) {
-                idleOffset = CGFloat.random(in: -maxOffset...maxOffset)
+            let steps = Int.random(in: 6...10)
+
+            for _ in 0..<steps {
+                if Task.isCancelled { return }
+
+                let nextOffset = idleOffset + crawlDirection * CGFloat.random(in: 4...7)
+                idleOffset = min(max(nextOffset, -maxOffset), maxOffset)
+                spriteFrameIndex += 1
+
+                if abs(idleOffset) >= maxOffset - 2 {
+                    crawlDirection *= -1
+                }
+
+                try? await Task.sleep(nanoseconds: 140_000_000)
             }
-            withAnimation(.linear(duration: 0.18)) {
-                walkFrame.toggle()
+
+            if Bool.random() {
+                crawlDirection *= -1
             }
-            try? await Task.sleep(nanoseconds: UInt64.random(in: 900_000_000...1_600_000_000))
+            try? await Task.sleep(nanoseconds: UInt64.random(in: 650_000_000...1_100_000_000))
         }
     }
 }
 
-private struct PixelCrab: View {
-    let isRecording: Bool
-    let walkFrame: Bool
+private struct SpriteWallCrab: View {
+    let showsBoomMic: Bool
+    let frameIndex: Int
+    let attentionMessage: String?
 
-    private let unit: CGFloat = 4
+    @Environment(\.displayScale) private var displayScale
+    @StateObject private var imageStore = CrabSpriteImageStore()
 
     var body: some View {
-        ZStack(alignment: .topLeading) {
-            bodyPixels
-            legs
-            claws
-            headphones
-            if isRecording {
-                boomMic
+        ZStack(alignment: .topTrailing) {
+            if let image = currentImage {
+                Image(nsImage: image)
+                    .resizable()
+                    .interpolation(.none)
+                    .antialiased(false)
+                    .scaledToFit()
+                    .frame(width: 68, height: 50, alignment: .trailing)
+                    .rotationEffect(.degrees(-90))
+                    .frame(width: 54, height: 76, alignment: .trailing)
             }
-            eyes
+
+            if let attentionMessage {
+                attentionBadge
+                    .help(attentionMessage)
+            }
         }
-        .frame(width: 84, height: 72)
-        .shadow(color: .white.opacity(0.65), radius: 0, x: 1, y: 0)
-        .shadow(color: .white.opacity(0.65), radius: 0, x: -1, y: 0)
-        .shadow(color: .white.opacity(0.65), radius: 0, x: 0, y: 1)
-        .shadow(color: .white.opacity(0.65), radius: 0, x: 0, y: -1)
-        .shadow(color: .black.opacity(0.35), radius: 4, y: 2)
+        .frame(width: 54, height: 76, alignment: .trailing)
+        .offset(x: 12)
+        .shadow(color: .black.opacity(0.22), radius: 1, x: -1 / max(displayScale, 1), y: 1)
     }
 
-    private var bodyPixels: some View {
-        Group {
-            pixel(x: 5, y: 5, w: 9, h: 1, color: .black)
-            pixel(x: 4, y: 6, w: 11, h: 5, color: Color(white: 0.05))
-            pixel(x: 5, y: 11, w: 9, h: 1, color: Color(white: 0.02))
-            pixel(x: 6, y: 7, w: 7, h: 3, color: Color(white: 0.12))
-        }
+    private var attentionBadge: some View {
+        Image(systemName: "exclamationmark.circle.fill")
+            .font(.system(size: 14, weight: .bold))
+            .symbolRenderingMode(.palette)
+            .foregroundStyle(.orange, Color.black.opacity(0.88))
+            .background(Circle().fill(.white.opacity(0.86)).frame(width: 11, height: 11))
+            .offset(x: -2, y: 7)
     }
 
-    private var eyes: some View {
-        Group {
-            pixel(x: 7, y: 4, w: 1, h: 2, color: .white)
-            pixel(x: 11, y: 4, w: 1, h: 2, color: .white)
-            pixel(x: 7, y: 4, w: 1, h: 1, color: .black)
-            pixel(x: 11, y: 4, w: 1, h: 1, color: .black)
+    private var currentImage: NSImage? {
+        let frames = showsBoomMic ? imageStore.boomMicFrames : imageStore.idleFrames
+        guard !frames.isEmpty else { return nil }
+        return frames[abs(frameIndex) % frames.count]
+    }
+}
+
+@MainActor
+private final class CrabSpriteImageStore: ObservableObject {
+    let idleFrames: [NSImage]
+    let boomMicFrames: [NSImage]
+
+    init() {
+        idleFrames = CrabSpriteAssets.idleFrameNames.compactMap(CrabSpriteAssets.image)
+        boomMicFrames = CrabSpriteAssets.boomMicFrameNames.compactMap(CrabSpriteAssets.image)
+    }
+}
+
+private enum CrabSpriteAssets {
+    static let idleFrameNames = pingPongFrameNames(prefix: "idle", count: 4)
+    static let boomMicFrameNames = pingPongFrameNames(prefix: "recording", count: 4)
+
+    static func image(named name: String) -> NSImage? {
+        guard
+            let url = Bundle.main.url(
+                forResource: name,
+                withExtension: "png",
+                subdirectory: "CrabSprites"
+            ),
+            let image = NSImage(contentsOf: url)
+        else {
+            return nil
         }
+
+        image.isTemplate = false
+        return image
     }
 
-    private var headphones: some View {
-        Group {
-            pixel(x: 5, y: 3, w: 9, h: 1, color: Color(white: 0.45))
-            pixel(x: 4, y: 4, w: 2, h: 3, color: Color(white: 0.22))
-            pixel(x: 13, y: 4, w: 2, h: 3, color: Color(white: 0.22))
-            pixel(x: 5, y: 5, w: 1, h: 2, color: Color(red: 0.18, green: 0.30, blue: 0.36))
-            pixel(x: 13, y: 5, w: 1, h: 2, color: Color(red: 0.18, green: 0.30, blue: 0.36))
-        }
+    private static func frameNames(prefix: String, count: Int) -> [String] {
+        (1...count).map { index in "\(prefix)-\(index)" }
     }
 
-    private var claws: some View {
-        Group {
-            pixel(x: 1, y: 6, w: 3, h: 1, color: .black)
-            pixel(x: 0, y: 5, w: 2, h: 1, color: .black)
-            pixel(x: 0, y: 7, w: 2, h: 1, color: .black)
-            pixel(x: 15, y: 6, w: 3, h: 1, color: .black)
-            pixel(x: 17, y: 5, w: 2, h: 1, color: .black)
-            pixel(x: 17, y: 7, w: 2, h: 1, color: .black)
-        }
-    }
-
-    private var legs: some View {
-        let firstLegShift = walkFrame ? 1 : 0
-        let secondLegShift = walkFrame ? 0 : 1
-
-        return Group {
-            pixel(x: 4, y: 12 + firstLegShift, w: 2, h: 1, color: .black)
-            pixel(x: 7, y: 12 + secondLegShift, w: 2, h: 1, color: .black)
-            pixel(x: 10, y: 12 + firstLegShift, w: 2, h: 1, color: .black)
-            pixel(x: 13, y: 12 + secondLegShift, w: 2, h: 1, color: .black)
-            pixel(x: 3, y: 13 + firstLegShift, w: 1, h: 1, color: .black)
-            pixel(x: 15, y: 13 + secondLegShift, w: 1, h: 1, color: .black)
-        }
-    }
-
-    private var boomMic: some View {
-        Group {
-            pixel(x: 14, y: 6, w: 4, h: 1, color: Color(white: 0.55))
-            pixel(x: 18, y: 7, w: 1, h: 2, color: Color(white: 0.55))
-            pixel(x: 18, y: 9, w: 3, h: 1, color: .black)
-            pixel(x: 20, y: 8, w: 1, h: 3, color: .black)
-        }
-    }
-
-    private func pixel(x: Int, y: Int, w: Int, h: Int, color: Color) -> some View {
-        Rectangle()
-            .fill(color)
-            .frame(width: CGFloat(w) * unit, height: CGFloat(h) * unit)
-            .offset(x: CGFloat(x) * unit, y: CGFloat(y) * unit)
+    private static func pingPongFrameNames(prefix: String, count: Int) -> [String] {
+        let forwardFrames = frameNames(prefix: prefix, count: count)
+        let returnFrames = (2..<count).reversed().map { index in "\(prefix)-\(index)" }
+        return forwardFrames + returnFrames
     }
 }
 

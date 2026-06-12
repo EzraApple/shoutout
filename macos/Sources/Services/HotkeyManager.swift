@@ -10,8 +10,11 @@ import Carbon.HIToolbox
 /// Uses a CGEvent tap to intercept Fn before macOS shows the emoji picker.
 @MainActor
 class HotkeyManager {
+    var onRecordArmed: (() -> Void)?
+    var onRecordCancelled: (() -> Void)?
     var onRecordStart: (() -> Void)?
     var onRecordStop: (() -> Void)?
+    var onShortcutUnavailable: ((String) -> Void)?
 
     private var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
@@ -22,8 +25,12 @@ class HotkeyManager {
     /// Saved original Fn key usage type so we can restore on quit
     private var originalFnUsageType: Int?
 
-    func start() {
-        guard AXIsProcessTrusted() else { return }
+    @discardableResult
+    func start() -> Bool {
+        guard AXIsProcessTrusted() else {
+            onShortcutUnavailable?("Accessibility off")
+            return false
+        }
         stop()
 
         // Disable the system Globe key behavior (emoji picker / input switching)
@@ -49,13 +56,15 @@ class HotkeyManager {
                 userInfo: userInfo
             )
         else {
-            return
+            onShortcutUnavailable?("Fn blocked")
+            return false
         }
 
         eventTap = tap
         runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
         CFRunLoopAddSource(CFRunLoopGetMain(), runLoopSource, .commonModes)
         CGEvent.tapEnable(tap: tap, enable: true)
+        return true
     }
 
     func stop() {
@@ -92,8 +101,14 @@ class HotkeyManager {
 
     func cancelRecording() {
         if let state = stateRef as? FnKeyState {
+            state.holdTimer?.cancel()
+            state.doubleTapTimer?.cancel()
             state.phase = .idle
         }
+    }
+
+    func restartAfterEventTapDisabled() {
+        _ = start()
     }
 }
 
@@ -144,7 +159,12 @@ private func fnEventCallback(
 ) -> Unmanaged<CGEvent>? {
     // Re-enable if macOS disabled the tap
     if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
-        // We can't access the tap ref here easily, but it auto-re-enables in practice
+        if let userInfo {
+            let state = Unmanaged<FnKeyState>.fromOpaque(userInfo).takeUnretainedValue()
+            DispatchQueue.main.async {
+                state.manager?.restartAfterEventTapDisabled()
+            }
+        }
         return Unmanaged.passUnretained(event)
     }
 
@@ -194,6 +214,7 @@ private func handleFnStateChange(state: FnKeyState, fnPressed: Bool) {
         if fnPressed {
             state.phase = .fnDownPending
             state.fnDownTime = CFAbsoluteTimeGetCurrent()
+            state.manager?.onRecordArmed?()
 
             // Start hold timer
             state.holdTimer?.cancel()
@@ -214,6 +235,7 @@ private func handleFnStateChange(state: FnKeyState, fnPressed: Bool) {
             state.holdTimer?.cancel()
             state.holdTimer = nil
             state.phase = .waitingForDoubleTap
+            state.manager?.onRecordCancelled?()
 
             // Start double-tap window timer
             state.doubleTapTimer?.cancel()
@@ -221,6 +243,7 @@ private func handleFnStateChange(state: FnKeyState, fnPressed: Bool) {
                 guard let state, state.phase == .waitingForDoubleTap else { return }
                 // Timeout: was just a single tap → do nothing
                 state.phase = .idle
+                state.manager?.onRecordCancelled?()
             }
             state.doubleTapTimer = dtWork
             DispatchQueue.main.asyncAfter(

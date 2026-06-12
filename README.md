@@ -1,5 +1,9 @@
 # Shout Out
 
+<p align="center">
+  <img src="docs/assets/shout-out-icon.png" alt="Shout Out app icon: a black crab mascot wearing headphones and a boom microphone" width="180">
+</p>
+
 Local-first macOS dictation. Hold Fn, speak, release, and Shout Out pastes cleaned-up text into the app you were already using.
 
 Shout Out is built for the narrow Wispr Flow loop: global Fn/Globe capture, microphone recording, on-device WhisperKit transcription, dictionary-aware cleanup, focused-app paste, and lightweight WPM stats.

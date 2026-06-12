@@ -81,6 +81,11 @@ else
     echo -e "${YELLOW}Warning: AppIcon.icns not found. Using default icon.${NC}"
 fi
 
+if [ -d "Resources/CrabSprites" ]; then
+    echo -e "${BLUE}Copying crab sprite frames...${NC}"
+    cp -R "Resources/CrabSprites" "$APP_BUNDLE/Contents/Resources/"
+fi
+
 # Set executable permissions
 chmod +x "$APP_BUNDLE/Contents/MacOS/$EXECUTABLE_NAME"
 
