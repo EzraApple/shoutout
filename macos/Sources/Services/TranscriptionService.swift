@@ -119,7 +119,7 @@ class TranscriptionService: ObservableObject {
         }
     }
 
-    func transcribe(audioSamples: [Float]) async throws -> TranscriptionResult {
+    func transcribe(audioSamples: [Float]) async throws -> DictationResult {
         // Wait for model if it's still downloading/loading
         try await waitUntilReady()
 
@@ -153,7 +153,7 @@ class TranscriptionService: ObservableObject {
             options: postProcessingOptions,
             dictionaryEntries: dictionaryStore.entries
         )
-        return TranscriptionResult(rawText: rawText, finalText: finalText)
+        return DictationResult(rawText: rawText, finalText: finalText)
     }
 }
 

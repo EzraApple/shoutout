@@ -459,43 +459,32 @@ private struct OnboardingPillButton: View {
     }
 
     var body: some View {
-        if #available(macOS 26.0, *) {
-            Button(action: action) {
-                Text(title)
-                    .font(.system(size: 14, weight: .semibold))
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 44)
-            }
-            .buttonStyle(.glass)
-            .buttonBorderShape(.capsule)
-        } else {
-            Button(action: action) {
-                Text(title)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .frame(height: 44)
-                    .frame(maxWidth: .infinity)
-                    .background(
-                        Capsule(style: .continuous)
-                            .fill(Color.white.opacity(0.08))
-                            .overlay(
-                                Capsule(style: .continuous)
-                                    .strokeBorder(
-                                        LinearGradient(
-                                            colors: [
-                                                Color.white.opacity(0.2),
-                                                Color.white.opacity(0.05),
-                                            ],
-                                            startPoint: .topLeading,
-                                            endPoint: .bottomTrailing
-                                        ),
-                                        lineWidth: 1
-                                    )
-                            )
-                    )
-            }
-            .buttonStyle(.plain)
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(height: 44)
+                .frame(maxWidth: .infinity)
+                .background(
+                    Capsule(style: .continuous)
+                        .fill(Color.white.opacity(0.08))
+                        .overlay(
+                            Capsule(style: .continuous)
+                                .strokeBorder(
+                                    LinearGradient(
+                                        colors: [
+                                            Color.white.opacity(0.2),
+                                            Color.white.opacity(0.05),
+                                        ],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    ),
+                                    lineWidth: 1
+                                )
+                        )
+                )
         }
+        .buttonStyle(.plain)
     }
 }
 
@@ -609,12 +598,8 @@ private struct OnboardingSummaryRow: View {
 extension View {
     @ViewBuilder
     func glassed<S: InsettableShape>(in shape: S) -> some View {
-        if #available(macOS 26.0, *) {
-            self.glassEffect(.regular, in: shape)
-        } else {
-            self
-                .background(shape.fill(Color.white.opacity(0.05)))
-                .overlay(shape.strokeBorder(Color.white.opacity(0.1), lineWidth: 1))
-        }
+        self
+            .background(shape.fill(Color.white.opacity(0.05)))
+            .overlay(shape.strokeBorder(Color.white.opacity(0.1), lineWidth: 1))
     }
 }

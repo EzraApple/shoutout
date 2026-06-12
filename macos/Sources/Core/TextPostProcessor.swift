@@ -18,7 +18,7 @@ public struct TextPostProcessingOptions: Equatable, Sendable {
     public static let `default` = TextPostProcessingOptions()
 }
 
-public struct TranscriptionResult: Equatable, Sendable {
+public struct DictationResult: Equatable, Sendable {
     public var rawText: String
     public var finalText: String
 

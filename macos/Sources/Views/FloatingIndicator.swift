@@ -108,16 +108,11 @@ struct FloatingIndicatorView: View {
 
 private struct GlassCapsuleModifier: ViewModifier {
     func body(content: Content) -> some View {
-        if #available(macOS 26.0, *) {
-            content
-                .glassEffect(.regular.tint(.blue.opacity(0.15)), in: .capsule)
-        } else {
-            content
-                .background {
-                    Capsule()
-                        .fill(.ultraThinMaterial)
-                        .shadow(color: .black.opacity(0.25), radius: 12, y: 4)
-                }
-        }
+        content
+            .background {
+                Capsule()
+                    .fill(.ultraThinMaterial)
+                    .shadow(color: .black.opacity(0.25), radius: 12, y: 4)
+            }
     }
 }
