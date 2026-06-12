@@ -214,8 +214,13 @@ private struct CrabOverlayView: View {
     }
 
     private func animateIdleCrawl() async {
-        if state.showsBoomMic || reduceMotion {
+        if reduceMotion {
             idleOffset = 0
+            spriteFrameIndex = 0
+            return
+        }
+
+        if state.showsBoomMic {
             spriteFrameIndex = 0
             return
         }
@@ -279,6 +284,7 @@ private struct SpriteWallCrab: View {
                     .antialiased(false)
                     .scaledToFit()
                     .frame(width: 54, height: 76, alignment: .trailing)
+                    .scaleEffect(boomScale, anchor: .trailing)
             }
 
             if let attentionMessage {
@@ -328,6 +334,10 @@ private struct SpriteWallCrab: View {
             return frames[0]
         }
         return frames[abs(frameIndex) % frames.count]
+    }
+
+    private var boomScale: CGFloat {
+        showsBoomMic ? 1.15 : 1
     }
 }
 
