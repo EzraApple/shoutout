@@ -53,9 +53,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             "removeFillerWords": true,
         ])
 
+        let overlayPreviewState = requestedOverlayPreviewState()
+
         setupMainMenu()
         setupMenuBar()
-        setupHotkey()
+        if overlayPreviewState == nil {
+            setupHotkey()
+        }
 
         if UserDefaults.standard.bool(forKey: Defaults.showInDock) {
             NSApp.setActivationPolicy(.regular)
@@ -80,16 +84,22 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         )
 
         // Check onboarding
-        if !UserDefaults.standard.bool(forKey: "hasCompletedOnboarding") {
+        if overlayPreviewState == nil
+            && !UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
+        {
             showOnboarding()
         }
 
-        // Load model in background (recording is allowed even before it's ready)
-        Task {
-            await transcriptionService.loadModel()
+        if overlayPreviewState == nil {
+            // Load model in background (recording is allowed even before it's ready)
+            Task {
+                await transcriptionService.loadModel()
+            }
         }
 
-        showIndicator(state: .idle)
+        Task { @MainActor in
+            showIndicator(state: overlayPreviewState ?? .idle)
+        }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -228,8 +238,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             panel.isOpaque = false
             panel.backgroundColor = .clear
             panel.hasShadow = false
-            panel.level = .floating
-            panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+            panel.level = .statusBar
+            panel.collectionBehavior = [
+                .canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle, .stationary,
+            ]
+            panel.hidesOnDeactivate = false
+            panel.isReleasedWhenClosed = false
             panel.ignoresMouseEvents = true
 
             let hostingView = NSHostingView(
@@ -290,6 +304,25 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var currentOverlayStyle: OverlayStyle {
         OverlayStyle(rawValue: UserDefaults.standard.string(forKey: Defaults.overlayStyle) ?? "")
             ?? .crab
+    }
+
+    private func requestedOverlayPreviewState() -> IndicatorState? {
+        guard let rawState = ProcessInfo.processInfo.environment["SHOUTOUT_OVERLAY_PREVIEW"] else {
+            return nil
+        }
+
+        switch rawState.lowercased() {
+        case "idle":
+            return .idle
+        case "recording":
+            return .recording(level: 0.75)
+        case "processing":
+            return .processing
+        case "done":
+            return .done(text: "Yuxin")
+        default:
+            return nil
+        }
     }
 
     private func currentCrabHeight() -> CGFloat {

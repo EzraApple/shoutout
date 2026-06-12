@@ -1,6 +1,6 @@
 import SwiftUI
 
-enum IndicatorState: Equatable {
+enum IndicatorState: Equatable, Sendable {
     case idle
     case recording(level: Float)
     case processing
@@ -14,7 +14,7 @@ enum IndicatorState: Equatable {
     }
 }
 
-enum OverlayStyle: String {
+enum OverlayStyle: String, Sendable {
     case crab
     case capsule
     case off
