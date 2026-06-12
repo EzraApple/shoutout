@@ -93,6 +93,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 RuntimeLog.write("permissions changed; retrying hotkey setup")
                 self?.setupHotkey()
                 self?.refreshOverlay()
+                self?.continuePermissionSetupIfRequested()
             }
         }
 
@@ -121,9 +122,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         {
             Task { @MainActor in
                 RuntimeLog.write("permissions diagnostic request-on-launch start")
-                permissions.requestAccessibility()
-                permissions.requestInputMonitoring()
-                _ = await permissions.requestMicrophone()
+                permissions.openFirstMissingPermissionPane()
             }
         }
 
@@ -189,6 +188,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         } else {
             RuntimeLog.write("hotkey setup failed")
         }
+    }
+
+    private func continuePermissionSetupIfRequested() {
+        guard UserDefaults.standard.bool(forKey: Defaults.requestPermissionsOnLaunch) else {
+            return
+        }
+        guard !permissions.missingPermissionNames.isEmpty else {
+            UserDefaults.standard.set(false, forKey: Defaults.requestPermissionsOnLaunch)
+            RuntimeLog.write("permissions diagnostic request-on-launch complete")
+            return
+        }
+        permissions.openFirstMissingPermissionPane()
     }
 
     // MARK: - Recording Flow

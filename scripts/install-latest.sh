@@ -25,6 +25,11 @@ install_bundle() {
             --entitlements "${REPO_ROOT}/macos/Resources/ShoutOut.entitlements" \
             --options runtime \
             "$app_bundle"
+    else
+        codesign --force --deep --sign - \
+            --entitlements "${REPO_ROOT}/macos/Resources/ShoutOut.entitlements" \
+            --requirements "=designated => identifier \"${BUNDLE_ID}\"" \
+            "$app_bundle"
     fi
 
     pkill -x ShoutOut >/dev/null 2>&1 || true

@@ -34,6 +34,8 @@ make install
 
 `make install` downloads the latest green macOS build, copies `Shout Out.app` into `~/Applications`, enables first-run permission prompts, and opens the app. If the GitHub artifact download is unavailable, it falls back to a local build, which requires Xcode 16 or a working Swift 6 Command Line Tools install.
 
+The local installer re-signs the app with a stable local signature before opening it, so macOS can keep Accessibility and Input Monitoring permissions across rebuilds.
+
 To force a local build:
 
 ```bash
@@ -47,6 +49,13 @@ On first launch, grant:
 - Input Monitoring, so it can detect Fn/Globe while another app is focused.
 
 If macOS does not show a prompt, open System Settings → Privacy & Security and enable Shout Out under those three sections.
+
+If Accessibility or Input Monitoring looks checked but Shout Out still says it is missing, clear the stale macOS privacy rows once and reopen the app:
+
+```bash
+make reset-permissions
+make install
+```
 
 ## Usage
 

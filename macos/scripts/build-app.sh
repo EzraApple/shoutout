@@ -164,7 +164,10 @@ if [ ! -z "$CODE_SIGN_IDENTITY" ]; then
 else
     # Ad-hoc sign for local use
     echo -e "${YELLOW}No CODE_SIGN_IDENTITY set. Ad-hoc signing for local use...${NC}"
-    codesign --force --deep --sign - "$APP_BUNDLE"
+    codesign --force --deep --sign - \
+        --entitlements "Resources/ShoutOut.entitlements" \
+        --requirements "=designated => identifier \"$BUNDLE_ID\"" \
+        "$APP_BUNDLE"
     echo -e "${GREEN}Ad-hoc signing complete!${NC}"
     echo -e "${YELLOW}Note: Users will see a Gatekeeper warning on first launch.${NC}"
 fi
