@@ -227,10 +227,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         let crabHeight = currentCrabHeight()
+        let initialFrame = initialIndicatorFrame(style: overlayStyle, crabHeight: crabHeight)
+        writeOverlayPreviewLog(
+            "showIndicator style=\(overlayStyle.rawValue) state=\(state) frame=\(NSStringFromRect(initialFrame))"
+        )
 
         if indicatorPanel == nil {
             let panel = NSPanel(
-                contentRect: .zero,
+                contentRect: initialFrame,
                 styleMask: [.borderless, .nonactivatingPanel],
                 backing: .buffered,
                 defer: false
@@ -255,6 +259,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             )
             hostingView.sizingOptions = .intrinsicContentSize
             hostingView.autoresizingMask = [.width, .height]
+            hostingView.frame = NSRect(origin: .zero, size: initialFrame.size)
+            hostingView.wantsLayer = true
             panel.contentView = hostingView
 
             indicatorPanel = panel
@@ -270,6 +276,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         positionIndicator(style: overlayStyle)
         resizeIndicatorContent()
         indicatorPanel?.orderFrontRegardless()
+        writeOverlayPreviewLog(
+            "ordered frame=\(NSStringFromRect(indicatorPanel?.frame ?? .zero)) visible=\(indicatorPanel?.isVisible ?? false)"
+        )
     }
 
     private func updateIndicator(state: IndicatorState) {
@@ -324,6 +333,44 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             return .done(text: "Yuxin")
         default:
             return nil
+        }
+    }
+
+    private func initialIndicatorFrame(style: OverlayStyle, crabHeight: CGFloat) -> NSRect {
+        switch style {
+        case .crab:
+            guard let screen = NSScreen.main else {
+                return NSRect(x: 0, y: 0, width: 112, height: crabHeight)
+            }
+
+            let screenFrame = screen.visibleFrame
+            return NSRect(
+                x: screenFrame.maxX - 124,
+                y: screenFrame.minY + (screenFrame.height - crabHeight) / 2,
+                width: 112,
+                height: crabHeight
+            )
+        case .capsule:
+            return NSRect(x: 0, y: 0, width: 360, height: 64)
+        case .off:
+            return NSRect(x: 0, y: 0, width: 1, height: 1)
+        }
+    }
+
+    private func writeOverlayPreviewLog(_ message: String) {
+        guard ProcessInfo.processInfo.environment["SHOUTOUT_OVERLAY_PREVIEW"] != nil else { return }
+
+        let url = URL(fileURLWithPath: "/tmp/shoutout-overlay-preview.log")
+        guard let data = "\(Date()) \(message)\n".data(using: .utf8) else { return }
+
+        if FileManager.default.fileExists(atPath: url.path),
+            let handle = try? FileHandle(forWritingTo: url)
+        {
+            handle.seekToEndOfFile()
+            handle.write(data)
+            try? handle.close()
+        } else {
+            try? data.write(to: url)
         }
     }
 
