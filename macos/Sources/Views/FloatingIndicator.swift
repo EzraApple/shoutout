@@ -306,6 +306,7 @@ private struct SpriteWallCrab: View {
             }
         }
         .frame(width: 54, height: 76, alignment: .trailing)
+        .offset(x: showsBoomMic ? 2 : 0)
         .shadow(color: .black.opacity(0.22), radius: 1, x: -1 / max(displayScale, 1), y: 1)
     }
 
