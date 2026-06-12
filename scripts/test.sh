@@ -70,6 +70,8 @@ assert_contains "README documents Accessibility" "$REPO_ROOT/README.md" "Accessi
 assert_contains "README documents Input Monitoring" "$REPO_ROOT/README.md" "Input Monitoring"
 assert_contains "README documents Yuxin dictionary example" "$REPO_ROOT/README.md" "Yuxin"
 assert_contains "Makefile has install target" "$REPO_ROOT/Makefile" "^install:"
+assert_contains "Makefile has local install target" "$REPO_ROOT/Makefile" "^install-local:"
+assert_contains "Install script downloads CI artifact" "$REPO_ROOT/scripts/install-latest.sh" "gh run download"
 assert_contains "Package name is ShoutOut" "$MACOS_DIR/Package.swift" 'name: "ShoutOut"'
 assert_contains "Executable target is ShoutOut" "$MACOS_DIR/Package.swift" 'name: "ShoutOut"'
 assert_contains "Library target is ShoutOutCore" "$MACOS_DIR/Package.swift" 'name: "ShoutOutCore"'
@@ -89,7 +91,7 @@ assert_contains "Transcription returns result shape" "$MACOS_DIR/Sources/Service
 assert_contains "Settings expose dictionary" "$MACOS_DIR/Sources/Views/SettingsView.swift" "Dictionary"
 assert_contains "Settings expose insights" "$MACOS_DIR/Sources/Views/SettingsView.swift" "Insights"
 assert_contains "Settings expose audio ducking" "$MACOS_DIR/Sources/Views/SettingsView.swift" "Dim system audio"
-assert_contains "Settings expose overlay picker" "$MACOS_DIR/Sources/Views/SettingsView.swift" "Overlay"
+assert_contains "Settings expose indicator picker" "$MACOS_DIR/Sources/Views/SettingsView.swift" "Indicator"
 assert_contains "Permission manager checks input monitoring" "$MACOS_DIR/Sources/Services/PermissionManager.swift" "CGPreflightListenEventAccess"
 assert_contains "App delegate records usage stats" "$MACOS_DIR/Sources/AppDelegate.swift" "usageStats"
 assert_contains "App delegate ducks audio" "$MACOS_DIR/Sources/AppDelegate.swift" "audioDucker"
@@ -101,6 +103,7 @@ assert_contains "App delegate logs preview overlay visibility" "$MACOS_DIR/Sourc
 assert_contains "App delegate can snapshot overlay previews" "$MACOS_DIR/Sources/AppDelegate.swift" "SHOUTOUT_OVERLAY_SNAPSHOT_PATH"
 assert_contains "Crab overlay has boom mic" "$MACOS_DIR/Sources/Views/FloatingIndicator.swift" "boomMic"
 assert_contains "Crab overlay shows processing badge" "$MACOS_DIR/Sources/Views/FloatingIndicator.swift" "processingBadge"
+assert_contains "Classic overlay has compact layout" "$MACOS_DIR/Sources/Views/FloatingIndicator.swift" "ClassicOverlayLayout"
 assert_contains "Crab overlay has visible dark-surface halo" "$MACOS_DIR/Sources/Views/FloatingIndicator.swift" "white.opacity"
 
 if [[ "${SKIP_SWIFTPM:-false}" == "true" ]]; then

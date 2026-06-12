@@ -35,6 +35,17 @@ struct SettingsView: View {
                         .font(.caption)
                         .foregroundStyle(.tertiary)
                 }
+
+                Picker(selection: $overlayStyle) {
+                    Text("Crab").tag(OverlayStyle.crab.rawValue)
+                    Text("Classic").tag(OverlayStyle.capsule.rawValue)
+                    Text("Off").tag(OverlayStyle.off.rawValue)
+                } label: {
+                    Label("Indicator", systemImage: "macwindow.on.rectangle")
+                }
+                .onChange(of: overlayStyle) { _, _ in
+                    (NSApp.delegate as? AppDelegate)?.refreshOverlay()
+                }
             } header: {
                 Text("Input")
             }
@@ -135,17 +146,6 @@ struct SettingsView: View {
 
                 Toggle(isOn: $dimSystemAudio) {
                     Label("Dim system audio while recording", systemImage: "speaker.wave.1")
-                }
-
-                Picker(selection: $overlayStyle) {
-                    Text("Crab").tag(OverlayStyle.crab.rawValue)
-                    Text("Classic").tag(OverlayStyle.capsule.rawValue)
-                    Text("Off").tag(OverlayStyle.off.rawValue)
-                } label: {
-                    Label("Overlay", systemImage: "macwindow.on.rectangle")
-                }
-                .onChange(of: overlayStyle) { _, _ in
-                    (NSApp.delegate as? AppDelegate)?.refreshOverlay()
                 }
             } header: {
                 Text("General")

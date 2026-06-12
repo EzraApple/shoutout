@@ -24,7 +24,7 @@ flowchart LR
 
 ## Install
 
-Prerequisite: Xcode 16 or a working Swift 6 Command Line Tools install.
+Prerequisite for the easiest path: GitHub CLI (`gh`) authenticated on your machine.
 
 ```bash
 git clone git@github.com:EzraApple/shout-out.git
@@ -32,7 +32,13 @@ cd shout-out
 make install
 ```
 
-`make install` builds `Shout Out.app`, copies it into `~/Applications`, and opens it.
+`make install` downloads the latest green macOS build, copies `Shout Out.app` into `~/Applications`, enables first-run permission prompts, and opens the app. If the GitHub artifact download is unavailable, it falls back to a local build, which requires Xcode 16 or a working Swift 6 Command Line Tools install.
+
+To force a local build:
+
+```bash
+make install-local
+```
 
 On first launch, grant:
 

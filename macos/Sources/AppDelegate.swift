@@ -517,7 +517,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 height: crabHeight
             )
         case .capsule:
-            return NSRect(x: 0, y: 0, width: 360, height: 64)
+            return NSRect(
+                x: 0,
+                y: 0,
+                width: ClassicOverlayLayout.size.width,
+                height: ClassicOverlayLayout.size.height
+            )
         case .off:
             return NSRect(x: 0, y: 0, width: 1, height: 1)
         }
@@ -549,9 +554,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             let path = ProcessInfo.processInfo.environment["SHOUTOUT_OVERLAY_SNAPSHOT_PATH"]
         else { return }
 
+        let snapshotSize = overlaySnapshotSize(style: style, crabHeight: crabHeight)
         let renderer = ImageRenderer(
             content: AppOverlayView(style: style, state: state, crabHeight: crabHeight)
-                .frame(width: CrabOverlayLayout.width, height: crabHeight)
+                .frame(width: snapshotSize.width, height: snapshotSize.height)
         )
         renderer.scale = NSScreen.main?.backingScaleFactor ?? 2
 
@@ -570,6 +576,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             writeOverlayPreviewLog("wrote overlay snapshot path=\(path)")
         } catch {
             writeOverlayPreviewLog("failed to write overlay snapshot path=\(path) error=\(error)")
+        }
+    }
+
+    private func overlaySnapshotSize(style: OverlayStyle, crabHeight: CGFloat) -> CGSize {
+        switch style {
+        case .crab:
+            return CGSize(width: CrabOverlayLayout.width, height: crabHeight)
+        case .capsule:
+            return ClassicOverlayLayout.size
+        case .off:
+            return CGSize(width: 1, height: 1)
         }
     }
 
