@@ -23,10 +23,6 @@ let package = Package(
             ],
             path: "Sources",
             exclude: ["Core"],
-            resources: [
-                .copy("Resources/MenuBarIcon.png"),
-                .copy("Resources/MenuBarIcon@2x.png"),
-            ],
             swiftSettings: [
                 .define("DEBUG", .when(configuration: .debug)),
             ]

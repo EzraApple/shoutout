@@ -350,15 +350,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private func menuBarImage(for state: AppState) -> NSImage? {
         switch state {
         case .idle:
-            // Custom waveform icon from SPM resource bundle
-            if let url = Bundle.module.url(forResource: "MenuBarIcon", withExtension: "png"),
-                let image = NSImage(contentsOf: url)
-            {
-                image.isTemplate = true
-                image.size = NSSize(width: 18, height: 18)
-                return image
-            }
-            // Fallback to SF Symbol
             let image = NSImage(
                 systemSymbolName: "waveform", accessibilityDescription: "Shout Out")
             image?.isTemplate = true
