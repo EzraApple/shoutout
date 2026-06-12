@@ -99,6 +99,8 @@ assert_contains "Settings expose indicator picker" "$MACOS_DIR/Sources/Views/Set
 assert_contains "Permission manager checks input monitoring" "$MACOS_DIR/Sources/Services/PermissionManager.swift" "CGPreflightListenEventAccess"
 assert_contains "App delegate requests permissions sequentially" "$MACOS_DIR/Sources/AppDelegate.swift" "continuePermissionSetupIfRequested"
 assert_contains "Audio recorder allows fast snippets" "$MACOS_DIR/Sources/Services/AudioRecorder.swift" "minimumSamples = 3200"
+assert_contains "Audio recorder logs input format" "$MACOS_DIR/Sources/Services/AudioRecorder.swift" "record input format"
+assert_contains "Audio converter provides each tap buffer once" "$MACOS_DIR/Sources/Services/AudioRecorder.swift" "didProvideInput"
 assert_contains "Audio signal analysis gates silence" "$MACOS_DIR/Sources/Core/AudioSignalAnalysis.swift" "hasSpeechLikeAudio"
 assert_contains "App delegate blocks silent recordings" "$MACOS_DIR/Sources/AppDelegate.swift" "record stopped silent"
 assert_contains "App delegate queues transcription jobs" "$MACOS_DIR/Sources/AppDelegate.swift" "transcriptionQueueTail"

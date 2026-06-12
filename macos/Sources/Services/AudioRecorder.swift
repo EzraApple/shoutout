@@ -49,6 +49,7 @@ class AudioRecorder: ObservableObject {
         let engine = AVAudioEngine()
         let inputNode = engine.inputNode
         let inputFormat = inputNode.outputFormat(forBus: 0)
+        RuntimeLog.write("record input format=\(inputFormat)")
 
         guard
             let targetFormat = AVAudioFormat(
@@ -76,6 +77,7 @@ class AudioRecorder: ObservableObject {
             collector: collector
         )
 
+        engine.prepare()
         try engine.start()
         audioEngine = engine
         isRecording = true
@@ -122,7 +124,7 @@ class AudioRecorder: ObservableObject {
             buffer, _ in
 
             let frameCount = AVAudioFrameCount(
-                Double(buffer.frameLength) * sampleRate / inputFormat.sampleRate
+                ceil(Double(buffer.frameLength) * sampleRate / inputFormat.sampleRate)
             )
             guard frameCount > 0 else { return }
 
@@ -132,8 +134,15 @@ class AudioRecorder: ObservableObject {
             else { return }
 
             var error: NSError?
+            var didProvideInput = false
             let status = converter.convert(to: convertedBuffer, error: &error) {
                 _, outStatus in
+                guard !didProvideInput else {
+                    outStatus.pointee = .noDataNow
+                    return nil
+                }
+
+                didProvideInput = true
                 outStatus.pointee = .haveData
                 return buffer
             }
