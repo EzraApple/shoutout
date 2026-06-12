@@ -34,7 +34,9 @@ install_bundle() {
     xattr -dr com.apple.quarantine "$INSTALL_PATH" >/dev/null 2>&1 || true
 
     defaults write "$BUNDLE_ID" requestPermissionsOnLaunch -bool true
-    open "$INSTALL_PATH"
+    if ! open -n "$INSTALL_PATH"; then
+        "${INSTALL_PATH}/Contents/MacOS/ShoutOut" >/dev/null 2>&1 &
+    fi
 }
 
 download_latest_artifact() {
