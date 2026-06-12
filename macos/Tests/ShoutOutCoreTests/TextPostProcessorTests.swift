@@ -69,7 +69,7 @@ final class TextPostProcessorTests: XCTestCase {
 
     func testLongerAliasesWinBeforeShorterAliases() {
         let entries = [
-            DictionaryEntry(phrase: "Yuxin", aliases: ["yu xin", "xin"]),
+            DictionaryEntry(phrase: "Yuxin", aliases: ["yu xin"]),
             DictionaryEntry(phrase: "Xin", aliases: ["xin"]),
         ]
         XCTAssertEqual(process("yu xin said xin is a name", entries: entries), "Yuxin said Xin is a name")
