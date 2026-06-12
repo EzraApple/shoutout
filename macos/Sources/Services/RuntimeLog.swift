@@ -1,0 +1,40 @@
+import Foundation
+
+enum RuntimeLog {
+    private static let lock = NSLock()
+
+    static let logURL: URL = {
+        let library = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask).first!
+        return library
+            .appendingPathComponent("Logs")
+            .appendingPathComponent("ShoutOut")
+            .appendingPathComponent("runtime.log")
+    }()
+
+    static func write(_ message: String) {
+        let line = "\(Date()) \(message)\n"
+        print(line, terminator: "")
+
+        lock.lock()
+        defer { lock.unlock() }
+
+        do {
+            try FileManager.default.createDirectory(
+                at: logURL.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+            if FileManager.default.fileExists(atPath: logURL.path) {
+                let handle = try FileHandle(forWritingTo: logURL)
+                try handle.seekToEnd()
+                if let data = line.data(using: .utf8) {
+                    try handle.write(contentsOf: data)
+                }
+                try handle.close()
+            } else {
+                try line.write(to: logURL, atomically: true, encoding: .utf8)
+            }
+        } catch {
+            print("RuntimeLog failed: \(error)")
+        }
+    }
+}

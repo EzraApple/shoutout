@@ -18,9 +18,13 @@ class PermissionManager: ObservableObject {
         hasAccessibility = AXIsProcessTrusted()
         hasInputMonitoring = CGPreflightListenEventAccess()
         hasMicrophone = AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
+        RuntimeLog.write(
+            "permissions refresh accessibility=\(hasAccessibility) inputMonitoring=\(hasInputMonitoring) microphone=\(hasMicrophone)"
+        )
     }
 
     nonisolated func requestAccessibility() {
+        RuntimeLog.write("permissions request accessibility")
         let options = [
             "AXTrustedCheckOptionPrompt": true
         ] as CFDictionary
@@ -29,12 +33,16 @@ class PermissionManager: ObservableObject {
     }
 
     func requestMicrophone() async -> Bool {
+        RuntimeLog.write("permissions request microphone")
         let granted = await AVCaptureDevice.requestAccess(for: .audio)
         hasMicrophone = granted
+        RuntimeLog.write("permissions microphone result granted=\(granted)")
         return granted
     }
 
     func requestInputMonitoring() {
+        RuntimeLog.write("permissions request inputMonitoring")
         hasInputMonitoring = CGRequestListenEventAccess()
+        RuntimeLog.write("permissions inputMonitoring result granted=\(hasInputMonitoring)")
     }
 }

@@ -28,6 +28,7 @@ class HotkeyManager {
     @discardableResult
     func start() -> Bool {
         guard AXIsProcessTrusted() else {
+            RuntimeLog.write("hotkey start blocked accessibility=false")
             onShortcutUnavailable?("Accessibility off")
             return false
         }
@@ -43,8 +44,10 @@ class HotkeyManager {
 
         let userInfo = Unmanaged.passUnretained(state).toOpaque()
 
-        // Listen for flagsChanged events (modifier key presses, which includes Fn)
-        let eventMask: CGEventMask = 1 << CGEventType.flagsChanged.rawValue
+        let eventMask: CGEventMask =
+            (1 << CGEventType.flagsChanged.rawValue)
+            | (1 << CGEventType.keyDown.rawValue)
+            | (1 << CGEventType.keyUp.rawValue)
 
         guard
             let tap = CGEvent.tapCreate(
@@ -56,6 +59,7 @@ class HotkeyManager {
                 userInfo: userInfo
             )
         else {
+            RuntimeLog.write("hotkey start failed tapCreate")
             onShortcutUnavailable?("Fn blocked")
             return false
         }
@@ -64,6 +68,7 @@ class HotkeyManager {
         runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
         CFRunLoopAddSource(CFRunLoopGetMain(), runLoopSource, .commonModes)
         CGEvent.tapEnable(tap: tap, enable: true)
+        RuntimeLog.write("hotkey start success eventMask=\(eventMask)")
         return true
     }
 
@@ -71,6 +76,7 @@ class HotkeyManager {
         if let tap = eventTap {
             CGEvent.tapEnable(tap: tap, enable: false)
             CFMachPortInvalidate(tap)
+            RuntimeLog.write("hotkey stop")
         }
         if let source = runLoopSource {
             CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes)
@@ -89,6 +95,7 @@ class HotkeyManager {
         let defaults = UserDefaults(suiteName: "com.apple.HIToolbox")
         originalFnUsageType = defaults?.integer(forKey: "AppleFnUsageType")
         defaults?.set(0, forKey: "AppleFnUsageType")
+        RuntimeLog.write("hotkey disabled system Fn original=\(originalFnUsageType ?? -1)")
     }
 
     /// Restore the user's original Globe key behavior
@@ -97,6 +104,7 @@ class HotkeyManager {
         let defaults = UserDefaults(suiteName: "com.apple.HIToolbox")
         defaults?.set(original, forKey: "AppleFnUsageType")
         originalFnUsageType = nil
+        RuntimeLog.write("hotkey restored system Fn original=\(original)")
     }
 
     func cancelRecording() {
@@ -108,6 +116,7 @@ class HotkeyManager {
     }
 
     func restartAfterEventTapDisabled() {
+        RuntimeLog.write("hotkey restarting after event tap disabled")
         _ = start()
     }
 }
@@ -159,6 +168,7 @@ private func fnEventCallback(
 ) -> Unmanaged<CGEvent>? {
     // Re-enable if macOS disabled the tap
     if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+        RuntimeLog.write("hotkey event tap disabled type=\(type.rawValue)")
         if let userInfo {
             let state = Unmanaged<FnKeyState>.fromOpaque(userInfo).takeUnretainedValue()
             DispatchQueue.main.async {
@@ -168,16 +178,31 @@ private func fnEventCallback(
         return Unmanaged.passUnretained(event)
     }
 
-    guard type == .flagsChanged, let userInfo else {
+    guard
+        type == .flagsChanged || type == .keyDown || type == .keyUp,
+        let userInfo
+    else {
         return Unmanaged.passUnretained(event)
     }
 
     let state = Unmanaged<FnKeyState>.fromOpaque(userInfo).takeUnretainedValue()
 
-    // Check if the Fn (Globe / SecondaryFn) flag changed
-    // NX_SECONDARYFN = 0x800000 in IOKit
+    let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
+    let isFunctionKeyCode = keyCode == Int64(kVK_Function)
     let fnFlag: UInt64 = 0x800000
-    let fnIsDown = (event.flags.rawValue & fnFlag) != 0
+    let flagsContainFn = (event.flags.rawValue & fnFlag) != 0
+    let fnIsDown: Bool
+    let detection: String
+
+    if isFunctionKeyCode && (type == .keyDown || type == .keyUp) {
+        fnIsDown = type == .keyDown
+        detection = "keyCode"
+    } else if type == .flagsChanged {
+        fnIsDown = flagsContainFn
+        detection = "flags"
+    } else {
+        return Unmanaged.passUnretained(event)
+    }
 
     // Only act on events where the Fn flag actually toggled.
     // flagsChanged fires for ALL modifier changes (Shift, Cmd, etc.).
@@ -189,6 +214,10 @@ private func fnEventCallback(
     if !fnChanged {
         return Unmanaged.passUnretained(event)
     }
+
+    RuntimeLog.write(
+        "hotkey fnChanged detection=\(detection) pressed=\(fnIsDown) type=\(type.rawValue) keyCode=\(keyCode) flags=\(event.flags.rawValue)"
+    )
 
     // Fn flag changed — ignore if other modifiers are also held (Cmd, Opt, Shift, Ctrl)
     let otherModifiers: CGEventFlags = [.maskCommand, .maskAlternate, .maskShift, .maskControl]

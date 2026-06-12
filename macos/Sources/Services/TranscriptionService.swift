@@ -49,6 +49,7 @@ class TranscriptionService: ObservableObject {
         guard modelState != .loading else { return }
         if case .downloading = modelState { return }
 
+        RuntimeLog.write("model load start selected=\(selectedModel)")
         modelState = .downloading(progress: 0)
         whisperKit = nil
 
@@ -69,6 +70,7 @@ class TranscriptionService: ObservableObject {
                 downloadBase: Self.modelsDirectory,
                 progressCallback: progressCallback
             )
+            RuntimeLog.write("model downloaded selected=\(selectedModel) path=\(modelFolder.path)")
 
             // Step 2: Load from downloaded folder
             modelState = .loading
@@ -81,8 +83,10 @@ class TranscriptionService: ObservableObject {
             )
             whisperKit = kit
             modelState = .ready
+            RuntimeLog.write("model ready selected=\(selectedModel)")
         } catch {
             modelState = .error(error.localizedDescription)
+            RuntimeLog.write("model load failed selected=\(selectedModel) error=\(error)")
         }
     }
 
@@ -120,6 +124,7 @@ class TranscriptionService: ObservableObject {
     }
 
     func transcribe(audioSamples: [Float]) async throws -> DictationResult {
+        RuntimeLog.write("transcription start samples=\(audioSamples.count) model=\(selectedModel)")
         // Wait for model if it's still downloading/loading
         try await waitUntilReady()
 
@@ -153,6 +158,7 @@ class TranscriptionService: ObservableObject {
             options: postProcessingOptions,
             dictionaryEntries: dictionaryStore.entries
         )
+        RuntimeLog.write("transcription postprocessed rawLength=\(rawText.count) finalLength=\(finalText.count)")
         return DictationResult(rawText: rawText, finalText: finalText)
     }
 }

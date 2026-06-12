@@ -45,8 +45,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var audioLevelCancellable: AnyCancellable?
     private var indicatorDismissTask: Task<Void, Never>?
     private var shortcutUnavailableMessage: String?
+    private var lastLoggedRecordingLevelAt: Date?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        RuntimeLog.write("app launch bundle=\(Bundle.main.bundleIdentifier ?? "unknown")")
         UserDefaults.standard.register(defaults: [
             Defaults.showInDock: true,
             Defaults.dimSystemAudio: true,
@@ -105,6 +107,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        RuntimeLog.write("app terminate")
         hotkeyManager.stop()
         if audioRecorder.isRecording {
             _ = audioRecorder.stopRecording()
@@ -122,6 +125,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         permissions.refresh()
         guard permissions.hasAccessibility, permissions.hasInputMonitoring else {
+            RuntimeLog.write(
+                "hotkey setup blocked accessibility=\(permissions.hasAccessibility) inputMonitoring=\(permissions.hasInputMonitoring)"
+            )
             shortcutUnavailableMessage = nil
             showIndicator(state: currentIdleIndicatorState())
             return
@@ -140,15 +146,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             self?.stopRecordingAndTranscribe()
         }
         hotkeyManager.onShortcutUnavailable = { [weak self] message in
+            RuntimeLog.write("hotkey unavailable message=\(message)")
             self?.shortcutUnavailableMessage = message
             self?.showTransientAttention(message)
         }
 
         if hotkeyManager.start() {
+            RuntimeLog.write("hotkey setup complete")
             shortcutUnavailableMessage = nil
             if currentIndicatorState.hasAttention {
                 showIndicator(state: currentIdleIndicatorState())
             }
+        } else {
+            RuntimeLog.write("hotkey setup failed")
         }
     }
 
@@ -156,19 +166,23 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func armRecording() {
         guard appState == .idle else { return }
+        RuntimeLog.write("record arm")
         showIndicator(state: .armed)
     }
 
     private func cancelArmedRecording() {
         guard appState == .idle else { return }
+        RuntimeLog.write("record arm cancelled")
         finishIndicator()
     }
 
     private func startRecording() {
         guard appState == .idle else { return }
+        RuntimeLog.write("record start requested")
 
         permissions.refresh()
         guard permissions.hasMicrophone else {
+            RuntimeLog.write("record start blocked microphone=false")
             hotkeyManager.cancelRecording()
             Task { @MainActor in
                 let granted = await permissions.requestMicrophone()
@@ -188,11 +202,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             appState = .recording
             updateMenuBarIcon(state: .recording)
             showIndicator(state: .recording(level: 0))
+            RuntimeLog.write("record started")
 
             // Subscribe to audio level updates
             audioLevelCancellable = audioRecorder.$audioLevel
                 .receive(on: RunLoop.main)
                 .sink { [weak self] level in
+                    self?.logRecordingLevel(level)
                     self?.updateIndicator(state: .recording(level: level))
                 }
         } catch {
@@ -202,12 +218,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             updateMenuBarIcon(state: .idle)
             hotkeyManager.cancelRecording()
             showTransientAttention("Mic failed")
-            print("Failed to start recording: \(error)")
+            RuntimeLog.write("record start failed error=\(error)")
         }
     }
 
     private func stopRecordingAndTranscribe() {
         guard audioRecorder.isRecording else { return }
+        RuntimeLog.write("record stop requested")
 
         audioLevelCancellable?.cancel()
         audioLevelCancellable = nil
@@ -220,12 +237,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         recordingStartedAt = nil
         appState = .processing
         updateMenuBarIcon(state: .processing)
+        RuntimeLog.write(
+            "record stopped samples=\(samples.count) duration=\(String(format: "%.2f", recordingDuration))"
+        )
 
         guard samples.count >= AudioRecorder.minimumSamples else {
             audioDucker.endDucking()
             appState = .idle
             updateMenuBarIcon(state: .idle)
             showTransientAttention("No audio")
+            RuntimeLog.write("record stopped noAudio samples=\(samples.count)")
             return
         }
 
@@ -242,6 +263,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 // transcribe() waits for the model if it's still loading —
                 // the user just sees "Transcribing" a bit longer on first use
                 let result = try await transcriptionService.transcribe(audioSamples: samples)
+                RuntimeLog.write(
+                    "transcription complete rawLength=\(result.rawText.count) finalLength=\(result.finalText.count)"
+                )
                 if !result.finalText.isEmpty {
                     try? usageStats.record(
                         finalText: result.finalText,
@@ -256,12 +280,24 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     }
                 } else {
                     showTransientAttention("No speech")
+                    RuntimeLog.write("transcription empty")
                 }
             } catch {
-                print("Transcription failed: \(error)")
+                RuntimeLog.write("transcription failed error=\(error)")
                 showTransientAttention("Transcription failed")
             }
         }
+    }
+
+    private func logRecordingLevel(_ level: Float) {
+        let now = Date()
+        if let lastLoggedRecordingLevelAt,
+            now.timeIntervalSince(lastLoggedRecordingLevelAt) < 0.5
+        {
+            return
+        }
+        lastLoggedRecordingLevelAt = now
+        RuntimeLog.write("record level=\(String(format: "%.3f", level))")
     }
 
     // MARK: - Floating Indicator

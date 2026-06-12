@@ -7,6 +7,7 @@ enum TextInserter {
     /// Insert text into the currently focused text field by simulating Cmd+V.
     /// Saves and restores the clipboard content around the paste.
     static func insertText(_ text: String) {
+        RuntimeLog.write("paste start length=\(text.count)")
         let pasteboard = NSPasteboard.general
 
         // 1. Save current clipboard contents (all types)
@@ -26,6 +27,7 @@ enum TextInserter {
             if !savedItems.isEmpty {
                 pasteboard.writeObjects(savedItems)
             }
+            RuntimeLog.write("paste clipboard restored")
         }
     }
 
@@ -59,5 +61,6 @@ enum TextInserter {
 
         keyDown?.post(tap: .cghidEventTap)
         keyUp?.post(tap: .cghidEventTap)
+        RuntimeLog.write("paste hotkey posted")
     }
 }
