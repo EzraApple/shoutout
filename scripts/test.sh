@@ -21,7 +21,16 @@ assert_contains() {
   local name="$1"
   local file="$2"
   local pattern="$3"
-  if rg -q "$pattern" "$file"; then
+  if command -v rg >/dev/null 2>&1; then
+    if rg -q "$pattern" "$file"; then
+      record_pass "$name"
+    else
+      record_fail "$name"
+    fi
+    return
+  fi
+
+  if grep -Eq "$pattern" "$file"; then
     record_pass "$name"
   else
     record_fail "$name"
