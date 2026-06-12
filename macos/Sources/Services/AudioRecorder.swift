@@ -105,8 +105,8 @@ class AudioRecorder: ObservableObject {
         return collector.drain()
     }
 
-    /// Minimum number of samples for a valid recording (0.5s at 16kHz)
-    static let minimumSamples = 8000
+    /// Minimum number of samples for a valid recording (0.2s at 16kHz).
+    static let minimumSamples = 3200
 
     /// Installs the audio tap in a nonisolated context so the closure
     /// does not inherit @MainActor isolation (which would crash on the audio thread).

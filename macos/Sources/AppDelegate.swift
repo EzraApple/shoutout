@@ -35,6 +35,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var onboardingWindow: NSWindow?
     private var appState: AppState = .idle
     private var recordingStartedAt: Date?
+    private var pendingTranscriptionCount = 0
+    private var transcriptionQueueTail: Task<Void, Never>?
 
     /// Prevent App Nap from making the hotkey unresponsive
     private var activityToken: NSObjectProtocol?
@@ -137,6 +139,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             NotificationCenter.default.removeObserver(permissionChangeObserver)
         }
         hotkeyManager.stop()
+        transcriptionQueueTail?.cancel()
         if audioRecorder.isRecording {
             _ = audioRecorder.stopRecording()
         }
@@ -240,7 +243,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             audioDucker.beginDuckingIfEnabled()
             try audioRecorder.startRecording()
             appState = .recording
-            updateMenuBarIcon(state: .recording)
+            refreshMenuBarIcon()
             showIndicator(state: .recording(level: 0))
             RuntimeLog.write("record started")
 
@@ -255,7 +258,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             recordingStartedAt = nil
             audioDucker.endDucking()
             appState = .idle
-            updateMenuBarIcon(state: .idle)
+            refreshMenuBarIcon()
             hotkeyManager.cancelRecording()
             showTransientAttention("Mic failed")
             RuntimeLog.write("record start failed error=\(error)")
@@ -275,57 +278,83 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             Double(samples.count) / AudioRecorder.sampleRate
         )
         recordingStartedAt = nil
-        appState = .processing
-        updateMenuBarIcon(state: .processing)
+        appState = .idle
+        audioDucker.endDucking()
         RuntimeLog.write(
             "record stopped samples=\(samples.count) duration=\(String(format: "%.2f", recordingDuration))"
         )
 
         guard samples.count >= AudioRecorder.minimumSamples else {
-            audioDucker.endDucking()
-            appState = .idle
-            updateMenuBarIcon(state: .idle)
-            showTransientAttention("No audio")
+            refreshMenuBarIcon()
+            showTransientAttention("No audio", durationNanoseconds: 700_000_000)
             RuntimeLog.write("record stopped noAudio samples=\(samples.count)")
             return
         }
 
-        updateIndicator(state: .processing)
+        enqueueTranscription(samples: samples, recordingDuration: recordingDuration)
+    }
 
-        Task {
-            defer {
-                audioDucker.endDucking()
-                appState = .idle
-                updateMenuBarIcon(state: .idle)
+    private func enqueueTranscription(samples: [Float], recordingDuration: TimeInterval) {
+        pendingTranscriptionCount += 1
+        refreshMenuBarIcon()
+        if appState == .idle {
+            updateIndicator(state: .processing)
+        }
+        RuntimeLog.write("transcription queued pending=\(pendingTranscriptionCount)")
+
+        let previousTail = transcriptionQueueTail
+        let task = Task { [weak self] in
+            await previousTail?.value
+            await self?.processQueuedTranscription(
+                samples: samples,
+                recordingDuration: recordingDuration
+            )
+        }
+        transcriptionQueueTail = task
+    }
+
+    private func processQueuedTranscription(samples: [Float], recordingDuration: TimeInterval) async {
+        if Task.isCancelled { return }
+        RuntimeLog.write("transcription dequeued pending=\(pendingTranscriptionCount)")
+
+        defer {
+            pendingTranscriptionCount = max(pendingTranscriptionCount - 1, 0)
+            refreshMenuBarIcon()
+            if pendingTranscriptionCount == 0,
+                appState == .idle,
+                currentIndicatorState == .processing
+            {
+                finishIndicator()
             }
+        }
 
-            do {
-                // transcribe() waits for the model if it's still loading —
-                // the user just sees "Transcribing" a bit longer on first use
-                let result = try await transcriptionService.transcribe(audioSamples: samples)
-                RuntimeLog.write(
-                    "transcription complete rawLength=\(result.rawText.count) finalLength=\(result.finalText.count)"
+        do {
+            // transcribe() waits for the model if it's still loading.
+            let result = try await transcriptionService.transcribe(audioSamples: samples)
+            RuntimeLog.write(
+                "transcription complete rawLength=\(result.rawText.count) finalLength=\(result.finalText.count)"
+            )
+            if !result.finalText.isEmpty {
+                try? usageStats.record(
+                    finalText: result.finalText,
+                    duration: recordingDuration,
+                    model: transcriptionService.selectedModel
                 )
-                if !result.finalText.isEmpty {
-                    try? usageStats.record(
-                        finalText: result.finalText,
-                        duration: recordingDuration,
-                        model: transcriptionService.selectedModel
-                    )
-                    TextInserter.insertText(result.finalText)
-                    updateIndicator(state: .done(text: result.finalText))
-                    indicatorDismissTask = Task {
-                        try? await Task.sleep(nanoseconds: 1_500_000_000)
-                        finishIndicator()
-                    }
-                } else {
-                    showTransientAttention("No speech")
-                    RuntimeLog.write("transcription empty")
-                }
-            } catch {
-                RuntimeLog.write("transcription failed error=\(error)")
-                showTransientAttention("Transcription failed")
+                TextInserter.insertText(result.finalText)
+                showTranscriptionResultIndicator(.done(text: result.finalText))
+            } else {
+                showTranscriptionResultIndicator(
+                    .attention(message: "No speech"),
+                    durationNanoseconds: 900_000_000
+                )
+                RuntimeLog.write("transcription empty")
             }
+        } catch {
+            RuntimeLog.write("transcription failed error=\(error)")
+            showTranscriptionResultIndicator(
+                .attention(message: "Transcription failed"),
+                durationNanoseconds: 1_200_000_000
+            )
         }
     }
 
@@ -455,6 +484,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         indicatorPanel?.orderOut(nil)
     }
 
+    private var visibleAppState: AppState {
+        if appState == .recording {
+            return .recording
+        }
+        if pendingTranscriptionCount > 0 {
+            return .processing
+        }
+        return .idle
+    }
+
+    private func refreshMenuBarIcon() {
+        updateMenuBarIcon(state: visibleAppState)
+    }
+
     private var currentOverlayStyle: OverlayStyle {
         OverlayStyle(rawValue: UserDefaults.standard.string(forKey: Defaults.overlayStyle) ?? "")
             ?? .crab
@@ -480,13 +523,32 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         return .idle
     }
 
-    private func showTransientAttention(_ message: String) {
+    private func showTransientAttention(
+        _ message: String,
+        durationNanoseconds: UInt64 = 2_000_000_000
+    ) {
         indicatorDismissTask?.cancel()
         indicatorDismissTask = nil
         showIndicator(state: .attention(message: message))
         indicatorDismissTask = Task {
-            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            try? await Task.sleep(nanoseconds: durationNanoseconds)
             finishIndicator()
+        }
+    }
+
+    private func showTranscriptionResultIndicator(
+        _ state: IndicatorState,
+        durationNanoseconds: UInt64 = 1_500_000_000
+    ) {
+        guard appState == .idle else { return }
+        indicatorDismissTask?.cancel()
+        indicatorDismissTask = nil
+        updateIndicator(state: state)
+        indicatorDismissTask = Task {
+            try? await Task.sleep(nanoseconds: durationNanoseconds)
+            if appState == .idle {
+                finishIndicator()
+            }
         }
     }
 
