@@ -1,9 +1,47 @@
 import SwiftUI
 
 enum IndicatorState: Equatable {
+    case idle
     case recording(level: Float)
     case processing
     case done(text: String)
+
+    var isRecording: Bool {
+        if case .recording = self {
+            return true
+        }
+        return false
+    }
+}
+
+enum OverlayStyle: String {
+    case crab
+    case capsule
+    case off
+}
+
+struct AppOverlayView: View {
+    let style: OverlayStyle
+    let state: IndicatorState
+    let crabHeight: CGFloat
+
+    var body: some View {
+        switch style {
+        case .crab:
+            CrabOverlayView(state: state)
+                .frame(width: 112, height: crabHeight)
+        case .capsule:
+            if state == .idle {
+                EmptyView()
+                    .frame(width: 1, height: 1)
+            } else {
+                FloatingIndicatorView(state: state)
+            }
+        case .off:
+            EmptyView()
+                .frame(width: 1, height: 1)
+        }
+    }
 }
 
 struct FloatingIndicatorView: View {
@@ -40,6 +78,9 @@ struct FloatingIndicatorView: View {
 
             // Content
             switch state {
+            case .idle:
+                EmptyView()
+
             case .recording(let level):
                 // Waveform bars
                 HStack(spacing: 4) {
@@ -101,6 +142,137 @@ struct FloatingIndicatorView: View {
         // Even at zero level, bars should jitter slightly when recording
         let jitter: CGFloat = index % 2 == 0 ? 2 : 0
         return base + jitter + maxExtra * CGFloat(amplified) * wave
+    }
+}
+
+private struct CrabOverlayView: View {
+    let state: IndicatorState
+
+    @State private var walkFrame = false
+    @State private var idleOffset: CGFloat = 0
+
+    var body: some View {
+        GeometryReader { geometry in
+            PixelCrab(isRecording: state.isRecording, walkFrame: walkFrame)
+                .offset(y: state.isRecording ? 0 : idleOffset)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                .task(id: state.isRecording) {
+                    await animate(in: geometry.size.height)
+                }
+        }
+        .allowsHitTesting(false)
+    }
+
+    private func animate(in height: CGFloat) async {
+        if state.isRecording {
+            withAnimation(.easeOut(duration: 0.2)) {
+                idleOffset = 0
+                walkFrame = false
+            }
+            return
+        }
+
+        let maxOffset = max((height - 92) / 2, 18)
+        while !Task.isCancelled {
+            withAnimation(.easeInOut(duration: Double.random(in: 2.8...5.2))) {
+                idleOffset = CGFloat.random(in: -maxOffset...maxOffset)
+            }
+            withAnimation(.linear(duration: 0.18)) {
+                walkFrame.toggle()
+            }
+            try? await Task.sleep(nanoseconds: UInt64.random(in: 900_000_000...1_600_000_000))
+        }
+    }
+}
+
+private struct PixelCrab: View {
+    let isRecording: Bool
+    let walkFrame: Bool
+
+    private let unit: CGFloat = 4
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            bodyPixels
+            legs
+            claws
+            headphones
+            if isRecording {
+                boomMic
+            }
+            eyes
+        }
+        .frame(width: 84, height: 72)
+        .shadow(color: .black.opacity(0.35), radius: 4, y: 2)
+    }
+
+    private var bodyPixels: some View {
+        Group {
+            pixel(x: 5, y: 5, w: 9, h: 1, color: .black)
+            pixel(x: 4, y: 6, w: 11, h: 5, color: Color(white: 0.05))
+            pixel(x: 5, y: 11, w: 9, h: 1, color: Color(white: 0.02))
+            pixel(x: 6, y: 7, w: 7, h: 3, color: Color(white: 0.12))
+        }
+    }
+
+    private var eyes: some View {
+        Group {
+            pixel(x: 7, y: 4, w: 1, h: 2, color: .white)
+            pixel(x: 11, y: 4, w: 1, h: 2, color: .white)
+            pixel(x: 7, y: 4, w: 1, h: 1, color: .black)
+            pixel(x: 11, y: 4, w: 1, h: 1, color: .black)
+        }
+    }
+
+    private var headphones: some View {
+        Group {
+            pixel(x: 5, y: 3, w: 9, h: 1, color: Color(white: 0.45))
+            pixel(x: 4, y: 4, w: 2, h: 3, color: Color(white: 0.22))
+            pixel(x: 13, y: 4, w: 2, h: 3, color: Color(white: 0.22))
+            pixel(x: 5, y: 5, w: 1, h: 2, color: Color(red: 0.18, green: 0.30, blue: 0.36))
+            pixel(x: 13, y: 5, w: 1, h: 2, color: Color(red: 0.18, green: 0.30, blue: 0.36))
+        }
+    }
+
+    private var claws: some View {
+        Group {
+            pixel(x: 1, y: 6, w: 3, h: 1, color: .black)
+            pixel(x: 0, y: 5, w: 2, h: 1, color: .black)
+            pixel(x: 0, y: 7, w: 2, h: 1, color: .black)
+            pixel(x: 15, y: 6, w: 3, h: 1, color: .black)
+            pixel(x: 17, y: 5, w: 2, h: 1, color: .black)
+            pixel(x: 17, y: 7, w: 2, h: 1, color: .black)
+        }
+    }
+
+    private var legs: some View {
+        let firstLegShift = walkFrame ? 1 : 0
+        let secondLegShift = walkFrame ? 0 : 1
+
+        return Group {
+            pixel(x: 4, y: 12 + firstLegShift, w: 2, h: 1, color: .black)
+            pixel(x: 7, y: 12 + secondLegShift, w: 2, h: 1, color: .black)
+            pixel(x: 10, y: 12 + firstLegShift, w: 2, h: 1, color: .black)
+            pixel(x: 13, y: 12 + secondLegShift, w: 2, h: 1, color: .black)
+            pixel(x: 3, y: 13 + firstLegShift, w: 1, h: 1, color: .black)
+            pixel(x: 15, y: 13 + secondLegShift, w: 1, h: 1, color: .black)
+        }
+    }
+
+    private var boomMic: some View {
+        Group {
+            pixel(x: 14, y: 6, w: 4, h: 1, color: Color(white: 0.55))
+            pixel(x: 18, y: 7, w: 1, h: 2, color: Color(white: 0.55))
+            pixel(x: 18, y: 9, w: 3, h: 1, color: .black)
+            pixel(x: 20, y: 8, w: 1, h: 3, color: .black)
+        }
+    }
+
+    private func pixel(x: Int, y: Int, w: Int, h: Int, color: Color) -> some View {
+        Rectangle()
+            .fill(color)
+            .frame(width: CGFloat(w) * unit, height: CGFloat(h) * unit)
+            .offset(x: CGFloat(x) * unit, y: CGFloat(y) * unit)
     }
 }
 

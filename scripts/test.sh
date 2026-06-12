@@ -89,9 +89,13 @@ assert_contains "Transcription returns result shape" "$MACOS_DIR/Sources/Service
 assert_contains "Settings expose dictionary" "$MACOS_DIR/Sources/Views/SettingsView.swift" "Dictionary"
 assert_contains "Settings expose insights" "$MACOS_DIR/Sources/Views/SettingsView.swift" "Insights"
 assert_contains "Settings expose audio ducking" "$MACOS_DIR/Sources/Views/SettingsView.swift" "Dim system audio"
+assert_contains "Settings expose overlay picker" "$MACOS_DIR/Sources/Views/SettingsView.swift" "Overlay"
 assert_contains "Permission manager checks input monitoring" "$MACOS_DIR/Sources/Services/PermissionManager.swift" "CGPreflightListenEventAccess"
 assert_contains "App delegate records usage stats" "$MACOS_DIR/Sources/AppDelegate.swift" "usageStats"
 assert_contains "App delegate ducks audio" "$MACOS_DIR/Sources/AppDelegate.swift" "audioDucker"
+assert_contains "App delegate defaults to crab overlay" "$MACOS_DIR/Sources/AppDelegate.swift" "OverlayStyle.crab"
+assert_contains "Crab overlay has boom mic" "$MACOS_DIR/Sources/Views/FloatingIndicator.swift" "boomMic"
+assert_contains "Crab overlay walks while idle" "$MACOS_DIR/Sources/Views/FloatingIndicator.swift" "idleOffset"
 
 if [[ "${SKIP_SWIFTPM:-false}" == "true" ]]; then
   printf 'skip - SwiftPM checks skipped by SKIP_SWIFTPM=true\n'

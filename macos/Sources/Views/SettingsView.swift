@@ -10,6 +10,7 @@ struct SettingsView: View {
     @AppStorage("removeFillerWords") private var removeFillerWords = true
     @AppStorage(Defaults.showInDock) private var showInDock = true
     @AppStorage(Defaults.dimSystemAudio) private var dimSystemAudio = true
+    @AppStorage(Defaults.overlayStyle) private var overlayStyle = OverlayStyle.crab.rawValue
 
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
 
@@ -129,6 +130,17 @@ struct SettingsView: View {
 
                 Toggle(isOn: $dimSystemAudio) {
                     Label("Dim system audio while recording", systemImage: "speaker.wave.1")
+                }
+
+                Picker(selection: $overlayStyle) {
+                    Text("Crab").tag(OverlayStyle.crab.rawValue)
+                    Text("Classic").tag(OverlayStyle.capsule.rawValue)
+                    Text("Off").tag(OverlayStyle.off.rawValue)
+                } label: {
+                    Label("Overlay", systemImage: "macwindow.on.rectangle")
+                }
+                .onChange(of: overlayStyle) { _, _ in
+                    (NSApp.delegate as? AppDelegate)?.refreshOverlay()
                 }
             } header: {
                 Text("General")

@@ -6,6 +6,7 @@ import SwiftUI
 enum Defaults {
     static let showInDock = "showInDock"
     static let dimSystemAudio = "dimSystemAudio"
+    static let overlayStyle = "overlayStyle"
 }
 
 // MARK: - App State
@@ -39,7 +40,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Floating Indicator
 
     private var indicatorPanel: NSPanel?
-    private var indicatorHostingView: NSHostingView<FloatingIndicatorView>?
+    private var indicatorHostingView: NSHostingView<AppOverlayView>?
+    private var currentIndicatorState: IndicatorState = .idle
     private var audioLevelCancellable: AnyCancellable?
     private var indicatorDismissTask: Task<Void, Never>?
 
@@ -47,6 +49,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         UserDefaults.standard.register(defaults: [
             Defaults.showInDock: true,
             Defaults.dimSystemAudio: true,
+            Defaults.overlayStyle: OverlayStyle.crab.rawValue,
             "removeFillerWords": true,
         ])
 
@@ -85,6 +88,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         Task {
             await transcriptionService.loadModel()
         }
+
+        showIndicator(state: .idle)
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -155,7 +160,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             audioDucker.endDucking()
             appState = .idle
             updateMenuBarIcon(state: .idle)
-            dismissIndicator()
+            finishIndicator()
             return
         }
 
@@ -182,14 +187,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     updateIndicator(state: .done(text: result.finalText))
                     indicatorDismissTask = Task {
                         try? await Task.sleep(nanoseconds: 1_500_000_000)
-                        dismissIndicator()
+                        finishIndicator()
                     }
                 } else {
-                    dismissIndicator()
+                    finishIndicator()
                 }
             } catch {
                 print("Transcription failed: \(error)")
-                dismissIndicator()
+                finishIndicator()
             }
         }
     }
@@ -199,6 +204,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private func showIndicator(state: IndicatorState) {
         indicatorDismissTask?.cancel()
         indicatorDismissTask = nil
+        currentIndicatorState = state
+
+        let overlayStyle = currentOverlayStyle
+        guard overlayStyle != .off else {
+            dismissIndicator()
+            return
+        }
+        guard overlayStyle == .crab || state != .idle else {
+            dismissIndicator()
+            return
+        }
+
+        let crabHeight = currentCrabHeight()
 
         if indicatorPanel == nil {
             let panel = NSPanel(
@@ -214,24 +232,51 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
             panel.ignoresMouseEvents = true
 
-            let hostingView = NSHostingView(rootView: FloatingIndicatorView(state: state))
+            let hostingView = NSHostingView(
+                rootView: AppOverlayView(
+                    style: overlayStyle,
+                    state: state,
+                    crabHeight: crabHeight
+                )
+            )
             hostingView.sizingOptions = .intrinsicContentSize
             panel.contentView = hostingView
 
             indicatorPanel = panel
             indicatorHostingView = hostingView
         } else {
-            indicatorHostingView?.rootView = FloatingIndicatorView(state: state)
+            indicatorHostingView?.rootView = AppOverlayView(
+                style: overlayStyle,
+                state: state,
+                crabHeight: crabHeight
+            )
         }
 
-        positionIndicatorAtScreenBottom()
+        positionIndicator(style: overlayStyle)
         indicatorPanel?.orderFrontRegardless()
     }
 
     private func updateIndicator(state: IndicatorState) {
-        indicatorHostingView?.rootView = FloatingIndicatorView(state: state)
-        // Resize in case content changed
-        positionIndicatorAtScreenBottom()
+        showIndicator(state: state)
+    }
+
+    private func finishIndicator() {
+        currentIndicatorState = .idle
+        if currentOverlayStyle == .crab {
+            showIndicator(state: .idle)
+        } else {
+            dismissIndicator()
+        }
+    }
+
+    func refreshOverlay() {
+        if currentOverlayStyle == .crab {
+            showIndicator(state: currentIndicatorState)
+        } else if currentIndicatorState == .idle {
+            dismissIndicator()
+        } else {
+            showIndicator(state: currentIndicatorState)
+        }
     }
 
     private func dismissIndicator() {
@@ -240,6 +285,44 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         audioLevelCancellable?.cancel()
         audioLevelCancellable = nil
         indicatorPanel?.orderOut(nil)
+    }
+
+    private var currentOverlayStyle: OverlayStyle {
+        OverlayStyle(rawValue: UserDefaults.standard.string(forKey: Defaults.overlayStyle) ?? "")
+            ?? .crab
+    }
+
+    private func currentCrabHeight() -> CGFloat {
+        guard let screen = NSScreen.main else {
+            return 240
+        }
+        return max(screen.visibleFrame.height / 3, 220)
+    }
+
+    private func positionIndicator(style: OverlayStyle) {
+        switch style {
+        case .crab:
+            positionCrabAtScreenEdge()
+        case .capsule:
+            positionIndicatorAtScreenBottom()
+        case .off:
+            break
+        }
+    }
+
+    private func positionCrabAtScreenEdge() {
+        guard let panel = indicatorPanel, let screen = NSScreen.main else { return }
+
+        let screenFrame = screen.visibleFrame
+        let height = currentCrabHeight()
+        let width: CGFloat = 112
+        let x = screenFrame.maxX - width - 12
+        let y = screenFrame.minY + (screenFrame.height - height) / 2
+
+        panel.setFrame(
+            NSRect(x: x, y: y, width: width, height: height),
+            display: true
+        )
     }
 
     private func positionIndicatorAtScreenBottom() {
