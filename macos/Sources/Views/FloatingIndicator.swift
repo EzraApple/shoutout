@@ -331,13 +331,15 @@ private struct SpriteWallCrab: View {
         let frames = showsBoomMic ? imageStore.boomMicFrames : imageStore.idleFrames
         guard !frames.isEmpty else { return nil }
         if showsBoomMic {
-            return frames[0]
+            return frames[min(1, frames.count - 1)]
         }
-        return frames[abs(frameIndex) % frames.count]
+        let stableFrameIndices = [0, min(1, frames.count - 1)]
+        let stableIndex = stableFrameIndices[abs(frameIndex) % stableFrameIndices.count]
+        return frames[stableIndex]
     }
 
     private var boomScale: CGFloat {
-        showsBoomMic ? 1.15 : 1
+        showsBoomMic ? 1.12 : 1
     }
 }
 

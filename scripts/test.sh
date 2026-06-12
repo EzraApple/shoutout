@@ -114,6 +114,7 @@ assert_contains "Crab overlay shows processing badge" "$MACOS_DIR/Sources/Views/
 assert_contains "Crab overlay animates idle crawl" "$MACOS_DIR/Sources/Views/FloatingIndicator.swift" "animateIdleCrawl"
 assert_contains "Boom crab stays still" "$MACOS_DIR/Sources/Views/FloatingIndicator.swift" "if showsBoomMic"
 assert_contains "Boom crab scale matches idle crab" "$MACOS_DIR/Sources/Views/FloatingIndicator.swift" "boomScale"
+assert_contains "Crab idle uses stable frame cycle" "$MACOS_DIR/Sources/Views/FloatingIndicator.swift" "stableFrameIndices"
 assert_contains "Classic overlay has compact layout" "$MACOS_DIR/Sources/Views/FloatingIndicator.swift" "ClassicOverlayLayout"
 assert_contains "Crab overlay has visible dark-surface halo" "$MACOS_DIR/Sources/Views/FloatingIndicator.swift" "white.opacity"
 
