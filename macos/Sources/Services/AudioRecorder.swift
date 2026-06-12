@@ -37,9 +37,10 @@ class AudioRecorder: ObservableObject {
     @Published var isRecording = false
     @Published var audioLevel: Float = 0.0
 
+    static let sampleRate: Double = 16000
+
     private var audioEngine: AVAudioEngine?
     private let collector = AudioSampleCollector()
-    private let sampleRate: Double = 16000  // WhisperKit expects 16kHz mono
     private var levelPollTimer: Timer?
 
     func startRecording() throws {
@@ -52,7 +53,7 @@ class AudioRecorder: ObservableObject {
         guard
             let targetFormat = AVAudioFormat(
                 commonFormat: .pcmFormatFloat32,
-                sampleRate: sampleRate,
+                sampleRate: Self.sampleRate,
                 channels: 1,
                 interleaved: false
             )
@@ -71,7 +72,7 @@ class AudioRecorder: ObservableObject {
             inputFormat: inputFormat,
             targetFormat: targetFormat,
             converter: converter,
-            sampleRate: sampleRate,
+            sampleRate: Self.sampleRate,
             collector: collector
         )
 

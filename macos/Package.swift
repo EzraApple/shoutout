@@ -3,19 +3,26 @@
 import PackageDescription
 
 let package = Package(
-    name: "Inputalk",
+    name: "ShoutOut",
     platforms: [
-        .macOS(.v15)
+        .macOS("15.0")
     ],
     dependencies: [
         .package(url: "https://github.com/argmaxinc/WhisperKit.git", from: "0.9.0"),
     ],
     targets: [
+        .target(
+            name: "ShoutOutCore",
+            path: "Sources/Core"
+        ),
         .executableTarget(
-            name: "Inputalk",
+            name: "ShoutOut",
             dependencies: [
+                "ShoutOutCore",
                 .product(name: "WhisperKit", package: "WhisperKit"),
             ],
+            path: "Sources",
+            exclude: ["Core"],
             resources: [
                 .copy("Resources/MenuBarIcon.png"),
                 .copy("Resources/MenuBarIcon@2x.png"),
@@ -23,6 +30,11 @@ let package = Package(
             swiftSettings: [
                 .define("DEBUG", .when(configuration: .debug)),
             ]
+        ),
+        .testTarget(
+            name: "ShoutOutCoreTests",
+            dependencies: ["ShoutOutCore"],
+            path: "Tests/ShoutOutCoreTests"
         )
     ]
 )

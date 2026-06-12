@@ -1,79 +1,61 @@
-# Inputalk
+# Shout Out
 
-Free, open-source dictation for macOS. Hold Fn, speak, release — text appears wherever your cursor is.
+Local-first macOS dictation. Hold Fn, speak, release, and Shout Out pastes cleaned-up text into the app you were already using.
 
-No cloud. No API keys. No cost. Transcription runs entirely on your Mac via [WhisperKit](https://github.com/argmaxinc/WhisperKit).
-
-<p align="center">
-  <img src="assets/demo.gif" alt="Inputalk demo" width="720" />
-</p>
-
-## How it works
-
-- **Hold Fn** — push-to-talk dictation. Release to transcribe and paste.
-- **Double-press Fn** — hands-free dictation. Press Fn again to stop.
-- Works in any app — Slack, VS Code, Terminal, Messages, browser, email, anything with a text field.
+Shout Out is built for the narrow Wispr Flow loop: global Fn/Globe capture, microphone recording, on-device WhisperKit transcription, dictionary-aware cleanup, focused-app paste, and lightweight WPM stats.
 
 ## Install
 
-Download the latest `.dmg` from [inputalk.com](https://inputalk.com).
+Prerequisite: Xcode 16 or a working Swift 6 Command Line Tools install.
 
-Open the DMG, drag to Applications. On first launch, grant Microphone and Accessibility permissions when prompted.
+```bash
+git clone git@github.com:EzraApple/shout-out.git
+cd shout-out
+make install
+```
+
+`make install` builds `Shout Out.app`, copies it into `~/Applications`, and opens it.
+
+On first launch, grant:
+
+- Microphone, so Shout Out can record your voice.
+- Accessibility, so it can paste text into the focused app.
+- Input Monitoring, so it can detect Fn/Globe while another app is focused.
+
+If macOS does not show a prompt, open System Settings → Privacy & Security and enable Shout Out under those three sections.
+
+## Usage
+
+- Hold Fn/Globe to record. Release to transcribe and paste.
+- Double-tap Fn/Globe for hands-free recording. Tap Fn/Globe again to stop.
+- Click the menu bar waveform icon for Settings and today’s word/WPM count.
+- Add custom dictionary entries in Settings. The default dictionary includes `Yuxin` with aliases like `yu xin`, `you shin`, and `Y-U-X-I-N`.
+- Toggle “Dim system audio while recording” if you want music lowered during dictation and restored afterward.
 
 ## Models
 
-Whisper models download on first use and run on Apple Neural Engine.
+Whisper models download on first use and run locally through WhisperKit/Core ML.
 
-| Model | Size | Speed | Quality |
-|-------|------|-------|---------|
-| tiny | 75 MB | ~10x realtime | Basic |
-| **base** | **142 MB** | **~7x realtime** | **Good (default)** |
-| small | 466 MB | ~4x realtime | Very good |
-| medium | 1.5 GB | ~2x realtime | Excellent |
+| Model | Size | Use |
+| --- | ---: | --- |
+| tiny | ~75 MB | Fast debugging |
+| base | ~142 MB | Fast everyday transcription |
+| small | ~466 MB | Better accuracy |
+| medium | ~1.5 GB | High accuracy |
+| large-v3-v20240930_626MB | ~626 MB | Recommended balance |
 
-Switch models in Settings. Model data is stored in `~/Library/Application Support/com.inputalk.app/Models/` and removed on uninstall.
+Model data is stored in `~/Library/Application Support/com.ezraapple.shoutout/Models/`.
 
-## Requirements
-
-- macOS 15+
-- Apple Silicon or Intel
-
-## Build from source
+## Development
 
 ```bash
-cd macos
-swift build
-swift run
+make test
+make build
+make run
 ```
 
-### Release build (signed + notarized)
+The app is a Swift Package under `macos/`. The core dictionary, post-processing, and stats logic live in the `ShoutOutCore` target and are covered by XCTest.
 
-```bash
-# Set up .env with CODE_SIGN_IDENTITY
-cd macos
-./scripts/release.sh          # build + sign + notarize + DMG
-./scripts/publish-release.sh  # upload to S3 + update latest.json
-```
+## Attribution
 
-## Project structure
-
-```
-macos/          Swift app (SPM, macOS 15+)
-  Sources/      AppDelegate, services, views
-  Resources/    Info.plist, entitlements, icons
-  scripts/      build, release, publish
-web/            Landing page (Next.js 15 + Tailwind)
-video/          Launch video (Remotion)
-```
-
-## Tech
-
-- [WhisperKit](https://github.com/argmaxinc/WhisperKit) — on-device speech-to-text via CoreML
-- Swift 6, Swift Package Manager
-- CGEvent tap for global Fn key capture
-- Clipboard + simulated Cmd+V for text insertion
-- Liquid Glass floating indicator (macOS Tahoe)
-
-## License
-
-[MIT](LICENSE)
+Shout Out is based on the MIT-licensed Inputalk macOS dictation app by the Inputalk contributors. The original license is retained in `LICENSE`. Transcription is powered by WhisperKit.

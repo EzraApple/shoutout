@@ -1,5 +1,6 @@
 @preconcurrency import WhisperKit
 import Foundation
+import ShoutOutCore
 
 enum ModelState: Equatable {
     case unloaded
@@ -18,7 +19,8 @@ class TranscriptionService: ObservableObject {
         }
     }
 
-    let availableModels = ["tiny", "base", "small", "medium"]
+    let availableModels = ["tiny", "base", "small", "medium", "large-v3-v20240930_626MB"]
+    let dictionaryStore = DictionaryStore.defaultStore()
 
     private var whisperKit: WhisperKit?
 
@@ -26,7 +28,7 @@ class TranscriptionService: ObservableObject {
     /// App cleaners remove ~/Library/Application Support/<bundleID>/ on uninstall.
     static let modelsDirectory: URL = {
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-        let bundleID = Bundle.main.bundleIdentifier ?? "com.inputalk.app"
+        let bundleID = Bundle.main.bundleIdentifier ?? "com.ezraapple.shoutout"
         return appSupport.appendingPathComponent(bundleID).appendingPathComponent("Models")
     }()
 
@@ -39,7 +41,8 @@ class TranscriptionService: ObservableObject {
     }
 
     init() {
-        self.selectedModel = UserDefaults.standard.string(forKey: "selectedModel") ?? "base"
+        self.selectedModel =
+            UserDefaults.standard.string(forKey: "selectedModel") ?? "large-v3-v20240930_626MB"
     }
 
     func loadModel() async {
@@ -116,7 +119,7 @@ class TranscriptionService: ObservableObject {
         }
     }
 
-    func transcribe(audioSamples: [Float]) async throws -> String {
+    func transcribe(audioSamples: [Float]) async throws -> TranscriptionResult {
         // Wait for model if it's still downloading/loading
         try await waitUntilReady()
 
@@ -124,7 +127,7 @@ class TranscriptionService: ObservableObject {
             throw TranscriptionError.modelNotReady
         }
 
-        let options = DecodingOptions(
+        let decodingOptions = DecodingOptions(
             task: .transcribe,
             temperature: 0.0,
             usePrefillPrompt: true,
@@ -135,40 +138,22 @@ class TranscriptionService: ObservableObject {
 
         let results = try await kit.transcribe(
             audioArray: audioSamples,
-            decodeOptions: options
+            decodeOptions: decodingOptions
         )
 
-        let text = results.map { $0.text }.joined(separator: " ")
-        return postProcess(text)
-    }
-
-    // MARK: - Post-Processing
-
-    private func postProcess(_ text: String) -> String {
-        var result = text.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        guard UserDefaults.standard.object(forKey: "removeFillerWords") == nil
-            || UserDefaults.standard.bool(forKey: "removeFillerWords")
-        else {
-            return result
-        }
-
-        let fillerPatterns = [
-            "\\b[Uu]m\\b,?\\s?",
-            "\\b[Uu]h\\b,?\\s?",
-        ]
-
-        for pattern in fillerPatterns {
-            result =
-                result.replacingOccurrences(
-                    of: pattern, with: "", options: .regularExpression)
-        }
-
-        while result.contains("  ") {
-            result = result.replacingOccurrences(of: "  ", with: " ")
-        }
-
-        return result.trimmingCharacters(in: .whitespacesAndNewlines)
+        let rawText = results.map { $0.text }.joined(separator: " ")
+        let postProcessingOptions = TextPostProcessingOptions(
+            removeFillerWords: UserDefaults.standard.object(forKey: "removeFillerWords") == nil
+                || UserDefaults.standard.bool(forKey: "removeFillerWords"),
+            applySpokenCommands: true,
+            collapseWhitespace: true
+        )
+        let finalText = TextPostProcessor.process(
+            rawText,
+            options: postProcessingOptions,
+            dictionaryEntries: dictionaryStore.entries
+        )
+        return TranscriptionResult(rawText: rawText, finalText: finalText)
     }
 }
 

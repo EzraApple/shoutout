@@ -10,9 +10,3 @@ macos/.swiftpm/
 macos/xcuserdata/
 macos/DerivedData/
 *.xcodeproj
-
-# Web
-web/.next/
-web/.vercel/
-web/node_modules/
-.vercel

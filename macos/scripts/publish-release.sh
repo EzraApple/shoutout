@@ -43,7 +43,7 @@ for arg in "$@"; do
 done
 
 echo -e "${BLUE}======================================${NC}"
-echo -e "${BLUE}  Inputalk Release Publisher          ${NC}"
+echo -e "${BLUE}  Shout Out Release Publisher         ${NC}"
 echo -e "${BLUE}======================================${NC}"
 echo ""
 
@@ -62,7 +62,7 @@ if [ -z "$VERSION" ]; then
     exit 1
 fi
 
-DMG_FILE="Inputalk-$VERSION.dmg"
+DMG_FILE="ShoutOut-$VERSION.dmg"
 DMG_PATH="$PROJECT_DIR/dist/$DMG_FILE"
 S3_BUCKET="$AWS_S3_BUCKET_NAME"
 S3_DMG_KEY="releases/$VERSION/$DMG_FILE"

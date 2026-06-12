@@ -1,9 +1,11 @@
 import AppKit
 import Combine
+import ShoutOutCore
 import SwiftUI
 
 enum Defaults {
     static let showInDock = "showInDock"
+    static let dimSystemAudio = "dimSystemAudio"
 }
 
 // MARK: - App State
@@ -23,10 +25,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     let transcriptionService = TranscriptionService()
     let hotkeyManager = HotkeyManager()
     let permissions = PermissionManager.shared
+    let usageStats = UsageStatsStore.defaultStore()
+    let audioDucker = SystemAudioDucker()
 
     var settingsWindow: NSWindow?
     var onboardingWindow: NSWindow?
     private var appState: AppState = .idle
+    private var recordingStartedAt: Date?
 
     /// Prevent App Nap from making the hotkey unresponsive
     private var activityToken: NSObjectProtocol?
@@ -39,7 +44,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var indicatorDismissTask: Task<Void, Never>?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        UserDefaults.standard.register(defaults: [Defaults.showInDock: true])
+        UserDefaults.standard.register(defaults: [
+            Defaults.showInDock: true,
+            Defaults.dimSystemAudio: true,
+            "removeFillerWords": true,
+        ])
 
         setupMainMenu()
         setupMenuBar()
@@ -92,7 +101,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Hotkey Setup
 
     private func setupHotkey() {
-        guard permissions.hasAccessibility else { return }
+        guard permissions.hasAccessibility, permissions.hasInputMonitoring else { return }
 
         hotkeyManager.onRecordStart = { [weak self] in
             self?.startRecording()
@@ -107,6 +116,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func startRecording() {
         do {
+            recordingStartedAt = Date()
+            audioDucker.beginDuckingIfEnabled()
             try audioRecorder.startRecording()
             appState = .recording
             updateMenuBarIcon(state: .recording)
@@ -119,6 +130,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     self?.updateIndicator(state: .recording(level: level))
                 }
         } catch {
+            recordingStartedAt = nil
+            audioDucker.endDucking()
             print("Failed to start recording: \(error)")
         }
     }
@@ -130,10 +143,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         audioLevelCancellable = nil
 
         let samples = audioRecorder.stopRecording()
+        let recordingDuration = max(
+            Date().timeIntervalSince(recordingStartedAt ?? Date()),
+            Double(samples.count) / AudioRecorder.sampleRate
+        )
+        recordingStartedAt = nil
         appState = .processing
         updateMenuBarIcon(state: .processing)
 
         guard samples.count >= AudioRecorder.minimumSamples else {
+            audioDucker.endDucking()
             appState = .idle
             updateMenuBarIcon(state: .idle)
             dismissIndicator()
@@ -143,13 +162,24 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         updateIndicator(state: .processing)
 
         Task {
+            defer {
+                audioDucker.endDucking()
+                appState = .idle
+                updateMenuBarIcon(state: .idle)
+            }
+
             do {
                 // transcribe() waits for the model if it's still loading —
                 // the user just sees "Transcribing" a bit longer on first use
-                let text = try await transcriptionService.transcribe(audioSamples: samples)
-                if !text.isEmpty {
-                    TextInserter.insertText(text)
-                    updateIndicator(state: .done(text: text))
+                let result = try await transcriptionService.transcribe(audioSamples: samples)
+                if !result.finalText.isEmpty {
+                    try? usageStats.record(
+                        finalText: result.finalText,
+                        duration: recordingDuration,
+                        model: transcriptionService.selectedModel
+                    )
+                    TextInserter.insertText(result.finalText)
+                    updateIndicator(state: .done(text: result.finalText))
                     indicatorDismissTask = Task {
                         try? await Task.sleep(nanoseconds: 1_500_000_000)
                         dismissIndicator()
@@ -161,9 +191,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 print("Transcription failed: \(error)")
                 dismissIndicator()
             }
-
-            appState = .idle
-            updateMenuBarIcon(state: .idle)
         }
     }
 
@@ -243,13 +270,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         appMenuItem.submenu = appMenu
         appMenu.addItem(
             NSMenuItem(
-                title: "About Inputalk",
+                title: "About Shout Out",
                 action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)),
                 keyEquivalent: ""))
         appMenu.addItem(.separator())
         appMenu.addItem(
             NSMenuItem(
-                title: "Hide Inputalk",
+                title: "Hide Shout Out",
                 action: #selector(NSApplication.hide(_:)),
                 keyEquivalent: "h"))
         let hideOthers = NSMenuItem(
@@ -266,7 +293,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         appMenu.addItem(.separator())
         appMenu.addItem(
             NSMenuItem(
-                title: "Quit Inputalk",
+                title: "Quit Shout Out",
                 action: #selector(NSApplication.terminate(_:)),
                 keyEquivalent: "q"))
 
@@ -333,7 +360,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
             // Fallback to SF Symbol
             let image = NSImage(
-                systemSymbolName: "waveform", accessibilityDescription: "Inputalk")
+                systemSymbolName: "waveform", accessibilityDescription: "Shout Out")
             image?.isTemplate = true
             return image
         case .recording:
@@ -357,6 +384,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private func showContextMenu() {
         let menu = NSMenu()
 
+        let todaySummary = usageStats.todaySummary
+        let statsItem = NSMenuItem(
+            title: "\(todaySummary.wordCount) words today · \(todaySummary.averageWordsPerMinute) WPM",
+            action: nil,
+            keyEquivalent: ""
+        )
+        statsItem.isEnabled = false
+        menu.addItem(statsItem)
+
+        menu.addItem(NSMenuItem.separator())
+
         let settingsItem = NSMenuItem(
             title: "Settings...", action: #selector(showSettingsAction), keyEquivalent: ",")
         settingsItem.target = self
@@ -365,7 +403,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(NSMenuItem.separator())
 
         let quitItem = NSMenuItem(
-            title: "Quit Inputalk", action: #selector(quitApp), keyEquivalent: "q")
+            title: "Quit Shout Out", action: #selector(quitApp), keyEquivalent: "q")
         quitItem.target = self
         menu.addItem(quitItem)
 
@@ -383,18 +421,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func showSettings() {
         if settingsWindow == nil {
             let window = NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 400, height: 560),
+                contentRect: NSRect(x: 0, y: 0, width: 440, height: 720),
                 styleMask: [.titled, .closable],
                 backing: .buffered,
                 defer: false
             )
-            window.title = "Settings"
+            window.title = "Shout Out Settings"
             window.titlebarAppearsTransparent = true
             window.center()
             window.contentView = NSHostingView(
                 rootView: SettingsView()
                     .environmentObject(transcriptionService)
                     .environmentObject(permissions)
+                    .environmentObject(usageStats)
             )
             window.isReleasedWhenClosed = false
             window.delegate = self
@@ -409,12 +448,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func showOnboarding() {
         if onboardingWindow == nil {
             let window = NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 480, height: 420),
+                contentRect: NSRect(x: 0, y: 0, width: 480, height: 500),
                 styleMask: [.titled, .closable, .fullSizeContentView],
                 backing: .buffered,
                 defer: false
             )
-            window.title = "Welcome to Inputalk"
+            window.title = "Welcome to Shout Out"
             window.center()
             window.contentView = NSHostingView(
                 rootView: OnboardingView(onComplete: { [weak self] in

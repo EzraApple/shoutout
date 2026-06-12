@@ -29,10 +29,10 @@ if [ -z "$VERSION" ]; then
     exit 1
 fi
 
-APP_NAME="Inputalk"
+APP_NAME="Shout Out"
 DIST_DIR="$PROJECT_DIR/dist"
 APP_BUNDLE="$DIST_DIR/$APP_NAME.app"
-DMG_FINAL="$DIST_DIR/$APP_NAME-$VERSION.dmg"
+DMG_FINAL="$DIST_DIR/ShoutOut-$VERSION.dmg"
 
 echo -e "${BLUE}Creating DMG installer for $APP_NAME v$VERSION...${NC}"
 

@@ -1,0 +1,29 @@
+name: macOS
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Toolchain
+        run: |
+          xcode-select -p
+          swift --version
+
+      - name: Static checks
+        run: SKIP_SWIFTPM=true ./scripts/test.sh
+
+      - name: Unit tests
+        run: cd macos && swift test
+
+      - name: Build Swift package
+        run: cd macos && swift build
+
+      - name: Build app bundle
+        run: cd macos && UNIVERSAL=false SKIP_NOTARIZE=true ./scripts/build-app.sh

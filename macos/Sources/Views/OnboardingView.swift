@@ -9,7 +9,7 @@ struct OnboardingView: View {
     @EnvironmentObject var permissions: PermissionManager
     @State private var step = 0
 
-    private let totalSteps = 5
+    private let totalSteps = 6
 
     var body: some View {
         ZStack {
@@ -31,11 +31,15 @@ struct OnboardingView: View {
                         insertion: .move(edge: .trailing).combined(with: .opacity),
                         removal: .move(edge: .leading).combined(with: .opacity)
                     ))
-                    case 3: modelStep.transition(.asymmetric(
+                    case 3: inputMonitoringStep.transition(.asymmetric(
                         insertion: .move(edge: .trailing).combined(with: .opacity),
                         removal: .move(edge: .leading).combined(with: .opacity)
                     ))
-                    case 4: doneStep.transition(.asymmetric(
+                    case 4: modelStep.transition(.asymmetric(
+                        insertion: .move(edge: .trailing).combined(with: .opacity),
+                        removal: .move(edge: .leading).combined(with: .opacity)
+                    ))
+                    case 5: doneStep.transition(.asymmetric(
                         insertion: .move(edge: .trailing).combined(with: .opacity),
                         removal: .move(edge: .leading).combined(with: .opacity)
                     ))
@@ -64,12 +68,12 @@ struct OnboardingView: View {
                 WelcomeIcon()
 
                 VStack(spacing: 8) {
-                    Text("Welcome to Inputalk")
+                    Text("Welcome to Shout Out")
                         .font(.system(size: 22, weight: .semibold))
                         .tracking(-0.3)
                         .foregroundStyle(.white)
 
-                    Text("Free dictation for macOS — let's get you set up")
+                    Text("Local dictation for macOS — let's get you set up")
                         .font(.system(size: 13))
                         .foregroundStyle(Color.white.opacity(0.4))
                 }
@@ -111,7 +115,7 @@ struct OnboardingView: View {
                         .tracking(-0.3)
                         .foregroundStyle(.white)
 
-                    Text("Inputalk needs your microphone to hear your voice for dictation")
+                    Text("Shout Out needs your microphone to hear your voice for dictation")
                         .font(.system(size: 13))
                         .foregroundStyle(Color.white.opacity(0.4))
                         .multilineTextAlignment(.center)
@@ -208,7 +212,68 @@ struct OnboardingView: View {
         .padding(.vertical, 40)
     }
 
-    // MARK: - Step 3: Model Download
+    // MARK: - Step 3: Input Monitoring
+
+    private var inputMonitoringStep: some View {
+        VStack(spacing: 0) {
+            Spacer()
+
+            VStack(spacing: 24) {
+                Image(systemName: "keyboard")
+                    .font(.system(size: 28, weight: .light))
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [.teal, .blue.opacity(0.8)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 56, height: 56)
+                    .glassed(in: Circle())
+
+                VStack(spacing: 8) {
+                    Text("Input Monitoring")
+                        .font(.system(size: 20, weight: .semibold))
+                        .tracking(-0.3)
+                        .foregroundStyle(.white)
+
+                    Text("Required to detect the Fn key while other apps are focused")
+                        .font(.system(size: 13))
+                        .foregroundStyle(Color.white.opacity(0.4))
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                OnboardingPermissionBadge(granted: permissions.hasInputMonitoring)
+            }
+
+            Spacer()
+
+            VStack(spacing: 12) {
+                if permissions.hasInputMonitoring {
+                    OnboardingPillButton("Continue") {
+                        withAnimation { step = 4 }
+                    }
+                } else {
+                    OnboardingPillButton("Open System Settings") {
+                        permissions.requestInputMonitoring()
+                    }
+
+                    Button(action: { withAnimation { step = 4 } }) {
+                        Text("Skip for now")
+                            .font(.system(size: 13))
+                            .foregroundStyle(Color.white.opacity(0.3))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.bottom, 8)
+        }
+        .padding(.horizontal, 48)
+        .padding(.vertical, 40)
+    }
+
+    // MARK: - Step 4: Model Download
 
     private var modelStep: some View {
         VStack(spacing: 0) {
@@ -241,7 +306,7 @@ struct OnboardingView: View {
 
             if transcription.modelState == .ready {
                 OnboardingPillButton("Continue") {
-                    withAnimation { step = 4 }
+                    withAnimation { step = 5 }
                 }
                 .padding(.bottom, 8)
             } else if case .error = transcription.modelState {
@@ -303,7 +368,7 @@ struct OnboardingView: View {
         }
     }
 
-    // MARK: - Step 4: Done
+    // MARK: - Step 5: Done
 
     private var doneStep: some View {
         VStack(spacing: 0) {
@@ -334,6 +399,11 @@ struct OnboardingView: View {
                         icon: "hand.raised.fingers.spread",
                         title: "Accessibility",
                         granted: permissions.hasAccessibility
+                    )
+                    OnboardingSummaryRow(
+                        icon: "keyboard",
+                        title: "Input Monitoring",
+                        granted: permissions.hasInputMonitoring
                     )
                     OnboardingSummaryRow(
                         icon: "cpu",
