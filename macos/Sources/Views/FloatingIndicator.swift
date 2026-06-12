@@ -28,7 +28,7 @@ struct AppOverlayView: View {
     var body: some View {
         switch style {
         case .crab:
-            CrabOverlayView(state: state)
+            CrabOverlayView(state: state, height: crabHeight)
                 .frame(width: 112, height: crabHeight)
         case .capsule:
             if state == .idle {
@@ -149,19 +149,18 @@ struct FloatingIndicatorView: View {
 
 private struct CrabOverlayView: View {
     let state: IndicatorState
+    let height: CGFloat
 
     @State private var walkFrame = false
     @State private var idleOffset: CGFloat = 0
 
     var body: some View {
-        GeometryReader { geometry in
-            PixelCrab(isRecording: state.isRecording, walkFrame: walkFrame)
-                .offset(y: state.isRecording ? 0 : idleOffset)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-                .task(id: state.isRecording) {
-                    await animate(in: geometry.size.height)
-                }
-        }
+        PixelCrab(isRecording: state.isRecording, walkFrame: walkFrame)
+            .offset(y: state.isRecording ? 0 : idleOffset)
+            .frame(width: 112, height: height, alignment: .center)
+            .task(id: state.isRecording) {
+                await animate(in: height)
+            }
         .allowsHitTesting(false)
     }
 
