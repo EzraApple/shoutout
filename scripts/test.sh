@@ -98,6 +98,7 @@ assert_contains "App delegate keeps overlay above apps" "$MACOS_DIR/Sources/AppD
 assert_contains "App delegate supports overlay preview mode" "$MACOS_DIR/Sources/AppDelegate.swift" "SHOUTOUT_OVERLAY_PREVIEW"
 assert_contains "Crab overlay has boom mic" "$MACOS_DIR/Sources/Views/FloatingIndicator.swift" "boomMic"
 assert_contains "Crab overlay walks while idle" "$MACOS_DIR/Sources/Views/FloatingIndicator.swift" "idleOffset"
+assert_contains "Crab overlay has visible dark-surface halo" "$MACOS_DIR/Sources/Views/FloatingIndicator.swift" "white.opacity"
 
 if [[ "${SKIP_SWIFTPM:-false}" == "true" ]]; then
   printf 'skip - SwiftPM checks skipped by SKIP_SWIFTPM=true\n'

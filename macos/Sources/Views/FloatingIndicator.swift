@@ -205,6 +205,10 @@ private struct PixelCrab: View {
             eyes
         }
         .frame(width: 84, height: 72)
+        .shadow(color: .white.opacity(0.65), radius: 0, x: 1, y: 0)
+        .shadow(color: .white.opacity(0.65), radius: 0, x: -1, y: 0)
+        .shadow(color: .white.opacity(0.65), radius: 0, x: 0, y: 1)
+        .shadow(color: .white.opacity(0.65), radius: 0, x: 0, y: -1)
         .shadow(color: .black.opacity(0.35), radius: 4, y: 2)
     }
 

@@ -254,6 +254,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 )
             )
             hostingView.sizingOptions = .intrinsicContentSize
+            hostingView.autoresizingMask = [.width, .height]
             panel.contentView = hostingView
 
             indicatorPanel = panel
@@ -267,6 +268,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         positionIndicator(style: overlayStyle)
+        resizeIndicatorContent()
         indicatorPanel?.orderFrontRegardless()
     }
 
@@ -373,6 +375,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             NSRect(x: x, y: y, width: contentSize.width, height: contentSize.height),
             display: true
         )
+    }
+
+    private func resizeIndicatorContent() {
+        guard let panel = indicatorPanel, let hostingView = indicatorHostingView else { return }
+        hostingView.frame = NSRect(origin: .zero, size: panel.frame.size)
+        panel.contentView?.needsDisplay = true
     }
 
     // MARK: - Main Menu
