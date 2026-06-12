@@ -653,6 +653,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func menuBarImage(for state: AppState) -> NSImage? {
+        if let image = crabMenuBarImage(
+            named: state == .recording ? "recording-1" : "idle-1",
+            accessibilityDescription: menuBarAccessibilityDescription(for: state)
+        ) {
+            return image
+        }
+
         switch state {
         case .idle:
             let image = NSImage(
@@ -670,6 +677,38 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 accessibilityDescription: "Transcribing")
             image?.isTemplate = true
             return image
+        }
+    }
+
+    private func crabMenuBarImage(
+        named name: String,
+        accessibilityDescription: String
+    ) -> NSImage? {
+        guard
+            let url = Bundle.main.url(
+                forResource: name,
+                withExtension: "png",
+                subdirectory: "CrabSprites"
+            ),
+            let image = NSImage(contentsOf: url)
+        else {
+            return nil
+        }
+
+        image.size = NSSize(width: 18, height: 18)
+        image.isTemplate = true
+        image.accessibilityDescription = accessibilityDescription
+        return image
+    }
+
+    private func menuBarAccessibilityDescription(for state: AppState) -> String {
+        switch state {
+        case .idle:
+            return "Shout Out"
+        case .recording:
+            return "Recording"
+        case .processing:
+            return "Transcribing"
         }
     }
 

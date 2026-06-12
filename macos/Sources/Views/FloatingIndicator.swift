@@ -297,8 +297,6 @@ private struct SpriteWallCrab: View {
                     .interpolation(.none)
                     .antialiased(false)
                     .scaledToFit()
-                    .frame(width: 68, height: 50, alignment: .trailing)
-                    .rotationEffect(.degrees(-90))
                     .frame(width: 54, height: 76, alignment: .trailing)
             }
 
@@ -308,21 +306,16 @@ private struct SpriteWallCrab: View {
             }
         }
         .frame(width: 54, height: 76, alignment: .trailing)
-        .offset(x: wallContactOffset)
         .shadow(color: .black.opacity(0.22), radius: 1, x: -1 / max(displayScale, 1), y: 1)
-    }
-
-    private var wallContactOffset: CGFloat {
-        showsBoomMic ? 20 : 12
     }
 
     private var attentionBadge: some View {
         Image(systemName: "exclamationmark.circle.fill")
-            .font(.system(size: 14, weight: .bold))
+            .font(.system(size: 12, weight: .bold))
             .symbolRenderingMode(.palette)
             .foregroundStyle(.orange, Color.black.opacity(0.88))
-            .background(Circle().fill(.white.opacity(0.86)).frame(width: 11, height: 11))
-            .offset(x: -2, y: 7)
+            .background(Circle().fill(.white.opacity(0.86)).frame(width: 9, height: 9))
+            .offset(x: -8, y: 8)
     }
 
     private var currentImage: NSImage? {
@@ -352,7 +345,7 @@ private enum CrabSpriteAssets {
             let url = Bundle.main.url(
                 forResource: name,
                 withExtension: "png",
-                subdirectory: "CrabSprites"
+                subdirectory: "CrabSpritesWall"
             ),
             let image = NSImage(contentsOf: url)
         else {

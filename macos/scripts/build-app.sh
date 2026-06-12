@@ -86,6 +86,11 @@ if [ -d "Resources/CrabSprites" ]; then
     cp -R "Resources/CrabSprites" "$APP_BUNDLE/Contents/Resources/"
 fi
 
+if [ -d "Resources/CrabSpritesWall" ]; then
+    echo -e "${BLUE}Copying wall crab sprite frames...${NC}"
+    cp -R "Resources/CrabSpritesWall" "$APP_BUNDLE/Contents/Resources/"
+fi
+
 # Set executable permissions
 chmod +x "$APP_BUNDLE/Contents/MacOS/$EXECUTABLE_NAME"
 

@@ -4,9 +4,11 @@
   <img src="docs/assets/shout-out-icon.png" alt="Shout Out app icon: a black crab mascot wearing headphones and a boom microphone" width="180">
 </p>
 
-Local-first macOS dictation. Hold Fn, speak, release, and Shout Out pastes cleaned-up text into the app you were already using.
+Shout Out is a small local-first macOS dictation app with a tiny wall-crawling crab mascot. Hold Fn, speak, release, and it pastes cleaned-up text into the app you were already using.
 
-Shout Out is built for the narrow Wispr Flow loop: global Fn/Globe capture, microphone recording, on-device WhisperKit transcription, dictionary-aware cleanup, focused-app paste, and lightweight WPM stats.
+I built it around the voice loop I wanted for everyday writing: quick global Fn/Globe capture, microphone recording, on-device WhisperKit transcription, dictionary-aware cleanup, focused-app paste, and lightweight WPM stats.
+
+The app stays intentionally small: no cloud transcription service, no account system, and no extra editor to manage. The little crab just hangs out on the edge of the screen, scuttles while idle, and pops into boom-mic mode while listening.
 
 ## Install
 
