@@ -100,7 +100,7 @@ assert_contains "App delegate creates overlay with concrete frame" "$MACOS_DIR/S
 assert_contains "App delegate logs preview overlay visibility" "$MACOS_DIR/Sources/AppDelegate.swift" "shoutout-overlay-preview.log"
 assert_contains "App delegate can snapshot overlay previews" "$MACOS_DIR/Sources/AppDelegate.swift" "SHOUTOUT_OVERLAY_SNAPSHOT_PATH"
 assert_contains "Crab overlay has boom mic" "$MACOS_DIR/Sources/Views/FloatingIndicator.swift" "boomMic"
-assert_contains "Crab overlay walks while idle" "$MACOS_DIR/Sources/Views/FloatingIndicator.swift" "idleOffset"
+assert_contains "Crab overlay shows processing badge" "$MACOS_DIR/Sources/Views/FloatingIndicator.swift" "processingBadge"
 assert_contains "Crab overlay has visible dark-surface halo" "$MACOS_DIR/Sources/Views/FloatingIndicator.swift" "white.opacity"
 
 if [[ "${SKIP_SWIFTPM:-false}" == "true" ]]; then

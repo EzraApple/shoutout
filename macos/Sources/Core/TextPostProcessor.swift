@@ -2,15 +2,18 @@ import Foundation
 
 public struct TextPostProcessingOptions: Equatable, Sendable {
     public var removeFillerWords: Bool
+    public var cleanUpSelfCorrections: Bool
     public var applySpokenCommands: Bool
     public var collapseWhitespace: Bool
 
     public init(
         removeFillerWords: Bool = true,
+        cleanUpSelfCorrections: Bool = true,
         applySpokenCommands: Bool = true,
         collapseWhitespace: Bool = true
     ) {
         self.removeFillerWords = removeFillerWords
+        self.cleanUpSelfCorrections = cleanUpSelfCorrections
         self.applySpokenCommands = applySpokenCommands
         self.collapseWhitespace = collapseWhitespace
     }
@@ -43,6 +46,10 @@ public enum TextPostProcessor {
             result = removeFillers(from: result)
         }
 
+        if options.cleanUpSelfCorrections {
+            result = cleanUpSelfCorrections(in: result)
+        }
+
         if options.applySpokenCommands {
             result = applySpokenCommands(to: result)
         }
@@ -71,6 +78,35 @@ public enum TextPostProcessor {
                 options: .regularExpression
             )
         }
+
+        return result
+    }
+
+    private static func cleanUpSelfCorrections(in text: String) -> String {
+        var result = text
+
+        let repeatedActionPattern =
+            #"\b(press|click|open|use|select|choose|set|make|call|send|go|do)\s+([^,.!?\n]+?)\s+(?:oh\s+)?(?:i mean|actually|scratch that|or rather|rather)\s+(?:or\s+)?\1\s+([^,.!?\n]+?)(?:\s+rather)?(?=$|[,.!?\n])"#
+        result = result.replacingOccurrences(
+            of: repeatedActionPattern,
+            with: "$1 $3",
+            options: [.regularExpression, .caseInsensitive]
+        )
+
+        let prepositionCorrectionPattern =
+            #"\b(at|on|for|by|to|from|with)\s+([^,.!?\n]+?)\s+(?:actually|scratch that|or rather|rather|i mean)\s+([^,.!?\n]+?)(?=$|[,.!?\n])"#
+        result = result.replacingOccurrences(
+            of: prepositionCorrectionPattern,
+            with: "$1 $3",
+            options: [.regularExpression, .caseInsensitive]
+        )
+
+        let trailingCorrectionMarkerPattern = #"\s+(?:oh\s+)?(?:i mean|or rather|rather)\s*$"#
+        result = result.replacingOccurrences(
+            of: trailingCorrectionMarkerPattern,
+            with: "",
+            options: [.regularExpression, .caseInsensitive]
+        )
 
         return result
     }

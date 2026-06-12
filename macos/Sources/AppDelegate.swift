@@ -8,6 +8,7 @@ enum Defaults {
     static let dimSystemAudio = "dimSystemAudio"
     static let overlayStyle = "overlayStyle"
     static let requestPermissionsOnLaunch = "requestPermissionsOnLaunch"
+    static let cleanUpSelfCorrections = "cleanUpSelfCorrections"
 }
 
 // MARK: - App State
@@ -56,6 +57,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             Defaults.dimSystemAudio: true,
             Defaults.overlayStyle: OverlayStyle.crab.rawValue,
             "removeFillerWords": true,
+            Defaults.cleanUpSelfCorrections: true,
         ])
 
         let overlayPreviewState = requestedOverlayPreviewState()

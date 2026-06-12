@@ -23,6 +23,29 @@ final class TextPostProcessorTests: XCTestCase {
         XCTAssertEqual(process("um I sent it", options: options), "um I sent it")
     }
 
+    func testCleansRepeatedActionSelfCorrection() {
+        XCTAssertEqual(
+            process("when I press the boom oh I mean or press function rather"),
+            "when I press function"
+        )
+    }
+
+    func testCleansPrepositionSelfCorrection() {
+        XCTAssertEqual(process("let's meet at 2 actually 3"), "let's meet at 3")
+    }
+
+    func testPreservesActuallyWhenItIsNotACorrection() {
+        XCTAssertEqual(process("I actually liked it"), "I actually liked it")
+    }
+
+    func testDisablesSelfCorrectionCleanupWhenRequested() {
+        let options = TextPostProcessingOptions(cleanUpSelfCorrections: false)
+        XCTAssertEqual(
+            process("when I press the boom oh I mean or press function rather", options: options),
+            "when I press the boom oh I mean or press function rather"
+        )
+    }
+
     func testRemovesYouKnowFiller() {
         XCTAssertEqual(process("I can, you know, ship this"), "I can, ship this")
     }

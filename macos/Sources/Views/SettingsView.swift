@@ -8,6 +8,7 @@ struct SettingsView: View {
     @EnvironmentObject var usageStats: UsageStatsStore
 
     @AppStorage("removeFillerWords") private var removeFillerWords = true
+    @AppStorage(Defaults.cleanUpSelfCorrections) private var cleanUpSelfCorrections = true
     @AppStorage(Defaults.showInDock) private var showInDock = true
     @AppStorage(Defaults.dimSystemAudio) private var dimSystemAudio = true
     @AppStorage(Defaults.overlayStyle) private var overlayStyle = OverlayStyle.crab.rawValue
@@ -75,6 +76,10 @@ struct SettingsView: View {
             Section {
                 Toggle(isOn: $removeFillerWords) {
                     Label("Remove filler words", systemImage: "text.badge.minus")
+                }
+
+                Toggle(isOn: $cleanUpSelfCorrections) {
+                    Label("Clean up self-corrections", systemImage: "arrow.uturn.backward")
                 }
             } header: {
                 Text("Post-processing")

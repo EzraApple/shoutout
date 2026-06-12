@@ -150,6 +150,8 @@ class TranscriptionService: ObservableObject {
         let postProcessingOptions = TextPostProcessingOptions(
             removeFillerWords: UserDefaults.standard.object(forKey: "removeFillerWords") == nil
                 || UserDefaults.standard.bool(forKey: "removeFillerWords"),
+            cleanUpSelfCorrections: UserDefaults.standard.object(forKey: Defaults.cleanUpSelfCorrections) == nil
+                || UserDefaults.standard.bool(forKey: Defaults.cleanUpSelfCorrections),
             applySpokenCommands: true,
             collapseWhitespace: true
         )

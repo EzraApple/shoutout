@@ -8,7 +8,19 @@ Shout Out is a small local-first macOS dictation app with a tiny wall-crawling c
 
 I built it around the voice loop I wanted for everyday writing: quick global Fn/Globe capture, microphone recording, on-device WhisperKit transcription, dictionary-aware cleanup, focused-app paste, and lightweight WPM stats.
 
-The app stays intentionally small: no cloud transcription service, no account system, and no extra editor to manage. The little crab just hangs out on the edge of the screen, scuttles while idle, and pops into boom-mic mode while listening.
+The app stays intentionally small: no cloud transcription service, no account system, and no extra editor to manage. The little crab waits on the edge of the screen, pops into boom-mic mode while listening, and shows a tiny spinner while text is being generated.
+
+## Flow
+
+```mermaid
+flowchart LR
+    Fn["Fn / Globe"] --> Recorder["AVAudioEngine recorder"]
+    Recorder --> Samples["16 kHz mono samples"]
+    Samples --> Whisper["WhisperKit + Core ML model"]
+    Whisper --> Cleanup["Local cleanup\nfillers, commands, corrections, dictionary"]
+    Cleanup --> Paste["Focused-app paste"]
+    Cleanup --> Stats["Local word + WPM stats"]
+```
 
 ## Install
 
@@ -36,6 +48,7 @@ If macOS does not show a prompt, open System Settings → Privacy & Security and
 - Double-tap Fn/Globe for hands-free recording. Tap Fn/Globe again to stop.
 - Click the menu bar waveform icon for Settings and today’s word/WPM count.
 - Add custom dictionary entries in Settings. The default dictionary includes `Yuxin` with aliases like `yu xin`, `you shin`, and `Y-U-X-I-N`.
+- Toggle cleanup for filler words and obvious self-corrections like “press X, I mean press Y.”
 - Toggle “Dim system audio while recording” if you want music lowered during dictation and restored afterward.
 
 ## Models

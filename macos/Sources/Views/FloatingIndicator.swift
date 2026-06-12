@@ -38,6 +38,13 @@ enum IndicatorState: Equatable, Sendable {
         }
         return false
     }
+
+    var isProcessing: Bool {
+        if case .processing = self {
+            return true
+        }
+        return false
+    }
 }
 
 enum CrabOverlayLayout {
@@ -219,21 +226,21 @@ private struct CrabOverlayView: View {
     let state: IndicatorState
     let height: CGFloat
 
-    @State private var spriteFrameIndex = 0
-    @State private var idleOffset: CGFloat = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var processingPulse = false
 
     var body: some View {
         ZStack(alignment: .trailing) {
             SpriteWallCrab(
                 showsBoomMic: state.showsBoomMic,
-                frameIndex: spriteFrameIndex,
+                showsProcessing: state.isProcessing,
+                processingPulse: processingPulse,
                 attentionMessage: attentionMessage
             )
-            .offset(y: idleOffset)
         }
         .frame(width: CrabOverlayLayout.width, height: height, alignment: .trailing)
-        .task(id: state.showsBoomMic || state.isRecording) {
-            await animate(in: height, active: state.showsBoomMic || state.isRecording)
+        .task(id: state.isProcessing) {
+            await animateProcessingBadge()
         }
         .allowsHitTesting(false)
     }
@@ -245,45 +252,23 @@ private struct CrabOverlayView: View {
         return nil
     }
 
-    private func animate(in height: CGFloat, active: Bool) async {
-        if active {
-            while !Task.isCancelled {
-                spriteFrameIndex += 1
-                try? await Task.sleep(nanoseconds: 150_000_000)
-            }
+    private func animateProcessingBadge() async {
+        processingPulse = false
+        guard state.isProcessing, !reduceMotion else {
             return
         }
 
-        let maxOffset = max((height - 76) / 2, 18)
-        var crawlDirection: CGFloat = Bool.random() ? -1 : 1
         while !Task.isCancelled {
-            let steps = Int.random(in: 6...10)
-
-            for _ in 0..<steps {
-                if Task.isCancelled { return }
-
-                let nextOffset = idleOffset + crawlDirection * CGFloat.random(in: 4...7)
-                idleOffset = min(max(nextOffset, -maxOffset), maxOffset)
-                spriteFrameIndex += 1
-
-                if abs(idleOffset) >= maxOffset - 2 {
-                    crawlDirection *= -1
-                }
-
-                try? await Task.sleep(nanoseconds: 140_000_000)
-            }
-
-            if Bool.random() {
-                crawlDirection *= -1
-            }
-            try? await Task.sleep(nanoseconds: UInt64.random(in: 650_000_000...1_100_000_000))
+            processingPulse.toggle()
+            try? await Task.sleep(nanoseconds: 450_000_000)
         }
     }
 }
 
 private struct SpriteWallCrab: View {
     let showsBoomMic: Bool
-    let frameIndex: Int
+    let showsProcessing: Bool
+    let processingPulse: Bool
     let attentionMessage: String?
 
     @Environment(\.displayScale) private var displayScale
@@ -303,6 +288,9 @@ private struct SpriteWallCrab: View {
             if let attentionMessage {
                 attentionBadge
                     .help(attentionMessage)
+            } else if showsProcessing {
+                processingBadge
+                    .help("Transcribing")
             }
         }
         .frame(width: 54, height: 76, alignment: .trailing)
@@ -319,10 +307,28 @@ private struct SpriteWallCrab: View {
             .offset(x: -8, y: 8)
     }
 
+    private var processingBadge: some View {
+        Circle()
+            .trim(from: 0.16, to: 0.86)
+            .stroke(
+                Color.white.opacity(0.92),
+                style: StrokeStyle(lineWidth: 2.2, lineCap: .round)
+            )
+            .frame(width: 13, height: 13)
+            .rotationEffect(.degrees(processingPulse ? 360 : 0))
+            .background(
+                Circle()
+                    .fill(Color.black.opacity(0.68))
+                    .frame(width: 17, height: 17)
+            )
+            .animation(.linear(duration: 0.45), value: processingPulse)
+            .offset(x: -8, y: 8)
+    }
+
     private var currentImage: NSImage? {
         let frames = showsBoomMic ? imageStore.boomMicFrames : imageStore.idleFrames
         guard !frames.isEmpty else { return nil }
-        return frames[abs(frameIndex) % frames.count]
+        return frames[0]
     }
 }
 
