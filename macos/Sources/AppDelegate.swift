@@ -291,6 +291,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
+        let signal = AudioSignalAnalysis.analyze(samples: samples)
+        RuntimeLog.write(
+            "record signal rms=\(String(format: "%.6f", signal.rms)) peak=\(String(format: "%.6f", signal.peak)) activeRatio=\(String(format: "%.4f", signal.activeRatio))"
+        )
+
+        guard signal.hasSpeechLikeAudio else {
+            refreshMenuBarIcon()
+            showTransientAttention("No speech", durationNanoseconds: 700_000_000)
+            RuntimeLog.write(
+                "record stopped silent rms=\(String(format: "%.6f", signal.rms)) peak=\(String(format: "%.6f", signal.peak)) activeRatio=\(String(format: "%.4f", signal.activeRatio))"
+            )
+            return
+        }
+
         enqueueTranscription(samples: samples, recordingDuration: recordingDuration)
     }
 
