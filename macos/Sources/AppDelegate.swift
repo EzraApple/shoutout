@@ -231,6 +231,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         writeOverlayPreviewLog(
             "showIndicator style=\(overlayStyle.rawValue) state=\(state) frame=\(NSStringFromRect(initialFrame))"
         )
+        writeOverlaySnapshotIfRequested(style: overlayStyle, state: state, crabHeight: crabHeight)
 
         if indicatorPanel == nil {
             let panel = NSPanel(
@@ -371,6 +372,39 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             try? handle.close()
         } else {
             try? data.write(to: url)
+        }
+    }
+
+    private func writeOverlaySnapshotIfRequested(
+        style: OverlayStyle,
+        state: IndicatorState,
+        crabHeight: CGFloat
+    ) {
+        guard
+            let path = ProcessInfo.processInfo.environment["SHOUTOUT_OVERLAY_SNAPSHOT_PATH"]
+        else { return }
+
+        let renderer = ImageRenderer(
+            content: AppOverlayView(style: style, state: state, crabHeight: crabHeight)
+                .frame(width: 112, height: crabHeight)
+        )
+        renderer.scale = NSScreen.main?.backingScaleFactor ?? 2
+
+        guard
+            let image = renderer.nsImage,
+            let tiffData = image.tiffRepresentation,
+            let bitmap = NSBitmapImageRep(data: tiffData),
+            let pngData = bitmap.representation(using: .png, properties: [:])
+        else {
+            writeOverlayPreviewLog("failed to render overlay snapshot")
+            return
+        }
+
+        do {
+            try pngData.write(to: URL(fileURLWithPath: path))
+            writeOverlayPreviewLog("wrote overlay snapshot path=\(path)")
+        } catch {
+            writeOverlayPreviewLog("failed to write overlay snapshot path=\(path) error=\(error)")
         }
     }
 
