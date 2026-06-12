@@ -46,6 +46,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var indicatorDismissTask: Task<Void, Never>?
     private var shortcutUnavailableMessage: String?
     private var lastLoggedRecordingLevelAt: Date?
+    private var permissionChangeObserver: NSObjectProtocol?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         RuntimeLog.write("app launch bundle=\(Bundle.main.bundleIdentifier ?? "unknown")")
@@ -80,6 +81,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 self?.refreshOverlay()
             }
         }
+        permissionChangeObserver = NotificationCenter.default.addObserver(
+            forName: .shoutOutPermissionsChanged,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                RuntimeLog.write("permissions changed; retrying hotkey setup")
+                self?.setupHotkey()
+                self?.refreshOverlay()
+            }
+        }
 
         // Prevent App Nap
         activityToken = ProcessInfo.processInfo.beginActivity(
@@ -108,6 +120,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         RuntimeLog.write("app terminate")
+        if let permissionChangeObserver {
+            NotificationCenter.default.removeObserver(permissionChangeObserver)
+        }
         hotkeyManager.stop()
         if audioRecorder.isRecording {
             _ = audioRecorder.stopRecording()
@@ -128,7 +143,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             RuntimeLog.write(
                 "hotkey setup blocked accessibility=\(permissions.hasAccessibility) inputMonitoring=\(permissions.hasInputMonitoring)"
             )
-            shortcutUnavailableMessage = nil
+            shortcutUnavailableMessage = permissions.hotkeyStatusText
             showIndicator(state: currentIdleIndicatorState())
             return
         }

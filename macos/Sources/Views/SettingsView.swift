@@ -149,6 +149,14 @@ struct SettingsView: View {
             // Permissions
             Section {
                 HStack {
+                    Label("Current app", systemImage: "app.badge")
+                    Spacer()
+                    Text(permissions.statusText)
+                        .foregroundStyle(permissions.missingPermissionNames.isEmpty ? .green : .orange)
+                        .lineLimit(1)
+                }
+
+                HStack {
                     Label("Microphone", systemImage: "mic")
                     Spacer()
                     if permissions.hasMicrophone {
@@ -192,6 +200,20 @@ struct SettingsView: View {
                         .controlSize(.small)
                     }
                 }
+
+                HStack {
+                    Button("Open Missing") {
+                        permissions.openFirstMissingPermissionPane()
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(permissions.missingPermissionNames.isEmpty)
+
+                    Button("Refresh") {
+                        permissions.refresh()
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
             } header: {
                 Text("Permissions")
             }
@@ -222,6 +244,29 @@ struct SettingsView: View {
                 }
             } header: {
                 Text("Storage")
+            }
+
+            Section {
+                HStack {
+                    Label("Runtime log", systemImage: "doc.text.magnifyingglass")
+                    Spacer()
+                    Button("Show in Finder") {
+                        NSWorkspace.shared.selectFile(
+                            RuntimeLog.logURL.path,
+                            inFileViewerRootedAtPath: RuntimeLog.logURL.deletingLastPathComponent()
+                                .path
+                        )
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
+                Text(RuntimeLog.logURL.path)
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            } header: {
+                Text("Diagnostics")
             }
 
             // About
