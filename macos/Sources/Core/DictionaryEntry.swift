@@ -12,18 +12,6 @@ public struct DictionaryEntry: Codable, Identifiable, Sendable {
     }
 
     public static let defaultEntries: [DictionaryEntry] = [
-        DictionaryEntry(
-            phrase: "Yuxin",
-            aliases: [
-                "yu xin",
-                "you shin",
-                "you xin",
-                "yoo shin",
-                "yuxen",
-                "Y-U-X-I-N",
-                "Y U X I N",
-            ]
-        ),
         DictionaryEntry(phrase: "Replo", aliases: ["rep low", "reply low"]),
         DictionaryEntry(phrase: "Linear", aliases: ["line ear"]),
     ]

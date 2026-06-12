@@ -31,7 +31,7 @@ let package = Package(name: "ShoutOut")
 
 ### 2. Core Text Processing
 
-**Why:** The dictionary feature is mandatory for names like Yuxin and should be testable without the app UI.
+**Why:** The dictionary feature is mandatory for names and acronyms Whisper misses and should be testable without the app UI.
 
 **Before:**
 ```swift
@@ -47,7 +47,7 @@ return TextPostProcessor.process(
 )
 ```
 
-**Verify:** Swift unit tests cover filler removal, spoken punctuation, custom dictionary aliases, and the default Yuxin entry.
+**Verify:** Swift unit tests cover filler removal, spoken punctuation, custom dictionary aliases, and default product-term entries.
 
 ### 3. Dictionary UI And Persistence
 
@@ -110,10 +110,10 @@ showIndicator(state: .recording(level: 0))
 7. Collapses repeated spaces
 8. Returns empty for whitespace input
 9. Preserves existing punctuation
-10. Replaces yu xin with Yuxin
-11. Replaces you shin with Yuxin
-12. Replaces Y-U-X-I-N with Yuxin
-13. Replaces Y U X I N with Yuxin
+10. Replaces rep low with Replo
+11. Replaces reply low with Replo
+12. Replaces line ear with Linear
+13. Replaces custom acronyms
 14. Dictionary replacement is case-insensitive
 15. Replaces multiple dictionary occurrences
 16. Does not replace inside other words
@@ -126,7 +126,7 @@ showIndicator(state: .recording(level: 0))
 23. Question mark command
 24. Exclamation point command
 25. Dictionary runs after spoken commands
-26. Default entries include Yuxin
+26. Default entries include product terms
 27. Spoken commands can be disabled
 28. Dictionary store loads defaults when missing
 29. Dictionary store trims phrase
@@ -155,7 +155,7 @@ showIndicator(state: .recording(level: 0))
 52. README documents make install
 53. README preserves MIT attribution
 54. README documents Microphone, Accessibility, and Input Monitoring
-55. README documents Yuxin dictionary example
+55. README documents custom dictionary entries
 56. Makefile has install target
 57. Package name is ShoutOut
 58. Executable target is ShoutOut

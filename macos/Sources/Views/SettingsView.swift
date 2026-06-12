@@ -379,7 +379,7 @@ private struct DictionarySettingsView: View {
         } header: {
             Text("Dictionary")
         } footer: {
-            Text("Use this for names and acronyms Whisper tends to miss, like Yuxin.")
+            Text("Use this for names and acronyms Whisper tends to miss.")
         }
     }
 

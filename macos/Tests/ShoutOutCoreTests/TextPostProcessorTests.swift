@@ -62,40 +62,36 @@ final class TextPostProcessorTests: XCTestCase {
         XCTAssertEqual(process("Ship this, please."), "Ship this, please.")
     }
 
-    func testReplacesYuXinWithYuxin() {
-        XCTAssertEqual(process("I sent this to yu xin"), "I sent this to Yuxin")
+    func testReplacesRepLowWithReplo() {
+        XCTAssertEqual(process("I shipped this in rep low"), "I shipped this in Replo")
     }
 
-    func testReplacesYouShinWithYuxin() {
-        XCTAssertEqual(process("ask you shin about it"), "ask Yuxin about it")
+    func testReplacesReplyLowWithReplo() {
+        XCTAssertEqual(process("open reply low"), "open Replo")
     }
 
-    func testReplacesSpelledOutYuxinWithHyphens() {
-        XCTAssertEqual(process("send it to Y-U-X-I-N"), "send it to Yuxin")
-    }
-
-    func testReplacesSpelledOutYuxinWithSpaces() {
-        XCTAssertEqual(process("send it to Y U X I N"), "send it to Yuxin")
+    func testReplacesLineEarWithLinear() {
+        XCTAssertEqual(process("file this in line ear"), "file this in Linear")
     }
 
     func testDictionaryReplacementIsCaseInsensitive() {
-        XCTAssertEqual(process("ask YOU SHIN"), "ask Yuxin")
+        XCTAssertEqual(process("open REP LOW"), "open Replo")
     }
 
     func testDictionaryReplacesMultipleOccurrences() {
-        XCTAssertEqual(process("yu xin and you shin approved"), "Yuxin and Yuxin approved")
+        XCTAssertEqual(process("rep low and reply low shipped"), "Replo and Replo shipped")
     }
 
     func testDictionaryDoesNotReplaceInsideOtherWords() {
-        XCTAssertEqual(process("bayu xinside stays weird"), "bayu xinside stays weird")
+        XCTAssertEqual(process("bare placement stays weird"), "bare placement stays weird")
     }
 
     func testLongerAliasesWinBeforeShorterAliases() {
         let entries = [
-            DictionaryEntry(phrase: "Yuxin", aliases: ["yu xin"]),
-            DictionaryEntry(phrase: "Xin", aliases: ["xin"]),
+            DictionaryEntry(phrase: "Jane Doe", aliases: ["jane doe"]),
+            DictionaryEntry(phrase: "Doe", aliases: ["doe"]),
         ]
-        XCTAssertEqual(process("yu xin said xin is a name", entries: entries), "Yuxin said Xin is a name")
+        XCTAssertEqual(process("jane doe said doe is ready", entries: entries), "Jane Doe said Doe is ready")
     }
 
     func testCustomAcronymReplacement() {
@@ -130,11 +126,12 @@ final class TextPostProcessorTests: XCTestCase {
     }
 
     func testDictionaryRunsAfterSpokenCommands() {
-        XCTAssertEqual(process("send it to yu xin new line thanks"), "send it to Yuxin\nthanks")
+        XCTAssertEqual(process("send it to rep low new line thanks"), "send it to Replo\nthanks")
     }
 
-    func testDefaultEntriesIncludeYuxin() {
-        XCTAssertTrue(DictionaryEntry.defaultEntries.contains { $0.phrase == "Yuxin" })
+    func testDefaultEntriesIncludeProductTerms() {
+        XCTAssertTrue(DictionaryEntry.defaultEntries.contains { $0.phrase == "Replo" })
+        XCTAssertTrue(DictionaryEntry.defaultEntries.contains { $0.phrase == "Linear" })
     }
 
     func testDisablesSpokenCommandsWhenRequested() {

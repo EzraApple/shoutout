@@ -62,7 +62,7 @@ make install
 - Hold Fn/Globe to record. Release to transcribe and paste.
 - Double-tap Fn/Globe for hands-free recording. Tap Fn/Globe again to stop.
 - Click the menu bar waveform icon for Settings and today’s word/WPM count.
-- Add custom dictionary entries in Settings. The default dictionary includes `Yuxin` with aliases like `yu xin`, `you shin`, and `Y-U-X-I-N`.
+- Add custom dictionary entries in Settings for names and acronyms Whisper tends to miss.
 - Toggle cleanup for filler words and obvious self-corrections like “press X, I mean press Y.”
 - Toggle “Dim system audio while recording” if you want music lowered during dictation and restored afterward.
 

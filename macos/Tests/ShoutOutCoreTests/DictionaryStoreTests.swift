@@ -4,7 +4,7 @@ import XCTest
 final class DictionaryStoreTests: XCTestCase {
     func testLoadsDefaultEntriesWhenFileIsMissing() throws {
         let store = try makeStore()
-        XCTAssertTrue(store.entries.contains { $0.phrase == "Yuxin" })
+        XCTAssertTrue(store.entries.contains { $0.phrase == "Replo" })
     }
 
     func testAddsEntryWithTrimmedPhrase() throws {
@@ -15,9 +15,9 @@ final class DictionaryStoreTests: XCTestCase {
 
     func testSplitsAliasesByCommaAndNewline() throws {
         let store = try makeStore()
-        try store.addEntry(phrase: "Yuxin", aliasesText: "you shin, yu xin\nyoo shin")
-        let entry = try XCTUnwrap(store.entries.first { $0.phrase == "Yuxin" })
-        XCTAssertEqual(entry.aliases, ["you shin", "yu xin", "yoo shin"])
+        try store.addEntry(phrase: "Shout Out", aliasesText: "shoutout, shout out\nshout-out")
+        let entry = try XCTUnwrap(store.entries.first { $0.phrase == "Shout Out" })
+        XCTAssertEqual(entry.aliases, ["shoutout", "shout out", "shout-out"])
     }
 
     func testIgnoresBlankAliases() throws {

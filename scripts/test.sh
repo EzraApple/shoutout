@@ -68,7 +68,7 @@ assert_contains "README preserves MIT attribution" "$REPO_ROOT/README.md" "Input
 assert_contains "README documents Microphone" "$REPO_ROOT/README.md" "Microphone"
 assert_contains "README documents Accessibility" "$REPO_ROOT/README.md" "Accessibility"
 assert_contains "README documents Input Monitoring" "$REPO_ROOT/README.md" "Input Monitoring"
-assert_contains "README documents Yuxin dictionary example" "$REPO_ROOT/README.md" "Yuxin"
+assert_contains "README documents custom dictionary entries" "$REPO_ROOT/README.md" "custom dictionary entries"
 assert_contains "Makefile has install target" "$REPO_ROOT/Makefile" "^install:"
 assert_contains "Makefile has local install target" "$REPO_ROOT/Makefile" "^install-local:"
 assert_contains "Install script downloads CI artifact" "$REPO_ROOT/scripts/install-latest.sh" "gh run download"

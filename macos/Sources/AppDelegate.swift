@@ -581,7 +581,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         case "processing":
             return .processing
         case "done":
-            return .done(text: "Yuxin")
+            return .done(text: "Done")
         case "attention":
             return .attention(message: "Mic off")
         default:
