@@ -28,3 +28,10 @@ jobs:
 
       - name: Build app bundle
         run: cd macos && UNIVERSAL=false SKIP_NOTARIZE=true ./scripts/build-app.sh
+
+      - name: Upload app bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: Shout-Out-app
+          path: macos/dist/Shout Out.app
+          if-no-files-found: error
