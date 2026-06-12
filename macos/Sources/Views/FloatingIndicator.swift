@@ -54,6 +54,8 @@ struct FloatingIndicatorView: View {
             // Left icon
             Group {
                 switch state {
+                case .idle:
+                    EmptyView()
                 case .recording:
                     Circle()
                         .fill(.red)
