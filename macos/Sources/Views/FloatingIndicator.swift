@@ -308,8 +308,12 @@ private struct SpriteWallCrab: View {
             }
         }
         .frame(width: 54, height: 76, alignment: .trailing)
-        .offset(x: 12)
+        .offset(x: wallContactOffset)
         .shadow(color: .black.opacity(0.22), radius: 1, x: -1 / max(displayScale, 1), y: 1)
+    }
+
+    private var wallContactOffset: CGFloat {
+        showsBoomMic ? 20 : 12
     }
 
     private var attentionBadge: some View {
