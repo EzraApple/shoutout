@@ -51,6 +51,14 @@ enum CrabOverlayLayout {
     static let width: CGFloat = 72
 }
 
+private enum CrabAnimationTiming {
+    static let idleFrameDelay: UInt64 = 180_000_000
+    static let idlePauseRange: ClosedRange<UInt64> = 750_000_000...1_300_000_000
+    static let recordingFrameDelay: UInt64 = 240_000_000
+    static let processingPulseDelay: UInt64 = 540_000_000
+    static let processingSpinDuration = 0.54
+}
+
 enum ClassicOverlayLayout {
     static let size = CGSize(width: 48, height: 48)
 }
@@ -183,7 +191,7 @@ private struct CrabOverlayView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var spriteFrameIndex = 0
     @State private var idleOffset: CGFloat = 0
-    @State private var processingPulse = false
+    @State private var processingRotation = 0.0
 
     var body: some View {
         ZStack(alignment: .trailing) {
@@ -191,14 +199,14 @@ private struct CrabOverlayView: View {
                 showsBoomMic: state.showsBoomMic,
                 frameIndex: spriteFrameIndex,
                 showsProcessing: state.isProcessing,
-                processingPulse: processingPulse,
+                processingRotation: processingRotation,
                 attentionMessage: attentionMessage
             )
             .offset(y: idleOffset)
         }
         .frame(width: CrabOverlayLayout.width, height: height, alignment: .trailing)
         .task(id: "\(state.showsBoomMic)-\(reduceMotion)") {
-            await animateIdleCrawl()
+            await animateCrab()
         }
         .task(id: state.isProcessing) {
             await animateProcessingBadge()
@@ -213,7 +221,7 @@ private struct CrabOverlayView: View {
         return nil
     }
 
-    private func animateIdleCrawl() async {
+    private func animateCrab() async {
         if reduceMotion {
             idleOffset = 0
             spriteFrameIndex = 0
@@ -221,7 +229,12 @@ private struct CrabOverlayView: View {
         }
 
         if state.showsBoomMic {
+            idleOffset = 0
             spriteFrameIndex = 0
+            while !Task.isCancelled {
+                spriteFrameIndex += 1
+                try? await Task.sleep(nanoseconds: CrabAnimationTiming.recordingFrameDelay)
+            }
             return
         }
 
@@ -229,7 +242,7 @@ private struct CrabOverlayView: View {
         var crawlDirection: CGFloat = Bool.random() ? -1 : 1
 
         while !Task.isCancelled {
-            let stepCount = Int.random(in: 4...8)
+            let stepCount = Int.random(in: 5...9)
 
             for _ in 0..<stepCount {
                 if Task.isCancelled { return }
@@ -242,25 +255,25 @@ private struct CrabOverlayView: View {
                     crawlDirection *= -1
                 }
 
-                try? await Task.sleep(nanoseconds: 150_000_000)
+                try? await Task.sleep(nanoseconds: CrabAnimationTiming.idleFrameDelay)
             }
 
             if Bool.random() {
                 crawlDirection *= -1
             }
-            try? await Task.sleep(nanoseconds: UInt64.random(in: 650_000_000...1_100_000_000))
+            try? await Task.sleep(nanoseconds: UInt64.random(in: CrabAnimationTiming.idlePauseRange))
         }
     }
 
     private func animateProcessingBadge() async {
-        processingPulse = false
+        processingRotation = 0
         guard state.isProcessing, !reduceMotion else {
             return
         }
 
         while !Task.isCancelled {
-            processingPulse.toggle()
-            try? await Task.sleep(nanoseconds: 450_000_000)
+            processingRotation += 360
+            try? await Task.sleep(nanoseconds: CrabAnimationTiming.processingPulseDelay)
         }
     }
 }
@@ -269,7 +282,7 @@ private struct SpriteWallCrab: View {
     let showsBoomMic: Bool
     let frameIndex: Int
     let showsProcessing: Bool
-    let processingPulse: Bool
+    let processingRotation: Double
     let attentionMessage: String?
 
     @Environment(\.displayScale) private var displayScale
@@ -317,25 +330,23 @@ private struct SpriteWallCrab: View {
                 style: StrokeStyle(lineWidth: 2.2, lineCap: .round)
             )
             .frame(width: 13, height: 13)
-            .rotationEffect(.degrees(processingPulse ? 360 : 0))
+            .rotationEffect(.degrees(processingRotation))
             .background(
                 Circle()
                     .fill(Color.black.opacity(0.68))
                     .frame(width: 17, height: 17)
             )
-            .animation(.linear(duration: 0.45), value: processingPulse)
+            .animation(
+                .linear(duration: CrabAnimationTiming.processingSpinDuration),
+                value: processingRotation
+            )
             .offset(x: -8, y: 8)
     }
 
     private var currentImage: NSImage? {
         let frames = showsBoomMic ? imageStore.boomMicFrames : imageStore.idleFrames
         guard !frames.isEmpty else { return nil }
-        if showsBoomMic {
-            return frames[min(1, frames.count - 1)]
-        }
-        let stableFrameIndices = [0, min(1, frames.count - 1)]
-        let stableIndex = stableFrameIndices[abs(frameIndex) % stableFrameIndices.count]
-        return frames[stableIndex]
+        return frames[abs(frameIndex) % frames.count]
     }
 
     private var boomScale: CGFloat {
@@ -356,7 +367,12 @@ private final class CrabSpriteImageStore: ObservableObject {
 
 private enum CrabSpriteAssets {
     static let idleFrameNames = pingPongFrameNames(prefix: "idle", count: 4)
-    static let boomMicFrameNames = pingPongFrameNames(prefix: "recording", count: 4)
+    static let boomMicFrameNames = [
+        "recording-2",
+        "recording-2",
+        "recording-4",
+        "recording-2"
+    ]
 
     static func image(named name: String) -> NSImage? {
         guard
