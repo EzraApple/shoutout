@@ -54,7 +54,6 @@ enum CrabOverlayLayout {
 private enum CrabAnimationTiming {
     static let idleFrameDelay: UInt64 = 180_000_000
     static let idlePauseRange: ClosedRange<UInt64> = 750_000_000...1_300_000_000
-    static let recordingFrameDelay: UInt64 = 240_000_000
     static let processingPulseDelay: UInt64 = 540_000_000
     static let processingSpinDuration = 0.54
 }
@@ -231,10 +230,6 @@ private struct CrabOverlayView: View {
         if state.showsBoomMic {
             idleOffset = 0
             spriteFrameIndex = 0
-            while !Task.isCancelled {
-                spriteFrameIndex += 1
-                try? await Task.sleep(nanoseconds: CrabAnimationTiming.recordingFrameDelay)
-            }
             return
         }
 
@@ -367,12 +362,7 @@ private final class CrabSpriteImageStore: ObservableObject {
 
 private enum CrabSpriteAssets {
     static let idleFrameNames = pingPongFrameNames(prefix: "idle", count: 4)
-    static let boomMicFrameNames = [
-        "recording-2",
-        "recording-2",
-        "recording-4",
-        "recording-2"
-    ]
+    static let boomMicFrameNames = ["recording-2"]
 
     static func image(named name: String) -> NSImage? {
         guard

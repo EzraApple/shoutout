@@ -138,7 +138,8 @@ assert_contains "App delegate can snapshot overlay previews" "$MACOS_DIR/Sources
 assert_contains "Crab overlay has boom mic" "$MACOS_DIR/Sources/Views/FloatingIndicator.swift" "boomMic"
 assert_contains "Crab overlay shows processing badge" "$MACOS_DIR/Sources/Views/FloatingIndicator.swift" "processingBadge"
 assert_contains "Crab overlay animates wall crab" "$MACOS_DIR/Sources/Views/FloatingIndicator.swift" "animateCrab"
-assert_contains "Boom crab has animated frame timing" "$MACOS_DIR/Sources/Views/FloatingIndicator.swift" "recordingFrameDelay"
+assert_contains "Boom crab stays still" "$MACOS_DIR/Sources/Views/FloatingIndicator.swift" "if state.showsBoomMic"
+assert_contains "Boom crab uses fixed frame" "$MACOS_DIR/Sources/Views/FloatingIndicator.swift" 'boomMicFrameNames = \["recording-2"\]'
 assert_contains "Boom crab scale matches idle crab" "$MACOS_DIR/Sources/Views/FloatingIndicator.swift" "boomScale"
 assert_contains "Crab idle uses ping-pong frame cycle" "$MACOS_DIR/Sources/Views/FloatingIndicator.swift" "pingPongFrameNames\\(prefix: \"idle\""
 assert_contains "Crab processing spinner has tuned duration" "$MACOS_DIR/Sources/Views/FloatingIndicator.swift" "processingSpinDuration"
