@@ -35,6 +35,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var onboardingWindow: NSWindow?
     private var appState: AppState = .idle
     private var recordingStartedAt: Date?
+    private var recordingIsCommitted = false
     private var pendingTranscriptionCount = 0
     private var transcriptionQueueTail: Task<Void, Never>?
 
@@ -143,6 +144,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if audioRecorder.isRecording {
             _ = audioRecorder.stopRecording()
         }
+        recordingIsCommitted = false
+        audioDucker.endDucking()
         if let token = activityToken {
             ProcessInfo.processInfo.endActivity(token)
         }
@@ -165,13 +168,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         hotkeyManager.onRecordArmed = { [weak self] in
-            self?.armRecording()
+            self?.startPendingRecording()
         }
         hotkeyManager.onRecordCancelled = { [weak self] in
-            self?.cancelArmedRecording()
+            self?.cancelPendingRecording()
         }
         hotkeyManager.onRecordStart = { [weak self] in
-            self?.startRecording()
+            self?.commitRecording()
         }
         hotkeyManager.onRecordStop = { [weak self] in
             self?.stopRecordingAndTranscribe()
@@ -207,20 +210,38 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Recording Flow
 
-    private func armRecording() {
+    private func startPendingRecording() {
         guard appState == .idle else { return }
         RuntimeLog.write("record arm")
-        showIndicator(state: .armed)
+        startRecording(commitImmediately: false)
     }
 
-    private func cancelArmedRecording() {
+    private func cancelPendingRecording() {
+        if audioRecorder.isRecording, !recordingIsCommitted {
+            discardActiveRecording(reason: "quickRelease")
+            return
+        }
+
         guard appState == .idle else { return }
         RuntimeLog.write("record arm cancelled")
         finishIndicator()
     }
 
-    private func startRecording() {
+    private func commitRecording() {
+        guard appState == .recording else {
+            startRecording(commitImmediately: true)
+            return
+        }
+
+        guard !recordingIsCommitted else { return }
+        recordingIsCommitted = true
+        RuntimeLog.write("record committed")
+        audioDucker.beginDuckingIfEnabled()
+    }
+
+    private func startRecording(commitImmediately: Bool) {
         guard appState == .idle else { return }
+        let startRequestedAt = Date()
         RuntimeLog.write("record start requested")
 
         permissions.refresh()
@@ -240,12 +261,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         do {
             recordingStartedAt = Date()
-            audioDucker.beginDuckingIfEnabled()
-            try audioRecorder.startRecording()
             appState = .recording
+            recordingIsCommitted = commitImmediately
             refreshMenuBarIcon()
             showIndicator(state: .recording(level: 0))
-            RuntimeLog.write("record started")
+            try audioRecorder.startRecording()
+            let elapsedMs = Int(Date().timeIntervalSince(startRequestedAt) * 1000)
+            RuntimeLog.write("record started elapsedMs=\(elapsedMs)")
+            if commitImmediately {
+                RuntimeLog.write("record committed")
+                audioDucker.beginDuckingIfEnabled()
+            }
 
             // Subscribe to audio level updates
             audioLevelCancellable = audioRecorder.$audioLevel
@@ -256,6 +282,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 }
         } catch {
             recordingStartedAt = nil
+            recordingIsCommitted = false
             audioDucker.endDucking()
             appState = .idle
             refreshMenuBarIcon()
@@ -278,6 +305,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             Double(samples.count) / AudioRecorder.sampleRate
         )
         recordingStartedAt = nil
+        recordingIsCommitted = false
         appState = .idle
         audioDucker.endDucking()
         RuntimeLog.write(
@@ -306,6 +334,27 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         enqueueTranscription(samples: samples, recordingDuration: recordingDuration)
+    }
+
+    private func discardActiveRecording(reason: String) {
+        RuntimeLog.write("record discard requested reason=\(reason)")
+        audioLevelCancellable?.cancel()
+        audioLevelCancellable = nil
+
+        let samples = audioRecorder.stopRecording()
+        let recordingDuration = max(
+            Date().timeIntervalSince(recordingStartedAt ?? Date()),
+            Double(samples.count) / AudioRecorder.sampleRate
+        )
+        recordingStartedAt = nil
+        recordingIsCommitted = false
+        appState = .idle
+        audioDucker.endDucking()
+        refreshMenuBarIcon()
+        finishIndicator()
+        RuntimeLog.write(
+            "record discarded reason=\(reason) samples=\(samples.count) duration=\(String(format: "%.2f", recordingDuration))"
+        )
     }
 
     private func enqueueTranscription(samples: [Float], recordingDuration: TimeInterval) {

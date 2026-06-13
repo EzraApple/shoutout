@@ -126,10 +126,11 @@ class HotkeyManager {
 /// Fn key detection phases:
 /// ```
 /// idle → fnDown:
+///   start audio capture immediately
 ///   start holdTimer (300ms)
 ///   → if held past timer → holdRecording → fnUp → stop + transcribe → idle
-///   → if released quickly → waitingForDoubleTap (400ms window)
-///       → fnDown within window → handsFreeRecording → fnDown → stop + transcribe → idle
+///   → if released quickly → discard capture, waitingForDoubleTap (400ms window)
+///       → fnDown within window → handsFreeRecording starts immediately → fnDown → stop + transcribe → idle
 ///       → timeout → idle (single tap, ignored)
 /// ```
 private enum FnPhase {
