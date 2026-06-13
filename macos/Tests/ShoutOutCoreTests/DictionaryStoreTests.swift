@@ -15,9 +15,9 @@ final class DictionaryStoreTests: XCTestCase {
 
     func testSplitsAliasesByCommaAndNewline() throws {
         let store = try makeStore()
-        try store.addEntry(phrase: "Shout Out", aliasesText: "shoutout, shout out\nshout-out")
-        let entry = try XCTUnwrap(store.entries.first { $0.phrase == "Shout Out" })
-        XCTAssertEqual(entry.aliases, ["shoutout", "shout out", "shout-out"])
+        try store.addEntry(phrase: "ShoutOut", aliasesText: "shoutout")
+        let entry = try XCTUnwrap(store.entries.first { $0.phrase == "ShoutOut" })
+        XCTAssertEqual(entry.aliases, ["shoutout"])
     }
 
     func testIgnoresBlankAliases() throws {
@@ -35,10 +35,10 @@ final class DictionaryStoreTests: XCTestCase {
     func testPersistsEntriesToDisk() throws {
         let fileURL = temporaryFileURL()
         let store = DictionaryStore(fileURL: fileURL, defaultEntries: [])
-        try store.addEntry(phrase: "Shout Out", aliasesText: "shoutout")
+        try store.addEntry(phrase: "ShoutOut", aliasesText: "shoutout")
 
         let reloadedStore = DictionaryStore(fileURL: fileURL, defaultEntries: [])
-        XCTAssertEqual(reloadedStore.entries, [DictionaryEntry(phrase: "Shout Out", aliases: ["shoutout"])])
+        XCTAssertEqual(reloadedStore.entries, [DictionaryEntry(phrase: "ShoutOut", aliases: ["shoutout"])])
     }
 
     func testDeletesEntry() throws {

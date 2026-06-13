@@ -161,7 +161,7 @@ struct ClassicIndicatorView: View {
     private var accessibilityLabel: String {
         switch state {
         case .idle:
-            return "Shout Out"
+            return "ShoutOut"
         case .armed:
             return "Ready to record"
         case .recording:

@@ -43,7 +43,7 @@ for arg in "$@"; do
 done
 
 echo -e "${BLUE}======================================${NC}"
-echo -e "${BLUE}  Shout Out Release Publisher         ${NC}"
+echo -e "${BLUE}  ShoutOut Release Publisher         ${NC}"
 echo -e "${BLUE}======================================${NC}"
 echo ""
 

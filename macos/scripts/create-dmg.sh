@@ -29,7 +29,7 @@ if [ -z "$VERSION" ]; then
     exit 1
 fi
 
-APP_NAME="Shout Out"
+APP_NAME="ShoutOut"
 DIST_DIR="$PROJECT_DIR/dist"
 APP_BUNDLE="$DIST_DIR/$APP_NAME.app"
 DMG_FINAL="$DIST_DIR/ShoutOut-$VERSION.dmg"

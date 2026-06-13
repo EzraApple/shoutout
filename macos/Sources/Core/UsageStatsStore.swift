@@ -9,6 +9,7 @@ public struct UsageStatsSession: Codable, Equatable, Identifiable, Sendable {
     public var model: String
     public var wordCount: Int
     public var wordsPerMinute: Int
+    public var performance: UsagePerformanceMetrics?
 
     public init(
         id: UUID = UUID(),
@@ -17,7 +18,8 @@ public struct UsageStatsSession: Codable, Equatable, Identifiable, Sendable {
         duration: TimeInterval,
         model: String,
         wordCount: Int,
-        wordsPerMinute: Int
+        wordsPerMinute: Int,
+        performance: UsagePerformanceMetrics? = nil
     ) {
         self.id = id
         self.date = date
@@ -26,6 +28,7 @@ public struct UsageStatsSession: Codable, Equatable, Identifiable, Sendable {
         self.model = model
         self.wordCount = wordCount
         self.wordsPerMinute = wordsPerMinute
+        self.performance = performance
     }
 }
 
@@ -34,13 +37,82 @@ public struct UsageStatsSummary: Equatable, Sendable {
     public var wordCount: Int
     public var totalDuration: TimeInterval
     public var averageWordsPerMinute: Int
+    public var averagePressToRecordStartMs: Int?
+    public var averageStopToPasteMs: Int?
+    public var averageTranscriptionWallMs: Int?
+    public var averageRealTimeFactor: Double?
 
     public static let empty = UsageStatsSummary(
         sessionCount: 0,
         wordCount: 0,
         totalDuration: 0,
-        averageWordsPerMinute: 0
+        averageWordsPerMinute: 0,
+        averagePressToRecordStartMs: nil,
+        averageStopToPasteMs: nil,
+        averageTranscriptionWallMs: nil,
+        averageRealTimeFactor: nil
     )
+}
+
+public struct UsagePerformanceMetrics: Codable, Equatable, Sendable {
+    public var inputMode: String
+    public var pressToRecordStartMs: Int?
+    public var pressToCommitMs: Int?
+    public var recordStartRequestToReadyMs: Int?
+    public var stopToSamplesMs: Int?
+    public var stopToPasteMs: Int?
+    public var queueWaitMs: Int?
+    public var transcriptionWallMs: Int?
+    public var recordingMs: Int
+    public var modelWaitMs: Int
+    public var whisperWallMs: Int
+    public var postProcessMs: Int
+    public var firstTokenMs: Int?
+    public var whisperPipelineMs: Int?
+    public var realTimeFactor: Double?
+    public var speedFactor: Double?
+    public var tokensPerSecond: Double?
+    public var fallbackCount: Int?
+
+    public init(
+        inputMode: String,
+        pressToRecordStartMs: Int?,
+        pressToCommitMs: Int?,
+        recordStartRequestToReadyMs: Int?,
+        stopToSamplesMs: Int?,
+        stopToPasteMs: Int?,
+        queueWaitMs: Int?,
+        transcriptionWallMs: Int?,
+        recordingMs: Int,
+        modelWaitMs: Int,
+        whisperWallMs: Int,
+        postProcessMs: Int,
+        firstTokenMs: Int?,
+        whisperPipelineMs: Int?,
+        realTimeFactor: Double?,
+        speedFactor: Double?,
+        tokensPerSecond: Double?,
+        fallbackCount: Int?
+    ) {
+        self.inputMode = inputMode
+        self.pressToRecordStartMs = pressToRecordStartMs
+        self.pressToCommitMs = pressToCommitMs
+        self.recordStartRequestToReadyMs = recordStartRequestToReadyMs
+        self.stopToSamplesMs = stopToSamplesMs
+        self.stopToPasteMs = stopToPasteMs
+        self.queueWaitMs = queueWaitMs
+        self.transcriptionWallMs = transcriptionWallMs
+        self.recordingMs = recordingMs
+        self.modelWaitMs = modelWaitMs
+        self.whisperWallMs = whisperWallMs
+        self.postProcessMs = postProcessMs
+        self.firstTokenMs = firstTokenMs
+        self.whisperPipelineMs = whisperPipelineMs
+        self.realTimeFactor = realTimeFactor
+        self.speedFactor = speedFactor
+        self.tokensPerSecond = tokensPerSecond
+        self.fallbackCount = fallbackCount
+    }
 }
 
 public final class UsageStatsStore: ObservableObject {
@@ -86,7 +158,8 @@ public final class UsageStatsStore: ObservableObject {
         finalText: String,
         duration: TimeInterval,
         date: Date = Date(),
-        model: String
+        model: String,
+        performance: UsagePerformanceMetrics? = nil
     ) throws {
         let normalizedText = finalText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalizedText.isEmpty else {
@@ -104,7 +177,8 @@ public final class UsageStatsStore: ObservableObject {
                 duration: safeDuration,
                 model: model,
                 wordCount: wordCount,
-                wordsPerMinute: wordsPerMinute
+                wordsPerMinute: wordsPerMinute,
+                performance: performance
             )
         )
 
@@ -130,13 +204,35 @@ public final class UsageStatsStore: ObservableObject {
         let averageWordsPerMinute = totalDuration > 0
             ? Int(round(Double(wordCount) / totalDuration * 60))
             : 0
+        let performanceMetrics = sessions.compactMap(\.performance)
 
         return UsageStatsSummary(
             sessionCount: sessions.count,
             wordCount: wordCount,
             totalDuration: totalDuration,
-            averageWordsPerMinute: averageWordsPerMinute
+            averageWordsPerMinute: averageWordsPerMinute,
+            averagePressToRecordStartMs: averageInt(
+                performanceMetrics.compactMap(\.pressToRecordStartMs)
+            ),
+            averageStopToPasteMs: averageInt(performanceMetrics.compactMap(\.stopToPasteMs)),
+            averageTranscriptionWallMs: averageInt(
+                performanceMetrics.compactMap(\.transcriptionWallMs)
+            ),
+            averageRealTimeFactor: averageDouble(
+                performanceMetrics.compactMap(\.realTimeFactor)
+            )
         )
+    }
+
+    private func averageInt(_ values: [Int]) -> Int? {
+        guard !values.isEmpty else { return nil }
+        return Int(round(Double(values.reduce(0, +)) / Double(values.count)))
+    }
+
+    private func averageDouble(_ values: [Double]) -> Double? {
+        let finiteValues = values.filter(\.isFinite)
+        guard !finiteValues.isEmpty else { return nil }
+        return finiteValues.reduce(0, +) / Double(finiteValues.count)
     }
 
     private func save() throws {

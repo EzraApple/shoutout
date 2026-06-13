@@ -1,10 +1,10 @@
-# Shout Out
+# ShoutOut
 
 <p align="center">
-  <img src="docs/assets/shout-out-icon.png" alt="Shout Out app icon: a black crab mascot wearing headphones and a boom microphone" width="180">
+  <img src="docs/assets/shoutout-icon.png" alt="ShoutOut app icon: a black crab mascot wearing headphones and a boom microphone" width="180">
 </p>
 
-Shout Out is a small local-first macOS dictation app with a tiny wall-crawling crab mascot. Hold Fn, speak, release, and it pastes cleaned-up text into the app you were already using.
+ShoutOut is a small local-first macOS dictation app with a tiny wall-crawling crab mascot. Hold Fn, speak, release, and it pastes cleaned-up text into the app you were already using.
 
 I built it around the voice loop I wanted for everyday writing: quick global Fn/Globe capture, microphone recording, on-device WhisperKit transcription, dictionary-aware cleanup, focused-app paste, and lightweight WPM stats.
 
@@ -19,7 +19,7 @@ flowchart LR
     Samples --> Whisper["WhisperKit + Core ML model"]
     Whisper --> Cleanup["Local cleanup\nfillers, commands, corrections, dictionary"]
     Cleanup --> Paste["Focused-app paste"]
-    Cleanup --> Stats["Local word + WPM stats"]
+    Cleanup --> Stats["Local word + WPM + latency stats"]
 ```
 
 ## Setup
@@ -32,18 +32,18 @@ Prerequisites:
 - GitHub CLI (`gh`) authenticated with access to this repo.
 
 ```bash
-git clone git@github.com:EzraApple/shout-out.git
-cd shout-out
+git clone git@github.com:EzraApple/shoutout.git
+cd shoutout
 gh auth status
 make install
 ```
 
-`make install` downloads the latest successful `main` artifact, re-signs it locally with a stable `com.ezraapple.shoutout` requirement, kills any running copy, copies `Shout Out.app` into `~/Applications`, enables first-run permission prompts, and opens the app.
+`make install` downloads the latest successful `main` artifact, re-signs it locally with a stable `com.ezraapple.shoutout` requirement, kills any running copy, copies `ShoutOut.app` into `~/Applications`, enables first-run permission prompts, and opens the app.
 
 To install a specific verified Actions run instead of the latest green build:
 
 ```bash
-SHOUT_OUT_RUN_ID=<run-id> make install
+SHOUTOUT_RUN_ID=<run-id> make install
 ```
 
 Use the run ID from the GitHub Actions URL you want to pin.
@@ -60,7 +60,7 @@ If artifact download is unavailable, `make install` falls back to a local build.
 
 On first launch, grant these in System Settings → Privacy & Security:
 
-- Microphone, so Shout Out can record your voice.
+- Microphone, so ShoutOut can record your voice.
 - Accessibility, so it can paste text into the focused app.
 - Input Monitoring, so it can detect Fn/Globe while another app is focused.
 
@@ -74,11 +74,19 @@ make install-local
 
 This builds the Swift package locally, installs into `~/Applications`, and opens the app. Prefer `make install` unless you are actively changing Swift code.
 
+For fast iteration while working on the app:
+
+```bash
+make restart-local
+```
+
+This rebuilds, replaces `~/Applications/ShoutOut.app`, skips onboarding, preserves existing macOS permissions, and reopens the app.
+
 ## Usage
 
 - Hold Fn/Globe to record. Release to transcribe and paste.
 - Double-tap Fn/Globe for hands-free recording. Tap Fn/Globe again to stop.
-- Click the menu bar waveform icon for Settings and today’s word/WPM count.
+- Click the menu bar waveform icon for Settings and today’s word/WPM/latency count.
 - Add custom dictionary entries in Settings for names and acronyms Whisper tends to miss.
 - Toggle cleanup for filler words and obvious self-corrections like “press X, I mean press Y.”
 - Toggle “Dim system audio while recording” if you want music lowered during dictation and restored afterward.
@@ -102,11 +110,13 @@ Model data is stored in `~/Library/Application Support/com.ezraapple.shoutout/Mo
 ```bash
 make test
 make build
-make run
+make restart-local
 ```
 
 The app is a Swift Package under `macos/`. The core dictionary, post-processing, and stats logic live in the `ShoutOutCore` target and are covered by XCTest.
 
+Each successful dictation records local performance metrics, including Fn-to-recording latency, stop-to-paste latency, transcription wall time, first-token timing, real-time factor, and speed factor. These show up in Settings and in `~/Library/Logs/ShoutOut/runtime.log` as `dictation metrics ...`.
+
 ## Attribution
 
-Shout Out is based on the MIT-licensed Inputalk macOS dictation app by the Inputalk contributors. The original license is retained in `LICENSE`. Transcription is powered by WhisperKit.
+ShoutOut is based on the MIT-licensed Inputalk macOS dictation app by the Inputalk contributors. The original license is retained in `LICENSE`. Transcription is powered by WhisperKit.

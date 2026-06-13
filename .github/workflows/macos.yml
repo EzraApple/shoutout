@@ -30,11 +30,11 @@ jobs:
         run: cd macos && UNIVERSAL=false SKIP_NOTARIZE=true ./scripts/build-app.sh
 
       - name: Archive app bundle
-        run: ditto -c -k --keepParent "macos/dist/Shout Out.app" macos/dist/ShoutOut-app.zip
+        run: ditto -c -k --keepParent "macos/dist/ShoutOut.app" macos/dist/ShoutOut-app.zip
 
       - name: Upload app bundle
         uses: actions/upload-artifact@v4
         with:
-          name: Shout-Out-app
+          name: ShoutOut-app
           path: macos/dist/ShoutOut-app.zip
           if-no-files-found: error

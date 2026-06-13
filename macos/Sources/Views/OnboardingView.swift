@@ -68,7 +68,7 @@ struct OnboardingView: View {
                 WelcomeIcon()
 
                 VStack(spacing: 8) {
-                    Text("Welcome to Shout Out")
+                    Text("Welcome to ShoutOut")
                         .font(.system(size: 22, weight: .semibold))
                         .tracking(-0.3)
                         .foregroundStyle(.white)
@@ -115,7 +115,7 @@ struct OnboardingView: View {
                         .tracking(-0.3)
                         .foregroundStyle(.white)
 
-                    Text("Shout Out needs your microphone to hear your voice for dictation")
+                    Text("ShoutOut needs your microphone to hear your voice for dictation")
                         .font(.system(size: 13))
                         .foregroundStyle(Color.white.opacity(0.4))
                         .multilineTextAlignment(.center)
@@ -338,21 +338,19 @@ struct OnboardingView: View {
             }
         case .loading:
             VStack(spacing: 12) {
-                Text("Loading model...")
+                Text("Preparing model...")
                     .font(.system(size: 13))
                     .foregroundStyle(Color.white.opacity(0.4))
-                ProgressView()
-                    .controlSize(.small)
-                    .tint(.white)
+                ModelProgressBar(progress: 1)
+                    .frame(width: 220)
             }
         case .downloading(let progress):
             VStack(spacing: 12) {
-                Text("Downloading \"\(transcription.selectedModel)\" — \(Int(progress * 100))%")
+                Text("Downloading \"\(transcription.selectedModel)\" \(Int(progress * 100))%")
                     .font(.system(size: 13))
                     .foregroundStyle(Color.white.opacity(0.4))
-                ProgressView(value: progress)
-                    .tint(.white)
-                    .frame(width: 200)
+                ModelProgressBar(progress: progress)
+                    .frame(width: 220)
             }
         case .error(let msg):
             VStack(spacing: 8) {

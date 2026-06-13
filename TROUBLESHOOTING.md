@@ -1,10 +1,10 @@
 # Troubleshooting
 
-This document is mostly for agents and operators debugging a local setup. If you are just trying to install and use Shout Out, start with the setup flow in [README.md](README.md).
+This document is mostly for agents and operators debugging a local setup. If you are just trying to install and use ShoutOut, start with the setup flow in [README.md](README.md).
 
 ## Permissions Look Granted But Hotkey Still Fails
 
-If Accessibility or Input Monitoring is checked in System Settings but Shout Out still shows it as missing, reset the stale macOS privacy rows and reinstall:
+If Accessibility or Input Monitoring is checked in System Settings but ShoutOut still shows it as missing, reset the stale macOS privacy rows and reinstall:
 
 ```bash
 make reset-permissions
@@ -19,10 +19,10 @@ Then open System Settings → Privacy & Security and grant:
 
 ## AirPods Or Bluetooth Mic Records Silence
 
-If Shout Out shows `No speech` or inserts nothing while permissions are granted, first check the selected input device:
+If ShoutOut shows `No speech` or inserts nothing while permissions are granted, first check the selected input device:
 
 1. Open System Settings → Sound → Input.
-2. Select the microphone you expect Shout Out to use.
+2. Select the microphone you expect ShoutOut to use.
 3. Talk and confirm the input level meter moves.
 
 Bluetooth microphones can stay selected while sending silence after route changes. If AirPods record silence, switch to the MacBook microphone or reselect/reconnect the AirPods, then try again.
@@ -52,3 +52,11 @@ model ready
 ```
 
 During recording, `record started elapsedMs=...` shows hotkey-to-audio startup time.
+
+Completed dictations also emit a single benchmark line:
+
+```text
+dictation metrics ... pressToRecordStartMs=... stopToPasteMs=... transcriptionWallMs=...
+```
+
+Use `make restart-local` after code changes to rebuild, replace the installed app, skip onboarding, and reopen ShoutOut in place.

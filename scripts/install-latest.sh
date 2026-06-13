@@ -1,16 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO_ROOT="${SHOUT_OUT_REPO_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
-REPO="${SHOUT_OUT_REPO:-EzraApple/shout-out}"
-WORKFLOW="${SHOUT_OUT_WORKFLOW:-macos.yml}"
-BRANCH="${SHOUT_OUT_BRANCH:-main}"
-ARTIFACT_NAME="${SHOUT_OUT_ARTIFACT_NAME:-Shout-Out-app}"
-APP_NAME="Shout Out"
+REPO_ROOT="${SHOUTOUT_REPO_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+REPO="${SHOUTOUT_REPO:-EzraApple/shoutout}"
+WORKFLOW="${SHOUTOUT_WORKFLOW:-macos.yml}"
+BRANCH="${SHOUTOUT_BRANCH:-main}"
+ARTIFACT_NAME="${SHOUTOUT_ARTIFACT_NAME:-ShoutOut-app}"
+APP_NAME="ShoutOut"
 BUNDLE_ID="com.ezraapple.shoutout"
 INSTALL_DIR="${HOME}/Applications"
 INSTALL_PATH="${INSTALL_DIR}/${APP_NAME}.app"
-WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/shout-out-install.XXXXXX")"
+LEGACY_INSTALL_PATH="${INSTALL_DIR}/Shout Out.app"
+WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/shoutout-install.XXXXXX")"
 
 cleanup() {
     rm -rf "$WORK_DIR"
@@ -18,7 +19,7 @@ cleanup() {
 trap cleanup EXIT
 
 reset_hotkey_permissions_if_existing_install_used_unstable_signature() {
-    [[ -d "$INSTALL_PATH" ]] || return
+    [[ -d "$INSTALL_PATH" ]] || return 0
 
     local requirement
     requirement="$(codesign -d -r- "$INSTALL_PATH" 2>&1 || true)"
@@ -46,6 +47,7 @@ install_bundle() {
     pkill -x ShoutOut >/dev/null 2>&1 || true
     reset_hotkey_permissions_if_existing_install_used_unstable_signature
     mkdir -p "$INSTALL_DIR"
+    rm -rf "$LEGACY_INSTALL_PATH"
     rm -rf "$INSTALL_PATH"
     cp -R "$app_bundle" "$INSTALL_PATH"
     xattr -dr com.apple.quarantine "$INSTALL_PATH" >/dev/null 2>&1 || true
@@ -59,7 +61,7 @@ install_bundle() {
 download_latest_artifact() {
     command -v gh >/dev/null 2>&1 || return 1
 
-    local run_id="${SHOUT_OUT_RUN_ID:-}"
+    local run_id="${SHOUTOUT_RUN_ID:-}"
     if [[ -z "$run_id" ]]; then
         run_id="$(
             gh run list \

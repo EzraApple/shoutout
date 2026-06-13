@@ -21,7 +21,7 @@ RED='\033[0;31m'
 YELLOW='\033[0;33m'
 NC='\033[0m' # No Color
 
-APP_NAME="Shout Out"
+APP_NAME="ShoutOut"
 EXECUTABLE_NAME="ShoutOut"
 BUNDLE_ID="com.ezraapple.shoutout"
 DIST_DIR="dist"

@@ -61,6 +61,9 @@ struct SettingsView: View {
                 } label: {
                     Label("Model", systemImage: "cpu")
                 }
+                .onChange(of: transcription.selectedModel) {
+                    Task { await transcription.loadModel() }
+                }
 
                 HStack {
                     Label("Status", systemImage: "circle.fill")
@@ -76,8 +79,15 @@ struct SettingsView: View {
                         .controlSize(.small)
                     }
                 }
-                .onChange(of: transcription.selectedModel) {
-                    Task { await transcription.loadModel() }
+                if let progress = transcription.modelState.startupProgress,
+                    !transcription.modelState.isReady
+                {
+                    VStack(alignment: .leading, spacing: 6) {
+                        ModelProgressBar(progress: progress, height: 6)
+                        Text(modelProgressCaption)
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                    }
                 }
             } header: {
                 Text("Transcription")
@@ -109,6 +119,15 @@ struct SettingsView: View {
                         Spacer()
                         Text("\(lastSession.wordCount) words · \(lastSession.wordsPerMinute) WPM")
                             .foregroundStyle(.secondary)
+                    }
+
+                    if let performance = lastSession.performance {
+                        HStack {
+                            Label("Last latency", systemImage: "timer")
+                            Spacer()
+                            Text(performanceLatencyText(performance))
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
 
@@ -277,7 +296,7 @@ struct SettingsView: View {
             // About
             Section {
                 HStack {
-                    Text("Shout Out")
+                    Text("ShoutOut")
                     Spacer()
                     Text("v0.2.0")
                         .foregroundStyle(.secondary)
@@ -311,6 +330,17 @@ struct SettingsView: View {
         case .downloading(let p): return "Downloading \(Int(p * 100))%"
         case .error(let msg): return msg
         case .unloaded: return "Not loaded"
+        }
+    }
+
+    private var modelProgressCaption: String {
+        switch transcription.modelState {
+        case .downloading(let progress):
+            return "Downloading \(Int(progress * 100))% of \(transcription.selectedModel)"
+        case .loading:
+            return "Download complete. Preparing the local model."
+        default:
+            return ""
         }
     }
 }
@@ -415,7 +445,30 @@ private struct StatsRow: View {
             }
             .font(.caption)
             .foregroundStyle(.tertiary)
+
+            if let performanceText {
+                Text(performanceText)
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+            }
         }
+    }
+
+    private var performanceText: String? {
+        var parts: [String] = []
+        if let pressMs = summary.averagePressToRecordStartMs {
+            parts.append("Fn->rec \(pressMs) ms")
+        }
+        if let pasteMs = summary.averageStopToPasteMs {
+            parts.append("stop->paste \(pasteMs) ms")
+        }
+        if let transcriptionMs = summary.averageTranscriptionWallMs {
+            parts.append("ASR \(transcriptionMs) ms")
+        }
+        if let rtf = summary.averageRealTimeFactor {
+            parts.append("RTF \(String(format: "%.2f", rtf))")
+        }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
     private var durationText: String {
@@ -425,4 +478,19 @@ private struct StatsRow: View {
         }
         return "\(minutes) min"
     }
+}
+
+private func performanceLatencyText(_ performance: UsagePerformanceMetrics) -> String {
+    var parts: [String] = []
+    if let pressMs = performance.pressToRecordStartMs {
+        parts.append("Fn->rec \(pressMs) ms")
+    }
+    if let pasteMs = performance.stopToPasteMs {
+        parts.append("stop->paste \(pasteMs) ms")
+    }
+    parts.append("ASR \(performance.transcriptionWallMs ?? performance.whisperWallMs) ms")
+    if let rtf = performance.realTimeFactor {
+        parts.append("RTF \(String(format: "%.2f", rtf))")
+    }
+    return parts.joined(separator: " · ")
 }

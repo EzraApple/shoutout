@@ -13,10 +13,107 @@ enum Defaults {
 
 // MARK: - App State
 
-enum AppState {
+enum AppState: Equatable {
+    case initializing(progress: Double?)
     case idle
     case recording
     case processing
+}
+
+private enum DictationInputMode: String {
+    case hold
+    case handsFree
+    case unknown
+}
+
+private struct DictationLatencyMetrics {
+    let id = UUID().uuidString.prefix(8)
+    var inputMode: DictationInputMode = .unknown
+    var firstFnPressAt = Date()
+    var recordStartRequestedAt: Date?
+    var recorderStartedAt: Date?
+    var recordingCommittedAt: Date?
+    var stopRequestedAt: Date?
+    var samplesReadyAt: Date?
+    var transcriptionQueuedAt: Date?
+    var transcriptionDequeuedAt: Date?
+    var transcriptionCompletedAt: Date?
+    var pastePostedAt: Date?
+    var sampleCount = 0
+    var recordingDuration: TimeInterval = 0
+    var finalTextLength = 0
+    var wordCount = 0
+    var model = ""
+
+    mutating func markRecordingStarted(sampleCount: Int = 0) {
+        recorderStartedAt = Date()
+        self.sampleCount = sampleCount
+    }
+
+    func log(status: String, transcriptionTiming: TranscriptionTimingSnapshot? = nil) {
+        RuntimeLog.write(
+            [
+                "dictation metrics",
+                "id=\(id)",
+                "status=\(status)",
+                "mode=\(inputMode.rawValue)",
+                metric("pressToRecordStartMs", firstFnPressAt, recorderStartedAt),
+                metric("pressToCommitMs", firstFnPressAt, recordingCommittedAt),
+                metric("recordStartRequestToReadyMs", recordStartRequestedAt, recorderStartedAt),
+                metric("stopToSamplesMs", stopRequestedAt, samplesReadyAt),
+                metric("stopToPasteMs", stopRequestedAt, pastePostedAt),
+                metric("queueWaitMs", transcriptionQueuedAt, transcriptionDequeuedAt),
+                metric("transcriptionWallMs", transcriptionDequeuedAt, transcriptionCompletedAt),
+                "recordingMs=\(Int(recordingDuration * 1000))",
+                "samples=\(sampleCount)",
+                "words=\(wordCount)",
+                "chars=\(finalTextLength)",
+                "model=\(model)",
+                transcriptionTiming?.logFields ?? "",
+            ].filter { !$0.isEmpty }.joined(separator: " ")
+        )
+    }
+
+    private func metric(_ name: String, _ start: Date?, _ end: Date?) -> String {
+        guard let start, let end else { return "\(name)=na" }
+        return "\(name)=\(Int(end.timeIntervalSince(start) * 1000))"
+    }
+
+    func performanceSnapshot(transcriptionTiming: TranscriptionTimingSnapshot)
+        -> UsagePerformanceMetrics
+    {
+        UsagePerformanceMetrics(
+            inputMode: inputMode.rawValue,
+            pressToRecordStartMs: elapsedMilliseconds(from: firstFnPressAt, to: recorderStartedAt),
+            pressToCommitMs: elapsedMilliseconds(from: firstFnPressAt, to: recordingCommittedAt),
+            recordStartRequestToReadyMs: elapsedMilliseconds(
+                from: recordStartRequestedAt,
+                to: recorderStartedAt
+            ),
+            stopToSamplesMs: elapsedMilliseconds(from: stopRequestedAt, to: samplesReadyAt),
+            stopToPasteMs: elapsedMilliseconds(from: stopRequestedAt, to: pastePostedAt),
+            queueWaitMs: elapsedMilliseconds(from: transcriptionQueuedAt, to: transcriptionDequeuedAt),
+            transcriptionWallMs: elapsedMilliseconds(
+                from: transcriptionDequeuedAt,
+                to: transcriptionCompletedAt
+            ),
+            recordingMs: Int(recordingDuration * 1000),
+            modelWaitMs: transcriptionTiming.modelWaitMs,
+            whisperWallMs: transcriptionTiming.whisperWallMs,
+            postProcessMs: transcriptionTiming.postProcessMs,
+            firstTokenMs: transcriptionTiming.firstTokenMs,
+            whisperPipelineMs: transcriptionTiming.whisperPipelineMs,
+            realTimeFactor: transcriptionTiming.realTimeFactor,
+            speedFactor: transcriptionTiming.speedFactor,
+            tokensPerSecond: transcriptionTiming.tokensPerSecond,
+            fallbackCount: transcriptionTiming.fallbackCount
+        )
+    }
+
+    private func elapsedMilliseconds(from start: Date?, to end: Date?) -> Int? {
+        guard let start, let end else { return nil }
+        return Int(end.timeIntervalSince(start) * 1000)
+    }
 }
 
 // MARK: - App Delegate (Menu Bar App)
@@ -38,6 +135,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var recordingIsCommitted = false
     private var pendingTranscriptionCount = 0
     private var transcriptionQueueTail: Task<Void, Never>?
+    private var activeDictationMetrics: DictationLatencyMetrics?
 
     /// Prevent App Nap from making the hotkey unresponsive
     private var activityToken: NSObjectProtocol?
@@ -49,6 +147,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var currentIndicatorState: IndicatorState = .idle
     private var audioLevelCancellable: AnyCancellable?
     private var indicatorDismissTask: Task<Void, Never>?
+    private var modelStateCancellable: AnyCancellable?
     private var shortcutUnavailableMessage: String?
     private var lastLoggedRecordingLevelAt: Date?
     private var permissionChangeObserver: NSObjectProtocol?
@@ -67,6 +166,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         setupMainMenu()
         setupMenuBar()
+        observeModelState()
         if overlayPreviewState == nil {
             setupHotkey()
         }
@@ -139,6 +239,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if let permissionChangeObserver {
             NotificationCenter.default.removeObserver(permissionChangeObserver)
         }
+        modelStateCancellable?.cancel()
         hotkeyManager.stop()
         transcriptionQueueTail?.cancel()
         if audioRecorder.isRecording {
@@ -213,6 +314,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private func startPendingRecording() {
         guard appState == .idle else { return }
         RuntimeLog.write("record arm")
+        activeDictationMetrics = DictationLatencyMetrics()
         startRecording(commitImmediately: false)
     }
 
@@ -235,6 +337,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         guard !recordingIsCommitted else { return }
         recordingIsCommitted = true
+        activeDictationMetrics?.inputMode = .hold
+        activeDictationMetrics?.recordingCommittedAt = Date()
         RuntimeLog.write("record committed")
         audioDucker.beginDuckingIfEnabled()
     }
@@ -243,6 +347,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         guard appState == .idle else { return }
         let startRequestedAt = Date()
         RuntimeLog.write("record start requested")
+        if activeDictationMetrics == nil {
+            activeDictationMetrics = DictationLatencyMetrics()
+        }
+        activeDictationMetrics?.inputMode = commitImmediately ? .handsFree : .unknown
+        activeDictationMetrics?.recordStartRequestedAt = startRequestedAt
 
         permissions.refresh()
         guard permissions.hasMicrophone else {
@@ -267,8 +376,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             showIndicator(state: .recording(level: 0))
             try audioRecorder.startRecording()
             let elapsedMs = Int(Date().timeIntervalSince(startRequestedAt) * 1000)
+            activeDictationMetrics?.markRecordingStarted()
             RuntimeLog.write("record started elapsedMs=\(elapsedMs)")
             if commitImmediately {
+                activeDictationMetrics?.recordingCommittedAt = Date()
                 RuntimeLog.write("record committed")
                 audioDucker.beginDuckingIfEnabled()
             }
@@ -288,22 +399,29 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             refreshMenuBarIcon()
             hotkeyManager.cancelRecording()
             showTransientAttention("Mic failed")
+            activeDictationMetrics?.log(status: "recordStartFailed")
+            activeDictationMetrics = nil
             RuntimeLog.write("record start failed error=\(error)")
         }
     }
 
     private func stopRecordingAndTranscribe() {
         guard audioRecorder.isRecording else { return }
+        activeDictationMetrics?.stopRequestedAt = Date()
         RuntimeLog.write("record stop requested")
 
         audioLevelCancellable?.cancel()
         audioLevelCancellable = nil
 
         let samples = audioRecorder.stopRecording()
+        activeDictationMetrics?.samplesReadyAt = Date()
+        activeDictationMetrics?.sampleCount = samples.count
         let recordingDuration = max(
             Date().timeIntervalSince(recordingStartedAt ?? Date()),
             Double(samples.count) / AudioRecorder.sampleRate
         )
+        activeDictationMetrics?.recordingDuration = recordingDuration
+        activeDictationMetrics?.model = transcriptionService.selectedModel
         recordingStartedAt = nil
         recordingIsCommitted = false
         appState = .idle
@@ -315,6 +433,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         guard samples.count >= AudioRecorder.minimumSamples else {
             refreshMenuBarIcon()
             showTransientAttention("No audio", durationNanoseconds: 700_000_000)
+            activeDictationMetrics?.log(status: "noAudio")
+            activeDictationMetrics = nil
             RuntimeLog.write("record stopped noAudio samples=\(samples.count)")
             return
         }
@@ -327,13 +447,25 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         guard signal.hasSpeechLikeAudio else {
             refreshMenuBarIcon()
             showTransientAttention("No speech", durationNanoseconds: 700_000_000)
+            activeDictationMetrics?.log(status: "silent")
+            activeDictationMetrics = nil
             RuntimeLog.write(
                 "record stopped silent rms=\(String(format: "%.6f", signal.rms)) peak=\(String(format: "%.6f", signal.peak)) activeRatio=\(String(format: "%.4f", signal.activeRatio))"
             )
             return
         }
 
-        enqueueTranscription(samples: samples, recordingDuration: recordingDuration)
+        var metrics = activeDictationMetrics ?? DictationLatencyMetrics()
+        metrics.sampleCount = samples.count
+        metrics.recordingDuration = recordingDuration
+        metrics.model = transcriptionService.selectedModel
+        metrics.transcriptionQueuedAt = Date()
+        activeDictationMetrics = nil
+        enqueueTranscription(
+            samples: samples,
+            recordingDuration: recordingDuration,
+            metrics: metrics
+        )
     }
 
     private func discardActiveRecording(reason: String) {
@@ -352,12 +484,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         audioDucker.endDucking()
         refreshMenuBarIcon()
         finishIndicator()
+        activeDictationMetrics?.sampleCount = samples.count
+        activeDictationMetrics?.recordingDuration = recordingDuration
+        activeDictationMetrics?.log(status: reason)
+        activeDictationMetrics = nil
         RuntimeLog.write(
             "record discarded reason=\(reason) samples=\(samples.count) duration=\(String(format: "%.2f", recordingDuration))"
         )
     }
 
-    private func enqueueTranscription(samples: [Float], recordingDuration: TimeInterval) {
+    private func enqueueTranscription(
+        samples: [Float],
+        recordingDuration: TimeInterval,
+        metrics: DictationLatencyMetrics
+    ) {
         pendingTranscriptionCount += 1
         refreshMenuBarIcon()
         if appState == .idle {
@@ -370,14 +510,21 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             await previousTail?.value
             await self?.processQueuedTranscription(
                 samples: samples,
-                recordingDuration: recordingDuration
+                recordingDuration: recordingDuration,
+                metrics: metrics
             )
         }
         transcriptionQueueTail = task
     }
 
-    private func processQueuedTranscription(samples: [Float], recordingDuration: TimeInterval) async {
+    private func processQueuedTranscription(
+        samples: [Float],
+        recordingDuration: TimeInterval,
+        metrics initialMetrics: DictationLatencyMetrics
+    ) async {
         if Task.isCancelled { return }
+        var metrics = initialMetrics
+        metrics.transcriptionDequeuedAt = Date()
         RuntimeLog.write("transcription dequeued pending=\(pendingTranscriptionCount)")
 
         defer {
@@ -393,32 +540,51 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         do {
             // transcribe() waits for the model if it's still loading.
-            let result = try await transcriptionService.transcribe(audioSamples: samples)
+            let transcription = try await transcriptionService.transcribeWithTiming(
+                audioSamples: samples
+            )
+            let result = transcription.result
+            metrics.transcriptionCompletedAt = Date()
+            metrics.finalTextLength = result.finalText.count
+            metrics.wordCount = estimatedWordCount(in: result.finalText)
             RuntimeLog.write(
                 "transcription complete rawLength=\(result.rawText.count) finalLength=\(result.finalText.count)"
             )
             if !result.finalText.isEmpty {
+                let performance = metrics.performanceSnapshot(
+                    transcriptionTiming: transcription.timing
+                )
                 try? usageStats.record(
                     finalText: result.finalText,
                     duration: recordingDuration,
-                    model: transcriptionService.selectedModel
+                    model: transcriptionService.selectedModel,
+                    performance: performance
                 )
                 TextInserter.insertText(result.finalText)
+                metrics.pastePostedAt = Date()
+                metrics.log(status: "inserted", transcriptionTiming: transcription.timing)
                 showTranscriptionResultIndicator(.done(text: result.finalText))
             } else {
                 showTranscriptionResultIndicator(
                     .attention(message: "No speech"),
                     durationNanoseconds: 900_000_000
                 )
+                metrics.log(status: "empty", transcriptionTiming: transcription.timing)
                 RuntimeLog.write("transcription empty")
             }
         } catch {
+            metrics.transcriptionCompletedAt = Date()
+            metrics.log(status: "failed")
             RuntimeLog.write("transcription failed error=\(error)")
             showTranscriptionResultIndicator(
                 .attention(message: "Transcription failed"),
                 durationNanoseconds: 1_200_000_000
             )
         }
+    }
+
+    private func estimatedWordCount(in text: String) -> Int {
+        text.split { $0.isWhitespace || $0.isNewline }.count
     }
 
     private func logRecordingLevel(_ level: Float) {
@@ -434,10 +600,32 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Floating Indicator
 
+    private func observeModelState() {
+        modelStateCancellable = transcriptionService.$modelState
+            .receive(on: RunLoop.main)
+            .sink { [weak self] state in
+                self?.handleModelStateChange(state)
+            }
+    }
+
+    private func handleModelStateChange(_ state: ModelState) {
+        refreshMenuBarIcon()
+        if state.isReady {
+            refreshOverlay()
+        } else {
+            hideIndicatorPanel()
+        }
+    }
+
     private func showIndicator(state: IndicatorState) {
         indicatorDismissTask?.cancel()
         indicatorDismissTask = nil
         currentIndicatorState = state
+
+        guard modelIsReadyForOverlay else {
+            hideIndicatorPanel()
+            return
+        }
 
         let overlayStyle = currentOverlayStyle
         guard overlayStyle != .off else {
@@ -540,10 +728,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func dismissIndicator() {
-        indicatorDismissTask?.cancel()
-        indicatorDismissTask = nil
+        hideIndicatorPanel()
         audioLevelCancellable?.cancel()
         audioLevelCancellable = nil
+    }
+
+    private func hideIndicatorPanel() {
+        indicatorDismissTask?.cancel()
+        indicatorDismissTask = nil
         indicatorPanel?.orderOut(nil)
     }
 
@@ -553,6 +745,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         if pendingTranscriptionCount > 0 {
             return .processing
+        }
+        if !transcriptionService.modelState.isReady {
+            return .initializing(progress: transcriptionService.modelState.startupProgress)
         }
         return .idle
     }
@@ -564,6 +759,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var currentOverlayStyle: OverlayStyle {
         OverlayStyle(rawValue: UserDefaults.standard.string(forKey: Defaults.overlayStyle) ?? "")
             ?? .crab
+    }
+
+    private var modelIsReadyForOverlay: Bool {
+        if ProcessInfo.processInfo.environment["SHOUTOUT_OVERLAY_PREVIEW"] != nil {
+            return true
+        }
+        return transcriptionService.modelState.isReady
     }
 
     private func currentIdleIndicatorState() -> IndicatorState {
@@ -793,13 +995,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         appMenuItem.submenu = appMenu
         appMenu.addItem(
             NSMenuItem(
-                title: "About Shout Out",
+                title: "About ShoutOut",
                 action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)),
                 keyEquivalent: ""))
         appMenu.addItem(.separator())
         appMenu.addItem(
             NSMenuItem(
-                title: "Hide Shout Out",
+                title: "Hide ShoutOut",
                 action: #selector(NSApplication.hide(_:)),
                 keyEquivalent: "h"))
         let hideOthers = NSMenuItem(
@@ -816,7 +1018,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         appMenu.addItem(.separator())
         appMenu.addItem(
             NSMenuItem(
-                title: "Quit Shout Out",
+                title: "Quit ShoutOut",
                 action: #selector(NSApplication.terminate(_:)),
                 keyEquivalent: "q"))
 
@@ -867,10 +1069,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func updateMenuBarIcon(state: AppState) {
         guard let button = statusItem.button else { return }
         button.image = menuBarImage(for: state)
+        button.imagePosition = .imageLeading
+        button.title = menuBarTitle(for: state)
+        button.toolTip = menuBarAccessibilityDescription(for: state)
         button.contentTintColor = state == .recording ? .systemRed : nil
     }
 
     private func menuBarImage(for state: AppState) -> NSImage? {
+        if case .initializing = state {
+            let image = NSImage(
+                systemSymbolName: "arrow.down.circle", accessibilityDescription: "Preparing model")
+            image?.isTemplate = true
+            return image
+        }
+
         if let image = crabMenuBarImage(
             named: state == .recording ? "recording-1" : "idle-1",
             accessibilityDescription: menuBarAccessibilityDescription(for: state)
@@ -879,9 +1091,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         switch state {
+        case .initializing:
+            return nil
         case .idle:
             let image = NSImage(
-                systemSymbolName: "waveform", accessibilityDescription: "Shout Out")
+                systemSymbolName: "waveform", accessibilityDescription: "ShoutOut")
             image?.isTemplate = true
             return image
         case .recording:
@@ -895,6 +1109,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 accessibilityDescription: "Transcribing")
             image?.isTemplate = true
             return image
+        }
+    }
+
+    private func menuBarTitle(for state: AppState) -> String {
+        switch state {
+        case .initializing(let progress):
+            guard let progress else { return "" }
+            return "\(Int(progress * 100))%"
+        case .idle, .recording, .processing:
+            return ""
         }
     }
 
@@ -921,8 +1145,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func menuBarAccessibilityDescription(for state: AppState) -> String {
         switch state {
+        case .initializing(let progress):
+            if let progress {
+                return "Preparing ShoutOut model \(Int(progress * 100)) percent"
+            }
+            return "Preparing ShoutOut model"
         case .idle:
-            return "Shout Out"
+            return "ShoutOut"
         case .recording:
             return "Recording"
         case .processing:
@@ -956,7 +1185,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(NSMenuItem.separator())
 
         let quitItem = NSMenuItem(
-            title: "Quit Shout Out", action: #selector(quitApp), keyEquivalent: "q")
+            title: "Quit ShoutOut", action: #selector(quitApp), keyEquivalent: "q")
         quitItem.target = self
         menu.addItem(quitItem)
 
@@ -979,7 +1208,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 backing: .buffered,
                 defer: false
             )
-            window.title = "Shout Out Settings"
+            window.title = "ShoutOut Settings"
             window.titlebarAppearsTransparent = true
             window.center()
             window.contentView = NSHostingView(
@@ -1006,7 +1235,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 backing: .buffered,
                 defer: false
             )
-            window.title = "Welcome to Shout Out"
+            window.title = "Welcome to ShoutOut"
             window.center()
             window.contentView = NSHostingView(
                 rootView: OnboardingView(onComplete: { [weak self] in

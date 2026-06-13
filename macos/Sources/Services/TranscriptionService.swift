@@ -8,6 +8,57 @@ enum ModelState: Equatable {
     case loading
     case ready
     case error(String)
+
+    var isReady: Bool {
+        self == .ready
+    }
+
+    var startupProgress: Double? {
+        switch self {
+        case .downloading(let progress):
+            return min(max(progress, 0), 1)
+        case .loading, .ready:
+            return 1
+        case .unloaded, .error:
+            return nil
+        }
+    }
+}
+
+struct TranscriptionTimingSnapshot: Sendable {
+    var modelWaitMs: Int
+    var whisperWallMs: Int
+    var postProcessMs: Int
+    var firstTokenMs: Int?
+    var whisperPipelineMs: Int?
+    var realTimeFactor: Double?
+    var speedFactor: Double?
+    var tokensPerSecond: Double?
+    var fallbackCount: Int?
+
+    var logFields: String {
+        [
+            "modelWaitMs=\(modelWaitMs)",
+            "whisperWallMs=\(whisperWallMs)",
+            "postProcessMs=\(postProcessMs)",
+            optionalMetric("firstTokenMs", firstTokenMs),
+            optionalMetric("whisperPipelineMs", whisperPipelineMs),
+            optionalMetric("rtf", realTimeFactor),
+            optionalMetric("speedFactor", speedFactor),
+            optionalMetric("tokensPerSecond", tokensPerSecond),
+            optionalMetric("fallbacks", fallbackCount),
+        ].compactMap { $0 }.joined(separator: " ")
+    }
+
+    private func optionalMetric(_ name: String, _ value: Int?) -> String? {
+        guard let value else { return nil }
+        return "\(name)=\(value)"
+    }
+
+    private func optionalMetric(_ name: String, _ value: Double?) -> String? {
+        guard let value, value.isFinite else { return nil }
+        return "\(name)=\(String(format: "%.3f", value))"
+    }
 }
 
 @MainActor
@@ -124,9 +175,17 @@ class TranscriptionService: ObservableObject {
     }
 
     func transcribe(audioSamples: [Float]) async throws -> DictationResult {
+        try await transcribeWithTiming(audioSamples: audioSamples).result
+    }
+
+    func transcribeWithTiming(audioSamples: [Float]) async throws
+        -> (result: DictationResult, timing: TranscriptionTimingSnapshot)
+    {
         RuntimeLog.write("transcription start samples=\(audioSamples.count) model=\(selectedModel)")
         // Wait for model if it's still downloading/loading
+        let modelWaitStart = Date()
         try await waitUntilReady()
+        let modelWaitMs = Self.elapsedMilliseconds(since: modelWaitStart)
 
         guard let kit = whisperKit else {
             throw TranscriptionError.modelNotReady
@@ -141,10 +200,12 @@ class TranscriptionService: ObservableObject {
             suppressBlank: true
         )
 
+        let whisperStart = Date()
         let results = try await kit.transcribe(
             audioArray: audioSamples,
             decodeOptions: decodingOptions
         )
+        let whisperWallMs = Self.elapsedMilliseconds(since: whisperStart)
 
         let rawText = results.map { $0.text }.joined(separator: " ")
         let postProcessingOptions = TextPostProcessingOptions(
@@ -155,13 +216,47 @@ class TranscriptionService: ObservableObject {
             applySpokenCommands: true,
             collapseWhitespace: true
         )
+        let postProcessStart = Date()
         let finalText = TextPostProcessor.process(
             rawText,
             options: postProcessingOptions,
             dictionaryEntries: dictionaryStore.entries
         )
+        let postProcessMs = Self.elapsedMilliseconds(since: postProcessStart)
+        let whisperTiming = results.first?.timings
+        let timing = TranscriptionTimingSnapshot(
+            modelWaitMs: modelWaitMs,
+            whisperWallMs: whisperWallMs,
+            postProcessMs: postProcessMs,
+            firstTokenMs: Self.firstTokenMilliseconds(from: whisperTiming),
+            whisperPipelineMs: Self.pipelineMilliseconds(from: whisperTiming),
+            realTimeFactor: whisperTiming?.realTimeFactor,
+            speedFactor: whisperTiming?.speedFactor,
+            tokensPerSecond: whisperTiming?.tokensPerSecond,
+            fallbackCount: whisperTiming.map { Int($0.totalDecodingFallbacks) }
+        )
         RuntimeLog.write("transcription postprocessed rawLength=\(rawText.count) finalLength=\(finalText.count)")
-        return DictationResult(rawText: rawText, finalText: finalText)
+        RuntimeLog.write("transcription timing \(timing.logFields)")
+        return (DictationResult(rawText: rawText, finalText: finalText), timing)
+    }
+
+    private static func elapsedMilliseconds(since start: Date) -> Int {
+        Int(Date().timeIntervalSince(start) * 1000)
+    }
+
+    private static func firstTokenMilliseconds(from timing: TranscriptionTimings?) -> Int? {
+        guard let timing,
+            timing.firstTokenTime.isFinite,
+            timing.pipelineStart.isFinite,
+            timing.firstTokenTime >= timing.pipelineStart
+        else { return nil }
+
+        return Int((timing.firstTokenTime - timing.pipelineStart) * 1000)
+    }
+
+    private static func pipelineMilliseconds(from timing: TranscriptionTimings?) -> Int? {
+        guard let timing, timing.fullPipeline.isFinite else { return nil }
+        return Int(timing.fullPipeline * 1000)
     }
 }
 

@@ -1,4 +1,4 @@
-# Shout Out Implementation Plan
+# ShoutOut Implementation Plan
 
 ## Goal
 
@@ -15,7 +15,7 @@ Build a macOS-native, local-first dictation app with the Wispr Flow core loop: h
 
 ### 1. Rebrand And Install Path
 
-**Why:** The app should be a clean new repo named Shout Out, not a copy of Inputalk's product surface.
+**Why:** The app should be a clean new repo named ShoutOut, not a copy of Inputalk's product surface.
 
 **Before:**
 ```swift
@@ -151,7 +151,7 @@ showIndicator(state: .recording(level: 0))
 48. Punctuation does not inflate word count
 49. Stats track total duration
 50. Stats ignore blank final text
-51. README names Shout Out
+51. README names ShoutOut
 52. README documents make install
 53. README preserves MIT attribution
 54. README documents Microphone, Accessibility, and Input Monitoring
@@ -161,14 +161,14 @@ showIndicator(state: .recording(level: 0))
 58. Executable target is ShoutOut
 59. Library target is ShoutOutCore
 60. Test target is ShoutOutCoreTests
-61. Info.plist bundle name is Shout Out
+61. Info.plist bundle name is ShoutOut
 62. Info.plist executable is ShoutOut
 63. Info.plist bundle id is com.ezraapple.shoutout
 64. Info.plist has microphone usage text
 65. Info.plist has accessibility usage text
 66. Info.plist has input monitoring usage text
 67. Entitlements allow audio input
-68. Build script builds Shout Out.app
+68. Build script builds ShoutOut.app
 69. Build script signs for local use
 70. Swift package builds
 

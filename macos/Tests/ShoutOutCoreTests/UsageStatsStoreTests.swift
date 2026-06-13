@@ -93,6 +93,39 @@ final class UsageStatsStoreTests: XCTestCase {
         XCTAssertEqual(store.allTimeSummary.totalDuration, 4.0)
     }
 
+    func testPersistsPerformanceMetrics() throws {
+        let fileURL = temporaryFileURL()
+        let store = UsageStatsStore(fileURL: fileURL)
+        let performance = UsagePerformanceMetrics(
+            inputMode: "hold",
+            pressToRecordStartMs: 42,
+            pressToCommitMs: 300,
+            recordStartRequestToReadyMs: 12,
+            stopToSamplesMs: 8,
+            stopToPasteMs: 640,
+            queueWaitMs: 0,
+            transcriptionWallMs: 520,
+            recordingMs: 2_000,
+            modelWaitMs: 0,
+            whisperWallMs: 500,
+            postProcessMs: 2,
+            firstTokenMs: 120,
+            whisperPipelineMs: 480,
+            realTimeFactor: 0.25,
+            speedFactor: 4.0,
+            tokensPerSecond: 28.0,
+            fallbackCount: 0
+        )
+
+        try store.record(finalText: "saved words", duration: 2, model: "base", performance: performance)
+
+        let reloadedStore = UsageStatsStore(fileURL: fileURL)
+        XCTAssertEqual(reloadedStore.recentSessions.first?.performance, performance)
+        XCTAssertEqual(reloadedStore.allTimeSummary.averagePressToRecordStartMs, 42)
+        XCTAssertEqual(reloadedStore.allTimeSummary.averageStopToPasteMs, 640)
+        XCTAssertEqual(reloadedStore.allTimeSummary.averageRealTimeFactor, 0.25)
+    }
+
     func testIgnoresBlankFinalText() throws {
         let store = UsageStatsStore(fileURL: temporaryFileURL())
         try store.record(finalText: "   ", duration: 10, date: Date(), model: "base")
