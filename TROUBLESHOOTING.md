@@ -1,5 +1,7 @@
 # Troubleshooting
 
+This document is mostly for agents and operators debugging a local setup. If you are just trying to install and use Shout Out, start with the setup flow in [README.md](README.md).
+
 ## Permissions Look Granted But Hotkey Still Fails
 
 If Accessibility or Input Monitoring is checked in System Settings but Shout Out still shows it as missing, reset the stale macOS privacy rows and reinstall:
