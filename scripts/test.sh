@@ -140,6 +140,14 @@ assert_contains "Crab overlay shows processing badge" "$MACOS_DIR/Sources/Views/
 assert_contains "Crab overlay animates wall crab" "$MACOS_DIR/Sources/Views/FloatingIndicator.swift" "animateCrab"
 assert_contains "Boom crab stays still" "$MACOS_DIR/Sources/Views/FloatingIndicator.swift" "if state.showsBoomMic"
 assert_contains "Boom crab uses fixed frame" "$MACOS_DIR/Sources/Views/FloatingIndicator.swift" 'boomMicFrameNames = \["recording-2"\]'
+wall_recording_frame_count="$(
+  find "$MACOS_DIR/Resources/CrabSpritesWall" -maxdepth 1 -type f -name 'recording-*.png' | wc -l | tr -d ' '
+)"
+if [[ -f "$MACOS_DIR/Resources/CrabSpritesWall/recording-2.png" && "$wall_recording_frame_count" == "1" ]]; then
+  record_pass "Wall boom resources only include fixed frame"
+else
+  record_fail "Wall boom resources only include fixed frame"
+fi
 assert_contains "Boom crab scale matches idle crab" "$MACOS_DIR/Sources/Views/FloatingIndicator.swift" "boomScale"
 assert_contains "Crab idle uses ping-pong frame cycle" "$MACOS_DIR/Sources/Views/FloatingIndicator.swift" "pingPongFrameNames\\(prefix: \"idle\""
 assert_contains "Crab processing spinner has tuned duration" "$MACOS_DIR/Sources/Views/FloatingIndicator.swift" "processingSpinDuration"
