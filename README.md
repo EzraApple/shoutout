@@ -22,33 +22,48 @@ flowchart LR
     Cleanup --> Stats["Local word + WPM stats"]
 ```
 
-## Install
+## Setup
 
-Prerequisite for the easiest path: GitHub CLI (`gh`) authenticated on your machine.
+The smooth path is to install the latest green GitHub Actions build. That avoids local Swift toolchain drift and gives you the same signed/restarted app bundle used for day-to-day testing.
+
+Prerequisites:
+
+- macOS 15 or newer.
+- GitHub CLI (`gh`) authenticated with access to this repo.
+- Microphone, Accessibility, and Input Monitoring permissions.
 
 ```bash
 git clone git@github.com:EzraApple/shout-out.git
 cd shout-out
+gh auth status
 make install
 ```
 
-`make install` downloads the latest green macOS build, copies `Shout Out.app` into `~/Applications`, enables first-run permission prompts, and opens the app. If the GitHub artifact download is unavailable, it falls back to a local build, which requires Xcode 16 or a working Swift 6 Command Line Tools install.
+`make install` downloads the latest successful `main` artifact, re-signs it locally with a stable `com.ezraapple.shoutout` requirement, kills any running copy, copies `Shout Out.app` into `~/Applications`, enables first-run permission prompts, and opens the app.
 
-The local installer re-signs the app with a stable local signature before opening it, so macOS can keep Accessibility and Input Monitoring permissions across rebuilds.
-
-To force a local build:
+To install a specific verified Actions run instead of the latest green build:
 
 ```bash
-make install-local
+SHOUT_OUT_RUN_ID=27450400657 make install
 ```
 
-On first launch, grant:
+Use the run ID from the GitHub Actions URL you want to pin.
+
+If `gh auth status` fails, run:
+
+```bash
+gh auth login
+```
+
+If artifact download is unavailable, `make install` falls back to a local build. Local builds require Xcode 16 or a working Swift 6 Command Line Tools install.
+
+### Permissions
+
+On first launch, grant these in System Settings → Privacy & Security:
 
 - Microphone, so Shout Out can record your voice.
 - Accessibility, so it can paste text into the focused app.
 - Input Monitoring, so it can detect Fn/Globe while another app is focused.
-
-If macOS does not show a prompt, open System Settings → Privacy & Security and enable Shout Out under those three sections.
 
 If Accessibility or Input Monitoring looks checked but Shout Out still says it is missing, clear the stale hotkey privacy rows once and reopen the app:
 
@@ -56,6 +71,30 @@ If Accessibility or Input Monitoring looks checked but Shout Out still says it i
 make reset-permissions
 make install
 ```
+
+### Audio Input
+
+Open System Settings → Sound → Input and confirm the selected microphone’s level meter moves while you talk. If Shout Out shows `No speech` or inserts nothing while permissions are granted, the most likely issue is a muted or zeroed input device rather than transcription.
+
+Bluetooth microphones can be flaky after device switches. If AirPods record silence, switch to the MacBook microphone or reselect/reconnect the AirPods, then try again.
+
+### Local Build
+
+```bash
+make install-local
+```
+
+This builds the Swift package locally, installs into `~/Applications`, and opens the app. Prefer `make install` unless you are actively changing Swift code.
+
+### Logs
+
+Runtime logs live at:
+
+```bash
+tail -f "$HOME/Library/Logs/ShoutOut/runtime.log"
+```
+
+Useful healthy startup lines include `hotkey setup complete`, `model ready`, and `permissions refresh accessibility=true inputMonitoring=true microphone=true`. During recording, `record started elapsedMs=...` shows hotkey-to-audio startup time and `record signal rms=... peak=...` confirms the mic is sending nonzero audio.
 
 ## Usage
 
