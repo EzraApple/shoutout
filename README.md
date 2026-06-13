@@ -30,7 +30,6 @@ Prerequisites:
 
 - macOS 15 or newer.
 - GitHub CLI (`gh`) authenticated with access to this repo.
-- Microphone, Accessibility, and Input Monitoring permissions.
 
 ```bash
 git clone git@github.com:EzraApple/shout-out.git
@@ -44,7 +43,7 @@ make install
 To install a specific verified Actions run instead of the latest green build:
 
 ```bash
-SHOUT_OUT_RUN_ID=27450400657 make install
+SHOUT_OUT_RUN_ID=<run-id> make install
 ```
 
 Use the run ID from the GitHub Actions URL you want to pin.
@@ -65,18 +64,7 @@ On first launch, grant these in System Settings → Privacy & Security:
 - Accessibility, so it can paste text into the focused app.
 - Input Monitoring, so it can detect Fn/Globe while another app is focused.
 
-If Accessibility or Input Monitoring looks checked but Shout Out still says it is missing, clear the stale hotkey privacy rows once and reopen the app:
-
-```bash
-make reset-permissions
-make install
-```
-
-### Audio Input
-
-Open System Settings → Sound → Input and confirm the selected microphone’s level meter moves while you talk. If Shout Out shows `No speech` or inserts nothing while permissions are granted, the most likely issue is a muted or zeroed input device rather than transcription.
-
-Bluetooth microphones can be flaky after device switches. If AirPods record silence, switch to the MacBook microphone or reselect/reconnect the AirPods, then try again.
+If permissions, audio input, or paste behavior gets stuck, see [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
 
 ### Local Build
 
@@ -85,16 +73,6 @@ make install-local
 ```
 
 This builds the Swift package locally, installs into `~/Applications`, and opens the app. Prefer `make install` unless you are actively changing Swift code.
-
-### Logs
-
-Runtime logs live at:
-
-```bash
-tail -f "$HOME/Library/Logs/ShoutOut/runtime.log"
-```
-
-Useful healthy startup lines include `hotkey setup complete`, `model ready`, and `permissions refresh accessibility=true inputMonitoring=true microphone=true`. During recording, `record started elapsedMs=...` shows hotkey-to-audio startup time and `record signal rms=... peak=...` confirms the mic is sending nonzero audio.
 
 ## Usage
 
