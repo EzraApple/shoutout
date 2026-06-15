@@ -1,4 +1,4 @@
-import AVFoundation
+@preconcurrency import AVFoundation
 import Foundation
 
 /// Thread-safe audio sample collector used by the real-time audio tap.
@@ -134,17 +134,10 @@ class AudioRecorder: ObservableObject {
             else { return }
 
             var error: NSError?
-            var didProvideInput = false
+            let inputProvider = AudioConverterInputProvider(buffer: buffer)
             let status = converter.convert(to: convertedBuffer, error: &error) {
                 _, outStatus in
-                guard !didProvideInput else {
-                    outStatus.pointee = .noDataNow
-                    return nil
-                }
-
-                didProvideInput = true
-                outStatus.pointee = .haveData
-                return buffer
+                inputProvider.provideInput(outStatus: outStatus)
             }
 
             guard status != .error, error == nil,

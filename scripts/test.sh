@@ -197,7 +197,7 @@ assert_contains "App delegate tracks committed recordings" "$MACOS_DIR/Sources/A
 assert_contains "App delegate discards quick releases" "$MACOS_DIR/Sources/AppDelegate.swift" "quickRelease"
 assert_contains "Audio recorder allows fast snippets" "$MACOS_DIR/Sources/Services/AudioRecorder.swift" "minimumSamples = 3200"
 assert_contains "Audio recorder logs input format" "$MACOS_DIR/Sources/Services/AudioRecorder.swift" "record input format"
-assert_contains "Audio converter provides each tap buffer once" "$MACOS_DIR/Sources/Services/AudioRecorder.swift" "didProvideInput"
+assert_contains "Audio converter provides each tap buffer once" "$MACOS_DIR/Sources/Services/AudioConverterInputProvider.swift" "didProvideInput"
 assert_contains "Audio signal analysis gates silence" "$MACOS_DIR/Sources/Core/AudioSignalAnalysis.swift" "hasSpeechLikeAudio"
 assert_contains "App delegate blocks silent recordings" "$MACOS_DIR/Sources/AppDelegate.swift" "record stopped silent"
 assert_contains "App delegate starts independent transcription sessions" "$MACOS_DIR/Sources/AppDelegate.swift" "latestTranscriptionSessionID"

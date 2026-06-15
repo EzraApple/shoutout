@@ -24,9 +24,20 @@ class HotkeyManager {
 
     /// Saved original Fn key usage type so we can restore on quit
     private var originalFnUsageType: Int?
+    private var originalFnUsageTypeWasMissing = false
+
+    private enum FnDefaults {
+        static let suiteName = "com.apple.HIToolbox"
+        static let appleFnUsageType = "AppleFnUsageType"
+        static let didOverride = "hotkey.didOverrideAppleFnUsageType"
+        static let savedValue = "hotkey.savedAppleFnUsageType"
+        static let savedValueWasMissing = "hotkey.savedAppleFnUsageTypeWasMissing"
+    }
 
     @discardableResult
     func start() -> Bool {
+        recoverSystemFnBehaviorIfNeeded()
+
         guard AXIsProcessTrusted() else {
             RuntimeLog.write("hotkey start blocked accessibility=false")
             onShortcutUnavailable?("Accessibility off")
@@ -61,6 +72,7 @@ class HotkeyManager {
         else {
             RuntimeLog.write("hotkey start failed tapCreate")
             onShortcutUnavailable?("Fn blocked")
+            restoreSystemFnBehavior()
             return false
         }
 
@@ -92,19 +104,70 @@ class HotkeyManager {
 
     /// Disable macOS Globe key system action by writing AppleFnUsageType = 0
     private func disableSystemFnBehavior() {
-        let defaults = UserDefaults(suiteName: "com.apple.HIToolbox")
-        originalFnUsageType = defaults?.integer(forKey: "AppleFnUsageType")
-        defaults?.set(0, forKey: "AppleFnUsageType")
-        RuntimeLog.write("hotkey disabled system Fn original=\(originalFnUsageType ?? -1)")
+        guard let defaults = UserDefaults(suiteName: FnDefaults.suiteName) else {
+            RuntimeLog.write("hotkey disable system Fn failed defaultsUnavailable")
+            return
+        }
+
+        let existingValue = defaults.object(forKey: FnDefaults.appleFnUsageType) as? Int
+        originalFnUsageType = existingValue
+        originalFnUsageTypeWasMissing = existingValue == nil
+        persistOriginalFnUsageType(value: existingValue, wasMissing: originalFnUsageTypeWasMissing)
+
+        defaults.set(0, forKey: FnDefaults.appleFnUsageType)
+        RuntimeLog.write("hotkey disabled system Fn original=\(existingValue ?? -1)")
     }
 
     /// Restore the user's original Globe key behavior
     private func restoreSystemFnBehavior() {
-        guard let original = originalFnUsageType else { return }
-        let defaults = UserDefaults(suiteName: "com.apple.HIToolbox")
-        defaults?.set(original, forKey: "AppleFnUsageType")
+        guard originalFnUsageType != nil || originalFnUsageTypeWasMissing else { return }
+        restoreSystemFnBehavior(
+            value: originalFnUsageType,
+            wasMissing: originalFnUsageTypeWasMissing
+        )
         originalFnUsageType = nil
-        RuntimeLog.write("hotkey restored system Fn original=\(original)")
+        originalFnUsageTypeWasMissing = false
+        clearPersistedOriginalFnUsageType()
+    }
+
+    private func recoverSystemFnBehaviorIfNeeded() {
+        guard UserDefaults.standard.bool(forKey: FnDefaults.didOverride) else { return }
+
+        let wasMissing = UserDefaults.standard.bool(forKey: FnDefaults.savedValueWasMissing)
+        let value = UserDefaults.standard.object(forKey: FnDefaults.savedValue) as? Int
+        restoreSystemFnBehavior(value: value, wasMissing: wasMissing)
+        clearPersistedOriginalFnUsageType()
+    }
+
+    private func restoreSystemFnBehavior(value: Int?, wasMissing: Bool) {
+        guard let defaults = UserDefaults(suiteName: FnDefaults.suiteName) else {
+            RuntimeLog.write("hotkey restore system Fn failed defaultsUnavailable")
+            return
+        }
+
+        if wasMissing {
+            defaults.removeObject(forKey: FnDefaults.appleFnUsageType)
+            RuntimeLog.write("hotkey restored system Fn original=missing")
+        } else if let value {
+            defaults.set(value, forKey: FnDefaults.appleFnUsageType)
+            RuntimeLog.write("hotkey restored system Fn original=\(value)")
+        }
+    }
+
+    private func persistOriginalFnUsageType(value: Int?, wasMissing: Bool) {
+        UserDefaults.standard.set(true, forKey: FnDefaults.didOverride)
+        UserDefaults.standard.set(wasMissing, forKey: FnDefaults.savedValueWasMissing)
+        if let value {
+            UserDefaults.standard.set(value, forKey: FnDefaults.savedValue)
+        } else {
+            UserDefaults.standard.removeObject(forKey: FnDefaults.savedValue)
+        }
+    }
+
+    private func clearPersistedOriginalFnUsageType() {
+        UserDefaults.standard.removeObject(forKey: FnDefaults.didOverride)
+        UserDefaults.standard.removeObject(forKey: FnDefaults.savedValue)
+        UserDefaults.standard.removeObject(forKey: FnDefaults.savedValueWasMissing)
     }
 
     func cancelRecording() {

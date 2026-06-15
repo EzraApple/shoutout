@@ -149,6 +149,46 @@ private struct DictationLatencyMetrics {
     }
 }
 
+private enum DictationRuntimeError: LocalizedError {
+    case transcriptionTimedOut(seconds: Int)
+
+    var errorDescription: String? {
+        switch self {
+        case .transcriptionTimedOut(let seconds):
+            return "Transcription timed out after \(seconds) seconds."
+        }
+    }
+}
+
+private final class AsyncResultGate<Success: Sendable>: @unchecked Sendable {
+    private let lock = NSLock()
+    private let continuation: CheckedContinuation<Success, Error>
+    private var didResume = false
+
+    init(continuation: CheckedContinuation<Success, Error>) {
+        self.continuation = continuation
+    }
+
+    @discardableResult
+    func resume(_ result: Result<Success, Error>) -> Bool {
+        lock.lock()
+        guard !didResume else {
+            lock.unlock()
+            return false
+        }
+        didResume = true
+        lock.unlock()
+
+        switch result {
+        case .success(let value):
+            continuation.resume(returning: value)
+        case .failure(let error):
+            continuation.resume(throwing: error)
+        }
+        return true
+    }
+}
+
 // MARK: - App Delegate (Menu Bar App)
 
 @MainActor
@@ -296,6 +336,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             ProcessInfo.processInfo.endActivity(token)
         }
         dismissIndicator()
+        RuntimeLog.flush()
     }
 
     // MARK: - Hotkey Setup
@@ -635,8 +676,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         do {
             // transcribe() waits for the model if it's still loading.
-            let transcription = try await transcriptionService.transcribeWithTiming(
-                audioSamples: samples
+            let transcription = try await transcribeWithTimeout(
+                samples: samples,
+                recordingDuration: recordingDuration
             )
             let result = transcription.result
             metrics.transcriptionCompletedAt = Date()
@@ -696,6 +738,53 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 durationNanoseconds: 1_200_000_000
             )
         }
+    }
+
+    private func transcribeWithTimeout(
+        samples: [Float],
+        recordingDuration: TimeInterval
+    ) async throws -> (result: DictationResult, timing: TranscriptionTimingSnapshot) {
+        let timeoutSeconds = transcriptionTimeoutSeconds(for: recordingDuration)
+        let timeoutNanoseconds = UInt64(timeoutSeconds) * 1_000_000_000
+        let service = transcriptionService
+
+        return try await withCheckedThrowingContinuation { continuation in
+            let gate = AsyncResultGate<
+                (result: DictationResult, timing: TranscriptionTimingSnapshot)
+            >(continuation: continuation)
+
+            let transcriptionTask = Task { @MainActor in
+                do {
+                    let result = try await service.transcribeWithTiming(audioSamples: samples)
+                    gate.resume(.success(result))
+                } catch {
+                    gate.resume(.failure(error))
+                }
+            }
+
+            Task {
+                do {
+                    try await Task.sleep(nanoseconds: timeoutNanoseconds)
+                } catch {
+                    return
+                }
+
+                let error = DictationRuntimeError.transcriptionTimedOut(seconds: timeoutSeconds)
+                guard gate.resume(.failure(error)) else {
+                    return
+                }
+
+                transcriptionTask.cancel()
+                await MainActor.run {
+                    RuntimeLog.write("transcription watchdog timeout seconds=\(timeoutSeconds)")
+                    service.resetAfterTranscriptionTimeout()
+                }
+            }
+        }
+    }
+
+    private func transcriptionTimeoutSeconds(for recordingDuration: TimeInterval) -> Int {
+        Int(min(max(20, recordingDuration * 4 + 10), 180))
     }
 
     private func estimatedWordCount(in text: String) -> Int {

@@ -191,6 +191,19 @@ class TranscriptionService: ObservableObject {
         try? FileManager.default.removeItem(at: Self.modelsDirectory)
     }
 
+    func resetAfterTranscriptionTimeout() {
+        loadGeneration += 1
+        activeEngine?.unload()
+        activeEngine = nil
+        appleDictationEngine?.unload()
+        appleDictationEngine = nil
+        appleDictationEngineIsReady = false
+        appleDictationWarmupTask?.cancel()
+        appleDictationWarmupTask = nil
+        modelState = .unloaded
+        Task { await loadModel() }
+    }
+
     /// Wait until the model is ready. If nothing is loading yet, kicks off a load.
     func waitUntilReady() async throws {
         if modelState == .ready, activeEngine != nil { return }

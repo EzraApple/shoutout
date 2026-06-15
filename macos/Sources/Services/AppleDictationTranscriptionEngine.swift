@@ -1,5 +1,5 @@
 #if swift(>=6.2)
-import AVFoundation
+@preconcurrency import AVFoundation
 import CoreMedia
 import Foundation
 @preconcurrency import Speech
@@ -243,18 +243,11 @@ final class AppleDictationTranscriptionEngine: TranscriptionEngine {
             throw TranscriptionError.audioConversionFailed("Could not create analyzer audio buffer.")
         }
 
-        var didProvideInput = false
         var conversionError: NSError?
+        let inputProvider = AudioConverterInputProvider(buffer: sourceBuffer)
         let status = converter.convert(to: targetBuffer, error: &conversionError) {
             _, outStatus in
-            guard !didProvideInput else {
-                outStatus.pointee = .noDataNow
-                return nil
-            }
-
-            didProvideInput = true
-            outStatus.pointee = .haveData
-            return sourceBuffer
+            inputProvider.provideInput(outStatus: outStatus)
         }
 
         guard status != .error, conversionError == nil, targetBuffer.frameLength > 0 else {

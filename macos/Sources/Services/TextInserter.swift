@@ -5,6 +5,7 @@ import ShoutOutCore
 
 @MainActor
 enum TextInserter {
+    private static let clipboardRestoreDelayNanoseconds: UInt64 = 600_000_000
 
     /// Insert text into the currently focused text field by simulating Cmd+V.
     /// Saves and restores the clipboard content around the paste.
@@ -12,12 +13,34 @@ enum TextInserter {
         _ text: String,
         options: TextInsertionFormattingOptions = .default
     ) {
-        let context = focusedTextInsertionContext()
-        let formatted = TextInsertionFormatter.prepare(text, context: context, options: options)
+        let target = focusedTextInsertionTarget()
+        let formatted = TextInsertionFormatter.prepare(text, context: target?.context, options: options)
         let pasteText = formatted.text
         RuntimeLog.write(
             "paste start length=\(pasteText.count) spacing=\(formatted.strategy) smartSpacing=\(options.useSmartSpacing) appendTrailingSpace=\(options.appendTrailingSpace)"
         )
+
+        if let target, insertWithAccessibility(pasteText, target: target) {
+            RuntimeLog.write("paste accessibility inserted")
+            return
+        }
+
+        insertWithClipboard(pasteText)
+    }
+
+    // MARK: - Private
+
+    private struct FocusedTextInsertionTarget {
+        let element: AXUIElement
+        let text: String
+        let selectedRange: NSRange
+
+        var context: TextInsertionContext? {
+            TextInsertionContext(text: text, selectedUTF16Range: selectedRange)
+        }
+    }
+
+    private static func insertWithClipboard(_ pasteText: String) {
         let pasteboard = NSPasteboard.general
 
         // 1. Save current clipboard contents (all types)
@@ -25,25 +48,33 @@ enum TextInserter {
 
         // 2. Set our text on the clipboard
         pasteboard.clearContents()
-        pasteboard.setString(pasteText, forType: .string)
+        guard pasteboard.setString(pasteText, forType: .string) else {
+            restorePasteboard(pasteboard, savedItems: savedItems)
+            RuntimeLog.write("paste clipboard set failed")
+            return
+        }
+        let insertedChangeCount = pasteboard.changeCount
 
         // 3. Simulate Cmd+V
-        simulatePaste()
+        guard simulatePaste() else {
+            restorePasteboard(pasteboard, savedItems: savedItems)
+            RuntimeLog.write("paste hotkey failed")
+            return
+        }
 
         // 4. Restore clipboard after a delay to let the paste complete
         Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 150_000_000)
-            pasteboard.clearContents()
-            if !savedItems.isEmpty {
-                pasteboard.writeObjects(savedItems)
+            try? await Task.sleep(nanoseconds: clipboardRestoreDelayNanoseconds)
+            guard pasteboard.changeCount == insertedChangeCount else {
+                RuntimeLog.write("paste clipboard restore skipped changedExternally=true")
+                return
             }
+            restorePasteboard(pasteboard, savedItems: savedItems)
             RuntimeLog.write("paste clipboard restored")
         }
     }
 
-    // MARK: - Private
-
-    private static func focusedTextInsertionContext() -> TextInsertionContext? {
+    private static func focusedTextInsertionTarget() -> FocusedTextInsertionTarget? {
         guard let frontmostApp = NSWorkspace.shared.frontmostApplication else {
             return nil
         }
@@ -96,12 +127,89 @@ enum TextInserter {
             return nil
         }
 
-        return TextInsertionContext(
+        return FocusedTextInsertionTarget(
+            element: focusedElement,
             text: text,
-            selectedUTF16Range: NSRange(
+            selectedRange: NSRange(
                 location: selectedRange.location,
                 length: selectedRange.length
             )
+        )
+    }
+
+    private static func focusedTextInsertionContext() -> TextInsertionContext? {
+        focusedTextInsertionTarget()?.context
+    }
+
+    private static func insertWithAccessibility(
+        _ insertion: String,
+        target: FocusedTextInsertionTarget
+    ) -> Bool {
+        guard let replacement = replacingSelection(
+            in: target.text,
+            selectedRange: target.selectedRange,
+            with: insertion
+        ) else {
+            return false
+        }
+
+        let valueStatus = AXUIElementSetAttributeValue(
+            target.element,
+            kAXValueAttribute as CFString,
+            replacement.text as CFTypeRef
+        )
+        guard valueStatus == .success else {
+            RuntimeLog.write("paste accessibility value failed status=\(valueStatus.rawValue)")
+            return false
+        }
+
+        var cfRange = CFRange(
+            location: replacement.selection.location,
+            length: replacement.selection.length
+        )
+        if let axRange = AXValueCreate(.cfRange, &cfRange) {
+            _ = AXUIElementSetAttributeValue(
+                target.element,
+                kAXSelectedTextRangeAttribute as CFString,
+                axRange
+            )
+        }
+
+        return true
+    }
+
+    private static func replacingSelection(
+        in text: String,
+        selectedRange: NSRange,
+        with insertion: String
+    ) -> (text: String, selection: NSRange)? {
+        guard selectedRange.location >= 0, selectedRange.length >= 0 else {
+            return nil
+        }
+
+        let utf16 = text.utf16
+        guard
+            let start16 = utf16.index(
+                utf16.startIndex,
+                offsetBy: selectedRange.location,
+                limitedBy: utf16.endIndex
+            ),
+            let end16 = utf16.index(
+                start16,
+                offsetBy: selectedRange.length,
+                limitedBy: utf16.endIndex
+            ),
+            let start = String.Index(start16, within: text),
+            let end = String.Index(end16, within: text)
+        else {
+            return nil
+        }
+
+        var updatedText = text
+        updatedText.replaceSubrange(start..<end, with: insertion)
+        return (
+            text: updatedText,
+            selection: NSRange(location: selectedRange.location + insertion.utf16.count, length: 0)
         )
     }
 
@@ -121,18 +229,32 @@ enum TextInserter {
         }
     }
 
-    private static func simulatePaste() {
+    private static func restorePasteboard(
+        _ pasteboard: NSPasteboard,
+        savedItems: [NSPasteboardItem]
+    ) {
+        pasteboard.clearContents()
+        if !savedItems.isEmpty {
+            pasteboard.writeObjects(savedItems)
+        }
+    }
+
+    private static func simulatePaste() -> Bool {
         let source = CGEventSource(stateID: .hidSystemState)
 
         // V key = keyCode 0x09 (kVK_ANSI_V)
         let keyDown = CGEvent(keyboardEventSource: source, virtualKey: UInt16(kVK_ANSI_V), keyDown: true)
         let keyUp = CGEvent(keyboardEventSource: source, virtualKey: UInt16(kVK_ANSI_V), keyDown: false)
+        guard let keyDown, let keyUp else {
+            return false
+        }
 
-        keyDown?.flags = .maskCommand
-        keyUp?.flags = .maskCommand
+        keyDown.flags = .maskCommand
+        keyUp.flags = .maskCommand
 
-        keyDown?.post(tap: .cghidEventTap)
-        keyUp?.post(tap: .cghidEventTap)
+        keyDown.post(tap: .cghidEventTap)
+        keyUp.post(tap: .cghidEventTap)
         RuntimeLog.write("paste hotkey posted")
+        return true
     }
 }
