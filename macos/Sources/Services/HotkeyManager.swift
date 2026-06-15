@@ -127,7 +127,7 @@ class HotkeyManager {
 /// ```
 /// idle → fnDown:
 ///   start audio capture immediately
-///   start holdTimer (300ms)
+///   start holdTimer (200ms)
 ///   → if held past timer → holdRecording → fnUp → stop + transcribe → idle
 ///   → if released quickly → discard capture, waitingForDoubleTap (400ms window)
 ///       → fnDown within window → handsFreeRecording starts immediately → fnDown → stop + transcribe → idle
@@ -154,9 +154,9 @@ private class FnKeyState: @unchecked Sendable {
     var previousFnDown: Bool = false
 
     /// How long Fn must be held before hold-to-talk activates
-    let holdThreshold: TimeInterval = 0.3
+    let holdThreshold: TimeInterval = 0.2
     /// Window to detect second tap of double-tap
-    let doubleTapWindow: TimeInterval = 0.4
+    let doubleTapWindow: TimeInterval = 0.65
 }
 
 // MARK: - CGEvent Callback (C-function, runs on event tap thread)

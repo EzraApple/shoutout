@@ -9,6 +9,9 @@ enum Defaults {
     static let overlayStyle = "overlayStyle"
     static let requestPermissionsOnLaunch = "requestPermissionsOnLaunch"
     static let cleanUpSelfCorrections = "cleanUpSelfCorrections"
+    static let transcriptionBackend = "transcriptionBackend"
+    static let appendTrailingSpace = "appendTrailingSpace"
+    static let smartSpacing = "smartSpacing"
 }
 
 // MARK: - App State
@@ -26,9 +29,37 @@ private enum DictationInputMode: String {
     case unknown
 }
 
+private struct RecordingTailPolicy {
+    let name: String
+    let graceMilliseconds: Int
+
+    var graceNanoseconds: UInt64 {
+        UInt64(graceMilliseconds) * 1_000_000
+    }
+
+    static func policy(for mode: DictationInputMode) -> RecordingTailPolicy {
+        switch mode {
+        case .hold:
+            return .holdRelease
+        case .handsFree:
+            return .handsFreeToggle
+        case .unknown:
+            return .holdRelease
+        }
+    }
+
+    static let holdRelease = RecordingTailPolicy(name: "holdRelease", graceMilliseconds: 80)
+    static let handsFreeToggle = RecordingTailPolicy(
+        name: "handsFreeToggle",
+        graceMilliseconds: 120
+    )
+}
+
 private struct DictationLatencyMetrics {
     let id = UUID().uuidString.prefix(8)
     var inputMode: DictationInputMode = .unknown
+    var tailPolicy = ""
+    var tailGraceMs = 0
     var firstFnPressAt = Date()
     var recordStartRequestedAt: Date?
     var recorderStartedAt: Date?
@@ -57,6 +88,8 @@ private struct DictationLatencyMetrics {
                 "id=\(id)",
                 "status=\(status)",
                 "mode=\(inputMode.rawValue)",
+                "tail=\(tailPolicy.isEmpty ? "none" : tailPolicy)",
+                "tailGraceMs=\(tailGraceMs)",
                 metric("pressToRecordStartMs", firstFnPressAt, recorderStartedAt),
                 metric("pressToCommitMs", firstFnPressAt, recordingCommittedAt),
                 metric("recordStartRequestToReadyMs", recordStartRequestedAt, recorderStartedAt),
@@ -134,8 +167,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var recordingStartedAt: Date?
     private var recordingIsCommitted = false
     private var pendingTranscriptionCount = 0
-    private var transcriptionQueueTail: Task<Void, Never>?
+    private var nextTranscriptionSessionID = 0
+    private var latestTranscriptionSessionID = 0
+    private var transcriptionTasks: [Int: Task<Void, Never>] = [:]
     private var activeDictationMetrics: DictationLatencyMetrics?
+    private var pendingStopRecordingTask: Task<Void, Never>?
+    private var longFormWarmupTask: Task<Void, Never>?
 
     /// Prevent App Nap from making the hotkey unresponsive
     private var activityToken: NSObjectProtocol?
@@ -158,8 +195,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             Defaults.showInDock: true,
             Defaults.dimSystemAudio: true,
             Defaults.overlayStyle: OverlayStyle.crab.rawValue,
+            Defaults.transcriptionBackend: TranscriptionBackend.appleSpeech.rawValue,
+            Defaults.appendTrailingSpace: true,
+            Defaults.smartSpacing: true,
             "removeFillerWords": true,
-            Defaults.cleanUpSelfCorrections: true,
+            Defaults.cleanUpSelfCorrections: false,
         ])
 
         let overlayPreviewState = requestedOverlayPreviewState()
@@ -241,7 +281,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         modelStateCancellable?.cancel()
         hotkeyManager.stop()
-        transcriptionQueueTail?.cancel()
+        pendingStopRecordingTask?.cancel()
+        longFormWarmupTask?.cancel()
+        for task in transcriptionTasks.values {
+            task.cancel()
+        }
+        transcriptionTasks.removeAll()
         if audioRecorder.isRecording {
             _ = audioRecorder.stopRecording()
         }
@@ -353,7 +398,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         activeDictationMetrics?.inputMode = commitImmediately ? .handsFree : .unknown
         activeDictationMetrics?.recordStartRequestedAt = startRequestedAt
 
-        permissions.refresh()
+        if !permissions.hasMicrophone {
+            permissions.refresh()
+        }
         guard permissions.hasMicrophone else {
             RuntimeLog.write("record start blocked microphone=false")
             hotkeyManager.cancelRecording()
@@ -369,20 +416,21 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         do {
+            try audioRecorder.startRecording()
             recordingStartedAt = Date()
             appState = .recording
             recordingIsCommitted = commitImmediately
-            refreshMenuBarIcon()
-            showIndicator(state: .recording(level: 0))
-            try audioRecorder.startRecording()
             let elapsedMs = Int(Date().timeIntervalSince(startRequestedAt) * 1000)
             activeDictationMetrics?.markRecordingStarted()
             RuntimeLog.write("record started elapsedMs=\(elapsedMs)")
+            refreshMenuBarIcon()
+            showIndicator(state: .recording(level: 0))
             if commitImmediately {
                 activeDictationMetrics?.recordingCommittedAt = Date()
                 RuntimeLog.write("record committed")
                 audioDucker.beginDuckingIfEnabled()
             }
+            scheduleLongFormWarmupIfNeeded()
 
             // Subscribe to audio level updates
             audioLevelCancellable = audioRecorder.$audioLevel
@@ -407,9 +455,45 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func stopRecordingAndTranscribe() {
         guard audioRecorder.isRecording else { return }
+        guard pendingStopRecordingTask == nil else { return }
+        longFormWarmupTask?.cancel()
+        longFormWarmupTask = nil
         activeDictationMetrics?.stopRequestedAt = Date()
-        RuntimeLog.write("record stop requested")
+        let tailPolicy = RecordingTailPolicy.policy(
+            for: activeDictationMetrics?.inputMode ?? .unknown
+        )
+        activeDictationMetrics?.tailPolicy = tailPolicy.name
+        activeDictationMetrics?.tailGraceMs = tailPolicy.graceMilliseconds
+        RuntimeLog.write(
+            "record stop requested tail=\(tailPolicy.name) tailGraceMs=\(tailPolicy.graceMilliseconds)"
+        )
+        pendingStopRecordingTask = Task { @MainActor in
+            do {
+                try await Task.sleep(nanoseconds: tailPolicy.graceNanoseconds)
+            } catch {
+                return
+            }
+            pendingStopRecordingTask = nil
+            completeStopRecordingAndTranscribe()
+        }
+    }
 
+    private func scheduleLongFormWarmupIfNeeded() {
+        longFormWarmupTask?.cancel()
+        longFormWarmupTask = Task { @MainActor in
+            do {
+                try await Task.sleep(nanoseconds: 5_000_000_000)
+            } catch {
+                return
+            }
+
+            guard audioRecorder.isRecording else { return }
+            await transcriptionService.prepareLongFormEngineIfNeeded()
+        }
+    }
+
+    private func completeStopRecordingAndTranscribe() {
+        guard audioRecorder.isRecording else { return }
         audioLevelCancellable?.cancel()
         audioLevelCancellable = nil
 
@@ -421,7 +505,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             Double(samples.count) / AudioRecorder.sampleRate
         )
         activeDictationMetrics?.recordingDuration = recordingDuration
-        activeDictationMetrics?.model = transcriptionService.selectedModel
+        activeDictationMetrics?.model = transcriptionService.activeModelIdentifier
         recordingStartedAt = nil
         recordingIsCommitted = false
         appState = .idle
@@ -458,10 +542,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         var metrics = activeDictationMetrics ?? DictationLatencyMetrics()
         metrics.sampleCount = samples.count
         metrics.recordingDuration = recordingDuration
-        metrics.model = transcriptionService.selectedModel
+        metrics.model = transcriptionService.activeModelIdentifier
         metrics.transcriptionQueuedAt = Date()
         activeDictationMetrics = nil
-        enqueueTranscription(
+        startTranscriptionSession(
             samples: samples,
             recordingDuration: recordingDuration,
             metrics: metrics
@@ -470,6 +554,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func discardActiveRecording(reason: String) {
         RuntimeLog.write("record discard requested reason=\(reason)")
+        pendingStopRecordingTask?.cancel()
+        pendingStopRecordingTask = nil
+        longFormWarmupTask?.cancel()
+        longFormWarmupTask = nil
         audioLevelCancellable?.cancel()
         audioLevelCancellable = nil
 
@@ -493,31 +581,37 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         )
     }
 
-    private func enqueueTranscription(
+    private func startTranscriptionSession(
         samples: [Float],
         recordingDuration: TimeInterval,
         metrics: DictationLatencyMetrics
     ) {
+        nextTranscriptionSessionID += 1
+        let sessionID = nextTranscriptionSessionID
+        latestTranscriptionSessionID = sessionID
         pendingTranscriptionCount += 1
         refreshMenuBarIcon()
         if appState == .idle {
             updateIndicator(state: .processing)
         }
-        RuntimeLog.write("transcription queued pending=\(pendingTranscriptionCount)")
+        RuntimeLog.write(
+            "transcription session started id=\(sessionID) pending=\(pendingTranscriptionCount)"
+        )
 
-        let previousTail = transcriptionQueueTail
         let task = Task { [weak self] in
-            await previousTail?.value
-            await self?.processQueuedTranscription(
+            guard let self else { return }
+            await self.processTranscriptionSession(
+                sessionID: sessionID,
                 samples: samples,
                 recordingDuration: recordingDuration,
                 metrics: metrics
             )
         }
-        transcriptionQueueTail = task
+        transcriptionTasks[sessionID] = task
     }
 
-    private func processQueuedTranscription(
+    private func processTranscriptionSession(
+        sessionID: Int,
         samples: [Float],
         recordingDuration: TimeInterval,
         metrics initialMetrics: DictationLatencyMetrics
@@ -525,10 +619,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if Task.isCancelled { return }
         var metrics = initialMetrics
         metrics.transcriptionDequeuedAt = Date()
-        RuntimeLog.write("transcription dequeued pending=\(pendingTranscriptionCount)")
+        RuntimeLog.write("transcription session dequeued id=\(sessionID) pending=\(pendingTranscriptionCount)")
 
         defer {
             pendingTranscriptionCount = max(pendingTranscriptionCount - 1, 0)
+            transcriptionTasks[sessionID] = nil
             refreshMenuBarIcon()
             if pendingTranscriptionCount == 0,
                 appState == .idle,
@@ -548,19 +643,39 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             metrics.finalTextLength = result.finalText.count
             metrics.wordCount = estimatedWordCount(in: result.finalText)
             RuntimeLog.write(
-                "transcription complete rawLength=\(result.rawText.count) finalLength=\(result.finalText.count)"
+                "transcription complete session=\(sessionID) rawLength=\(result.rawText.count) finalLength=\(result.finalText.count)"
             )
             if !result.finalText.isEmpty {
+                guard sessionID == latestTranscriptionSessionID else {
+                    metrics.log(status: "stale", transcriptionTiming: transcription.timing)
+                    RuntimeLog.write(
+                        "transcription stale session=\(sessionID) latest=\(latestTranscriptionSessionID)"
+                    )
+                    return
+                }
+
                 let performance = metrics.performanceSnapshot(
                     transcriptionTiming: transcription.timing
                 )
                 try? usageStats.record(
                     finalText: result.finalText,
                     duration: recordingDuration,
-                    model: transcriptionService.selectedModel,
+                    model: transcription.timing.modelIdentifier,
                     performance: performance
                 )
-                TextInserter.insertText(result.finalText)
+                TextInserter.insertText(
+                    result.finalText,
+                    options: TextInsertionFormattingOptions(
+                        appendTrailingSpace: UserDefaults.standard.object(
+                            forKey: Defaults.appendTrailingSpace
+                        ) == nil
+                            || UserDefaults.standard.bool(forKey: Defaults.appendTrailingSpace),
+                        useSmartSpacing: UserDefaults.standard.object(
+                            forKey: Defaults.smartSpacing
+                        ) == nil
+                            || UserDefaults.standard.bool(forKey: Defaults.smartSpacing)
+                    )
+                )
                 metrics.pastePostedAt = Date()
                 metrics.log(status: "inserted", transcriptionTiming: transcription.timing)
                 showTranscriptionResultIndicator(.done(text: result.finalText))
@@ -575,7 +690,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         } catch {
             metrics.transcriptionCompletedAt = Date()
             metrics.log(status: "failed")
-            RuntimeLog.write("transcription failed error=\(error)")
+            RuntimeLog.write("transcription failed session=\(sessionID) error=\(error)")
             showTranscriptionResultIndicator(
                 .attention(message: "Transcription failed"),
                 durationNanoseconds: 1_200_000_000

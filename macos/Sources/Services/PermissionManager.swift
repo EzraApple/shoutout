@@ -1,6 +1,7 @@
 import AppKit
 import AVFoundation
 import CoreGraphics
+@preconcurrency import Speech
 
 extension Notification.Name {
     static let shoutOutPermissionsChanged = Notification.Name("ShoutOutPermissionsChanged")
@@ -13,6 +14,7 @@ class PermissionManager: ObservableObject {
     @Published var hasAccessibility: Bool = false
     @Published var hasInputMonitoring: Bool = false
     @Published var hasMicrophone: Bool = false
+    @Published var hasSpeechRecognition: Bool = false
 
     private var lastSnapshot: PermissionSnapshot?
     private var refreshPollTask: Task<Void, Never>?
@@ -31,6 +33,9 @@ class PermissionManager: ObservableObject {
         }
         if !hasMicrophone {
             names.append("Microphone")
+        }
+        if speechRecognitionIsRequired && !hasSpeechRecognition {
+            names.append("Speech Recognition")
         }
         return names
     }
@@ -66,14 +71,16 @@ class PermissionManager: ObservableObject {
         let snapshot = PermissionSnapshot(
             hasAccessibility: AXIsProcessTrusted(),
             hasInputMonitoring: CGPreflightListenEventAccess(),
-            hasMicrophone: AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
+            hasMicrophone: AVCaptureDevice.authorizationStatus(for: .audio) == .authorized,
+            hasSpeechRecognition: SFSpeechRecognizer.authorizationStatus() == .authorized
         )
 
         hasAccessibility = snapshot.hasAccessibility
         hasInputMonitoring = snapshot.hasInputMonitoring
         hasMicrophone = snapshot.hasMicrophone
+        hasSpeechRecognition = snapshot.hasSpeechRecognition
         RuntimeLog.write(
-            "permissions refresh accessibility=\(hasAccessibility) inputMonitoring=\(hasInputMonitoring) microphone=\(hasMicrophone)"
+            "permissions refresh accessibility=\(hasAccessibility) inputMonitoring=\(hasInputMonitoring) microphone=\(hasMicrophone) speechRecognition=\(hasSpeechRecognition)"
         )
 
         guard snapshot != lastSnapshot else { return }
@@ -98,6 +105,34 @@ class PermissionManager: ObservableObject {
         RuntimeLog.write("permissions microphone result granted=\(granted)")
         if !granted {
             openPrivacyPane(.microphone)
+        }
+        beginPollingForPermissionChanges()
+        return granted
+    }
+
+    func requestSpeechRecognition() async -> Bool {
+        RuntimeLog.write("permissions request speechRecognition")
+        let currentStatus = SFSpeechRecognizer.authorizationStatus()
+        let status: SFSpeechRecognizerAuthorizationStatus
+        if currentStatus == .notDetermined {
+            status = await withCheckedContinuation { continuation in
+                SFSpeechRecognizer.requestAuthorization { authorizationStatus in
+                    Task { @MainActor in
+                        continuation.resume(returning: authorizationStatus)
+                    }
+                }
+            }
+        } else {
+            status = currentStatus
+        }
+
+        let granted = status == .authorized
+        hasSpeechRecognition = granted
+        RuntimeLog.write(
+            "permissions speechRecognition result granted=\(granted) status=\(status.permissionDescription)"
+        )
+        if !granted {
+            openPrivacyPane(.speechRecognition)
         }
         beginPollingForPermissionChanges()
         return granted
@@ -131,7 +166,20 @@ class PermissionManager: ObservableObject {
             return
         }
 
+        if speechRecognitionIsRequired && !hasSpeechRecognition {
+            Task {
+                _ = await requestSpeechRecognition()
+            }
+            return
+        }
+
         refresh()
+    }
+
+    private var speechRecognitionIsRequired: Bool {
+        let backendRaw = UserDefaults.standard.string(forKey: Defaults.transcriptionBackend)
+        let backend = TranscriptionBackend(rawValue: backendRaw ?? "") ?? .appleSpeech
+        return backend.requiresSpeechRecognitionPermission
     }
 
     func beginPollingForPermissionChanges() {
@@ -163,12 +211,14 @@ private struct PermissionSnapshot: Equatable {
     let hasAccessibility: Bool
     let hasInputMonitoring: Bool
     let hasMicrophone: Bool
+    let hasSpeechRecognition: Bool
 }
 
 private enum PrivacyPane: String {
     case accessibility
     case inputMonitoring
     case microphone
+    case speechRecognition
 
     var settingsURLString: String {
         switch self {
@@ -178,6 +228,25 @@ private enum PrivacyPane: String {
             return "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent"
         case .microphone:
             return "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone"
+        case .speechRecognition:
+            return "x-apple.systempreferences:com.apple.preference.security?Privacy_SpeechRecognition"
+        }
+    }
+}
+
+private extension SFSpeechRecognizerAuthorizationStatus {
+    var permissionDescription: String {
+        switch self {
+        case .authorized:
+            return "authorized"
+        case .denied:
+            return "denied"
+        case .restricted:
+            return "restricted"
+        case .notDetermined:
+            return "notDetermined"
+        @unknown default:
+            return "unknown"
         }
     }
 }

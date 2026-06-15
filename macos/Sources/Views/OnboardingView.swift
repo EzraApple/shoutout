@@ -9,7 +9,7 @@ struct OnboardingView: View {
     @EnvironmentObject var permissions: PermissionManager
     @State private var step = 0
 
-    private let totalSteps = 6
+    private let totalSteps = 7
 
     var body: some View {
         ZStack {
@@ -27,19 +27,23 @@ struct OnboardingView: View {
                         insertion: .move(edge: .trailing).combined(with: .opacity),
                         removal: .move(edge: .leading).combined(with: .opacity)
                     ))
-                    case 2: accessibilityStep.transition(.asymmetric(
+                    case 2: speechRecognitionStep.transition(.asymmetric(
                         insertion: .move(edge: .trailing).combined(with: .opacity),
                         removal: .move(edge: .leading).combined(with: .opacity)
                     ))
-                    case 3: inputMonitoringStep.transition(.asymmetric(
+                    case 3: accessibilityStep.transition(.asymmetric(
                         insertion: .move(edge: .trailing).combined(with: .opacity),
                         removal: .move(edge: .leading).combined(with: .opacity)
                     ))
-                    case 4: modelStep.transition(.asymmetric(
+                    case 4: inputMonitoringStep.transition(.asymmetric(
                         insertion: .move(edge: .trailing).combined(with: .opacity),
                         removal: .move(edge: .leading).combined(with: .opacity)
                     ))
-                    case 5: doneStep.transition(.asymmetric(
+                    case 5: modelStep.transition(.asymmetric(
+                        insertion: .move(edge: .trailing).combined(with: .opacity),
+                        removal: .move(edge: .leading).combined(with: .opacity)
+                    ))
+                    case 6: doneStep.transition(.asymmetric(
                         insertion: .move(edge: .trailing).combined(with: .opacity),
                         removal: .move(edge: .leading).combined(with: .opacity)
                     ))
@@ -151,7 +155,68 @@ struct OnboardingView: View {
         .padding(.vertical, 40)
     }
 
-    // MARK: - Step 2: Accessibility
+    // MARK: - Step 2: Speech Recognition
+
+    private var speechRecognitionStep: some View {
+        VStack(spacing: 0) {
+            Spacer()
+
+            VStack(spacing: 24) {
+                Image(systemName: "waveform")
+                    .font(.system(size: 28, weight: .light))
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [.cyan, .indigo.opacity(0.8)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 56, height: 56)
+                    .glassed(in: Circle())
+
+                VStack(spacing: 8) {
+                    Text("Speech Recognition")
+                        .font(.system(size: 20, weight: .semibold))
+                        .tracking(-0.3)
+                        .foregroundStyle(.white)
+
+                    Text("Required for Apple's local transcription engines")
+                        .font(.system(size: 13))
+                        .foregroundStyle(Color.white.opacity(0.4))
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                OnboardingPermissionBadge(granted: permissions.hasSpeechRecognition)
+            }
+
+            Spacer()
+
+            VStack(spacing: 12) {
+                if permissions.hasSpeechRecognition {
+                    OnboardingPillButton("Continue") {
+                        withAnimation { step = 3 }
+                    }
+                } else {
+                    OnboardingPillButton("Grant Permission") {
+                        Task { await permissions.requestSpeechRecognition() }
+                    }
+
+                    Button(action: { withAnimation { step = 3 } }) {
+                        Text("Skip for now")
+                            .font(.system(size: 13))
+                            .foregroundStyle(Color.white.opacity(0.3))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.bottom, 8)
+        }
+        .padding(.horizontal, 48)
+        .padding(.vertical, 40)
+    }
+
+    // MARK: - Step 3: Accessibility
 
     private var accessibilityStep: some View {
         VStack(spacing: 0) {
@@ -191,14 +256,14 @@ struct OnboardingView: View {
             VStack(spacing: 12) {
                 if permissions.hasAccessibility {
                     OnboardingPillButton("Continue") {
-                        withAnimation { step = 3 }
+                        withAnimation { step = 4 }
                     }
                 } else {
                     OnboardingPillButton("Open System Settings") {
                         permissions.requestAccessibility()
                     }
 
-                    Button(action: { withAnimation { step = 3 } }) {
+                    Button(action: { withAnimation { step = 4 } }) {
                         Text("Skip for now")
                             .font(.system(size: 13))
                             .foregroundStyle(Color.white.opacity(0.3))
@@ -212,7 +277,7 @@ struct OnboardingView: View {
         .padding(.vertical, 40)
     }
 
-    // MARK: - Step 3: Input Monitoring
+    // MARK: - Step 4: Input Monitoring
 
     private var inputMonitoringStep: some View {
         VStack(spacing: 0) {
@@ -252,14 +317,14 @@ struct OnboardingView: View {
             VStack(spacing: 12) {
                 if permissions.hasInputMonitoring {
                     OnboardingPillButton("Continue") {
-                        withAnimation { step = 4 }
+                        withAnimation { step = 5 }
                     }
                 } else {
                     OnboardingPillButton("Open System Settings") {
                         permissions.requestInputMonitoring()
                     }
 
-                    Button(action: { withAnimation { step = 4 } }) {
+                    Button(action: { withAnimation { step = 5 } }) {
                         Text("Skip for now")
                             .font(.system(size: 13))
                             .foregroundStyle(Color.white.opacity(0.3))
@@ -273,7 +338,7 @@ struct OnboardingView: View {
         .padding(.vertical, 40)
     }
 
-    // MARK: - Step 4: Model Download
+    // MARK: - Step 5: Model Download
 
     private var modelStep: some View {
         VStack(spacing: 0) {
@@ -293,7 +358,7 @@ struct OnboardingView: View {
                     .glassed(in: Circle())
 
                 VStack(spacing: 8) {
-                    Text("Speech Model")
+                    Text(transcription.selectedBackend.requiresManagedModel ? "Speech Model" : "Speech Engine")
                         .font(.system(size: 20, weight: .semibold))
                         .tracking(-0.3)
                         .foregroundStyle(.white)
@@ -306,7 +371,7 @@ struct OnboardingView: View {
 
             if transcription.modelState == .ready {
                 OnboardingPillButton("Continue") {
-                    withAnimation { step = 5 }
+                    withAnimation { step = 6 }
                 }
                 .padding(.bottom, 8)
             } else if case .error = transcription.modelState {
@@ -330,7 +395,7 @@ struct OnboardingView: View {
         switch transcription.modelState {
         case .ready:
             VStack(spacing: 12) {
-                Text("Model \"\(transcription.selectedModel)\" is ready")
+                Text("\(transcription.activeModelIdentifier) is ready")
                     .font(.system(size: 13))
                     .foregroundStyle(Color.white.opacity(0.4))
 
@@ -338,7 +403,7 @@ struct OnboardingView: View {
             }
         case .loading:
             VStack(spacing: 12) {
-                Text("Preparing model...")
+                Text(transcription.selectedBackend.requiresManagedModel ? "Preparing model..." : "Preparing engine...")
                     .font(.system(size: 13))
                     .foregroundStyle(Color.white.opacity(0.4))
                 ModelProgressBar(progress: 1)
@@ -366,7 +431,7 @@ struct OnboardingView: View {
         }
     }
 
-    // MARK: - Step 5: Done
+    // MARK: - Step 6: Done
 
     private var doneStep: some View {
         VStack(spacing: 0) {
@@ -394,6 +459,11 @@ struct OnboardingView: View {
                         granted: permissions.hasMicrophone
                     )
                     OnboardingSummaryRow(
+                        icon: "waveform",
+                        title: "Speech Recognition",
+                        granted: permissions.hasSpeechRecognition
+                    )
+                    OnboardingSummaryRow(
                         icon: "hand.raised.fingers.spread",
                         title: "Accessibility",
                         granted: permissions.hasAccessibility
@@ -405,7 +475,7 @@ struct OnboardingView: View {
                     )
                     OnboardingSummaryRow(
                         icon: "cpu",
-                        title: "Model: \(transcription.selectedModel)",
+                        title: "\(transcription.selectedBackend.requiresManagedModel ? "Model" : "Engine"): \(transcription.activeModelIdentifier)",
                         granted: transcription.modelState == .ready
                     )
                 }

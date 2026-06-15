@@ -28,7 +28,26 @@ DIST_DIR="dist"
 APP_BUNDLE="$DIST_DIR/$APP_NAME.app"
 UNIVERSAL="${UNIVERSAL:-true}"
 
+select_speech_analyzer_toolchain_if_available() {
+    if [ -n "${DEVELOPER_DIR:-}" ]; then
+        return
+    fi
+
+    if swift --version 2>/dev/null | grep -Eq 'Apple Swift version (6\.[2-9]|[7-9])'; then
+        return
+    fi
+
+    local clt_dir="/Library/Developer/CommandLineTools"
+    if [ -x "$clt_dir/usr/bin/swift" ] \
+        && DEVELOPER_DIR="$clt_dir" swift --version 2>/dev/null \
+            | grep -Eq 'Apple Swift version (6\.[2-9]|[7-9])'; then
+        export DEVELOPER_DIR="$clt_dir"
+        echo -e "${BLUE}Using current Command Line Tools for Apple Dictation support.${NC}"
+    fi
+}
+
 echo -e "${BLUE}Building $APP_NAME...${NC}"
+select_speech_analyzer_toolchain_if_available
 
 # Clean previous builds
 echo -e "${BLUE}Cleaning previous builds...${NC}"

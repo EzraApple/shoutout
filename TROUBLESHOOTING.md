@@ -14,6 +14,7 @@ make install
 Then open System Settings → Privacy & Security and grant:
 
 - Microphone
+- Speech Recognition, if an Apple transcription engine is selected
 - Accessibility
 - Input Monitoring
 
@@ -48,10 +49,12 @@ Healthy startup lines include:
 ```text
 permissions refresh accessibility=true inputMonitoring=true microphone=true
 hotkey setup complete
-model ready
+model ready backend=appleSpeech
 ```
 
 During recording, `record started elapsedMs=...` shows hotkey-to-audio startup time.
+
+On macOS 26+, longer Apple Speech recordings should log `transcription autoswitch backend=appleDictation` before the transcription timing line. If that line never appears, confirm the app was built with Swift 6.2+ tools or use `make restart-local`, which automatically prefers the current Command Line Tools when they are installed.
 
 Completed dictations also emit a single benchmark line:
 

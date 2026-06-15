@@ -1,8 +1,7 @@
-@preconcurrency import WhisperKit
 import Foundation
 import ShoutOutCore
 
-enum ModelState: Equatable {
+enum ModelState: Equatable, Sendable {
     case unloaded
     case downloading(progress: Double)
     case loading
@@ -26,23 +25,30 @@ enum ModelState: Equatable {
 }
 
 struct TranscriptionTimingSnapshot: Sendable {
+    var engineID: String
+    var modelIdentifier: String
     var modelWaitMs: Int
-    var whisperWallMs: Int
+    var engineWallMs: Int
     var postProcessMs: Int
     var firstTokenMs: Int?
-    var whisperPipelineMs: Int?
+    var enginePipelineMs: Int?
     var realTimeFactor: Double?
     var speedFactor: Double?
     var tokensPerSecond: Double?
     var fallbackCount: Int?
 
+    var whisperWallMs: Int { engineWallMs }
+    var whisperPipelineMs: Int? { enginePipelineMs }
+
     var logFields: String {
         [
+            "engine=\(engineID)",
+            "engineModel=\(modelIdentifier)",
             "modelWaitMs=\(modelWaitMs)",
-            "whisperWallMs=\(whisperWallMs)",
+            "engineWallMs=\(engineWallMs)",
             "postProcessMs=\(postProcessMs)",
             optionalMetric("firstTokenMs", firstTokenMs),
-            optionalMetric("whisperPipelineMs", whisperPipelineMs),
+            optionalMetric("enginePipelineMs", enginePipelineMs),
             optionalMetric("rtf", realTimeFactor),
             optionalMetric("speedFactor", speedFactor),
             optionalMetric("tokensPerSecond", tokensPerSecond),
@@ -64,16 +70,42 @@ struct TranscriptionTimingSnapshot: Sendable {
 @MainActor
 class TranscriptionService: ObservableObject {
     @Published var modelState: ModelState = .unloaded
+    @Published var selectedBackend: TranscriptionBackend {
+        didSet {
+            UserDefaults.standard.set(selectedBackend.rawValue, forKey: Defaults.transcriptionBackend)
+            if selectedBackend != oldValue {
+                activeEngine?.unload()
+                activeEngine = nil
+                appleDictationEngine?.unload()
+                appleDictationEngine = nil
+                appleDictationEngineIsReady = false
+                appleDictationWarmupTask?.cancel()
+                appleDictationWarmupTask = nil
+                modelState = .unloaded
+            }
+        }
+    }
     @Published var selectedModel: String {
         didSet {
             UserDefaults.standard.set(selectedModel, forKey: "selectedModel")
+            if selectedModel != oldValue, selectedBackend == .whisperKit {
+                activeEngine?.unload()
+                activeEngine = nil
+                modelState = .unloaded
+            }
         }
     }
 
     let availableModels = ["tiny", "base", "small", "medium", "large-v3-v20240930_626MB"]
+    let availableBackends = TranscriptionBackend.selectableCases
     let dictionaryStore = DictionaryStore.defaultStore()
 
-    private var whisperKit: WhisperKit?
+    private var activeEngine: TranscriptionEngine?
+    private var appleDictationEngine: TranscriptionEngine?
+    private var appleDictationEngineIsReady = false
+    private var appleDictationWarmupTask: Task<Void, Never>?
+    private var loadGeneration = 0
+    private let appleDictationAutoSwitchDuration: TimeInterval = 15
 
     /// All model data lives here.
     /// App cleaners remove ~/Library/Application Support/<bundleID>/ on uninstall.
@@ -92,70 +124,84 @@ class TranscriptionService: ObservableObject {
     }
 
     init() {
+        let backendRaw = UserDefaults.standard.string(forKey: Defaults.transcriptionBackend)
+        let storedBackend = TranscriptionBackend(rawValue: backendRaw ?? "") ?? .appleSpeech
+        self.selectedBackend = TranscriptionBackend.selectableCases.contains(storedBackend)
+            ? storedBackend
+            : .appleSpeech
         self.selectedModel =
             UserDefaults.standard.string(forKey: "selectedModel") ?? "large-v3-v20240930_626MB"
+    }
+
+    var activeModelIdentifier: String {
+        if let activeEngine {
+            return activeEngine.modelIdentifier
+        }
+
+        switch selectedBackend {
+        case .whisperKit:
+            return selectedModel
+        case .appleSpeech:
+            return "apple-speech"
+        case .appleDictation:
+            return "apple-dictation"
+        }
     }
 
     func loadModel() async {
         guard modelState != .loading else { return }
         if case .downloading = modelState { return }
 
-        RuntimeLog.write("model load start selected=\(selectedModel)")
-        modelState = .downloading(progress: 0)
-        whisperKit = nil
-
-        // Ensure our models directory exists
-        try? FileManager.default.createDirectory(
-            at: Self.modelsDirectory, withIntermediateDirectories: true)
+        let backend = selectedBackend
+        let engine = makeEngine(for: backend)
+        activeEngine?.unload()
+        activeEngine = engine
+        loadGeneration += 1
+        let generation = loadGeneration
 
         do {
-            // Step 1: Download model into our app-specific directory
-            let progressCallback: @Sendable (Progress) -> Void = { [weak self] progress in
-                let fraction = progress.fractionCompleted
-                Task { @MainActor [weak self] in
-                    self?.modelState = .downloading(progress: fraction)
+            try await engine.load { [weak self] state in
+                guard let self,
+                    self.loadGeneration == generation,
+                    self.selectedBackend == backend
+                else {
+                    return
                 }
+                self.modelState = state
             }
-            let modelFolder = try await WhisperKit.download(
-                variant: selectedModel,
-                downloadBase: Self.modelsDirectory,
-                progressCallback: progressCallback
-            )
-            RuntimeLog.write("model downloaded selected=\(selectedModel) path=\(modelFolder.path)")
-
-            // Step 2: Load from downloaded folder
-            modelState = .loading
-            let kit = try await WhisperKit(
-                modelFolder: modelFolder.path,
-                verbose: false,
-                prewarm: true,
-                load: true,
-                download: false
-            )
-            whisperKit = kit
-            modelState = .ready
-            RuntimeLog.write("model ready selected=\(selectedModel)")
         } catch {
+            guard loadGeneration == generation, selectedBackend == backend else { return }
             modelState = .error(error.localizedDescription)
-            RuntimeLog.write("model load failed selected=\(selectedModel) error=\(error)")
+            RuntimeLog.write(
+                "model load failed backend=\(backend.rawValue) selected=\(engine.modelIdentifier) error=\(error)"
+            )
         }
     }
 
     /// Delete all downloaded models from disk.
     func deleteAllModels() {
-        whisperKit = nil
+        activeEngine?.unload()
+        activeEngine = nil
+        appleDictationEngine?.unload()
+        appleDictationEngine = nil
+        appleDictationEngineIsReady = false
+        appleDictationWarmupTask?.cancel()
+        appleDictationWarmupTask = nil
         modelState = .unloaded
         try? FileManager.default.removeItem(at: Self.modelsDirectory)
     }
 
     /// Wait until the model is ready. If nothing is loading yet, kicks off a load.
     func waitUntilReady() async throws {
-        if modelState == .ready { return }
+        if modelState == .ready, activeEngine != nil { return }
 
         // If idle or errored, start a fresh load
         let needsLoad: Bool
         switch modelState {
-        case .unloaded, .error: needsLoad = true
+        case .unloaded, .error:
+            needsLoad = true
+        case .ready:
+            needsLoad = activeEngine == nil
         default: needsLoad = false
         }
         if needsLoad {
@@ -181,38 +227,24 @@ class TranscriptionService: ObservableObject {
     func transcribeWithTiming(audioSamples: [Float]) async throws
         -> (result: DictationResult, timing: TranscriptionTimingSnapshot)
     {
-        RuntimeLog.write("transcription start samples=\(audioSamples.count) model=\(selectedModel)")
-        // Wait for model if it's still downloading/loading
+        RuntimeLog.write(
+            "transcription start samples=\(audioSamples.count) model=\(activeModelIdentifier)"
+        )
+        // Wait for the selected engine, or the long-form Apple engine when a recording needs it.
         let modelWaitStart = Date()
-        try await waitUntilReady()
+        let engine = try await engineForTranscription(audioSamples: audioSamples)
         let modelWaitMs = Self.elapsedMilliseconds(since: modelWaitStart)
 
-        guard let kit = whisperKit else {
-            throw TranscriptionError.modelNotReady
-        }
-
-        let decodingOptions = DecodingOptions(
-            task: .transcribe,
-            temperature: 0.0,
-            usePrefillPrompt: true,
-            usePrefillCache: true,
-            wordTimestamps: false,
-            suppressBlank: true
-        )
-
-        let whisperStart = Date()
-        let results = try await kit.transcribe(
-            audioArray: audioSamples,
-            decodeOptions: decodingOptions
-        )
-        let whisperWallMs = Self.elapsedMilliseconds(since: whisperStart)
-
-        let rawText = results.map { $0.text }.joined(separator: " ")
+        let engineStart = Date()
+        let engineResult = try await engine.transcribe(audioSamples: audioSamples)
+        let engineWallMs = Self.elapsedMilliseconds(since: engineStart)
+        let rawText = engineResult.rawText
         let postProcessingOptions = TextPostProcessingOptions(
             removeFillerWords: UserDefaults.standard.object(forKey: "removeFillerWords") == nil
                 || UserDefaults.standard.bool(forKey: "removeFillerWords"),
-            cleanUpSelfCorrections: UserDefaults.standard.object(forKey: Defaults.cleanUpSelfCorrections) == nil
-                || UserDefaults.standard.bool(forKey: Defaults.cleanUpSelfCorrections),
+            cleanUpSelfCorrections: UserDefaults.standard.bool(
+                forKey: Defaults.cleanUpSelfCorrections
+            ),
             applySpokenCommands: true,
             collapseWhitespace: true
         )
@@ -223,40 +255,141 @@ class TranscriptionService: ObservableObject {
             dictionaryEntries: dictionaryStore.entries
         )
         let postProcessMs = Self.elapsedMilliseconds(since: postProcessStart)
-        let whisperTiming = results.first?.timings
         let timing = TranscriptionTimingSnapshot(
+            engineID: engine.backend.rawValue,
+            modelIdentifier: engine.modelIdentifier,
             modelWaitMs: modelWaitMs,
-            whisperWallMs: whisperWallMs,
+            engineWallMs: engineWallMs,
             postProcessMs: postProcessMs,
-            firstTokenMs: Self.firstTokenMilliseconds(from: whisperTiming),
-            whisperPipelineMs: Self.pipelineMilliseconds(from: whisperTiming),
-            realTimeFactor: whisperTiming?.realTimeFactor,
-            speedFactor: whisperTiming?.speedFactor,
-            tokensPerSecond: whisperTiming?.tokensPerSecond,
-            fallbackCount: whisperTiming.map { Int($0.totalDecodingFallbacks) }
+            firstTokenMs: engineResult.firstTokenMs,
+            enginePipelineMs: engineResult.pipelineMs,
+            realTimeFactor: engineResult.realTimeFactor,
+            speedFactor: engineResult.speedFactor,
+            tokensPerSecond: engineResult.tokensPerSecond,
+            fallbackCount: engineResult.fallbackCount
         )
         RuntimeLog.write("transcription postprocessed rawLength=\(rawText.count) finalLength=\(finalText.count)")
         RuntimeLog.write("transcription timing \(timing.logFields)")
         return (DictationResult(rawText: rawText, finalText: finalText), timing)
     }
 
+    func prepareLongFormEngineIfNeeded() async {
+        guard selectedBackend == .appleSpeech else { return }
+        guard !appleDictationEngineIsReady else { return }
+        guard appleDictationWarmupTask == nil else { return }
+
+#if swift(>=6.2)
+        if #available(macOS 26.0, *) {
+            RuntimeLog.write("appleDictation warmup scheduled")
+            let task = Task { @MainActor [weak self] in
+                guard let self else { return }
+                do {
+                    let engine = self.appleDictationEngine ?? AppleDictationTranscriptionEngine()
+                    self.appleDictationEngine = engine
+                    try await engine.load { _ in }
+                    self.appleDictationEngineIsReady = true
+                    RuntimeLog.write("appleDictation warmup ready")
+                } catch {
+                    self.appleDictationEngine?.unload()
+                    self.appleDictationEngine = nil
+                    self.appleDictationEngineIsReady = false
+                    RuntimeLog.write("appleDictation warmup failed error=\(error)")
+                }
+                self.appleDictationWarmupTask = nil
+            }
+            appleDictationWarmupTask = task
+        }
+#endif
+    }
+
+    private func makeEngine(for backend: TranscriptionBackend) -> TranscriptionEngine {
+        switch backend {
+        case .whisperKit:
+            return WhisperKitTranscriptionEngine(
+                modelIdentifier: selectedModel,
+                modelsDirectory: Self.modelsDirectory
+            )
+        case .appleSpeech:
+            return AppleSpeechTranscriptionEngine()
+        case .appleDictation:
+#if swift(>=6.2)
+            if #available(macOS 26.0, *) {
+                return AppleDictationTranscriptionEngine()
+            }
+#endif
+            return UnavailableTranscriptionEngine(
+                backend: backend,
+                message: "Apple Dictation requires macOS 26 and a Swift 6.2 toolchain."
+            )
+        }
+    }
+
+    private func engineForTranscription(audioSamples: [Float]) async throws -> TranscriptionEngine {
+        if shouldUseAppleDictation(for: audioSamples) {
+            return try await readyAppleDictationEngine()
+        }
+
+        try await waitUntilReady()
+        guard let engine = activeEngine else {
+            throw TranscriptionError.modelNotReady
+        }
+        return engine
+    }
+
+    private func shouldUseAppleDictation(for audioSamples: [Float]) -> Bool {
+        guard selectedBackend == .appleSpeech else { return false }
+        let duration = Double(audioSamples.count) / AudioRecorder.sampleRate
+        guard duration >= appleDictationAutoSwitchDuration else { return false }
+
+#if swift(>=6.2)
+        if #available(macOS 26.0, *) {
+            return true
+        }
+#endif
+        return false
+    }
+
+    private func readyAppleDictationEngine() async throws -> TranscriptionEngine {
+#if swift(>=6.2)
+        if #available(macOS 26.0, *) {
+            if let warmupTask = appleDictationWarmupTask {
+                await warmupTask.value
+            }
+            if appleDictationEngineIsReady, let appleDictationEngine {
+                return appleDictationEngine
+            }
+
+            let engine = appleDictationEngine ?? AppleDictationTranscriptionEngine()
+            appleDictationEngine = engine
+            if !appleDictationEngineIsReady {
+                appleDictationWarmupTask = nil
+                RuntimeLog.write("transcription autoswitch backend=appleDictation")
+                do {
+                    try await engine.load { [weak self] state in
+                        guard let self, self.selectedBackend == .appleSpeech else { return }
+                        self.modelState = state
+                    }
+                    appleDictationEngineIsReady = true
+                } catch {
+                    engine.unload()
+                    appleDictationEngine = nil
+                    appleDictationEngineIsReady = false
+                    if selectedBackend == .appleSpeech, activeEngine != nil {
+                        modelState = .ready
+                    } else {
+                        modelState = .error(error.localizedDescription)
+                    }
+                    throw error
+                }
+            }
+            return engine
+        }
+#endif
+        throw TranscriptionError.engineUnavailable("Apple Dictation requires macOS 26 and a Swift 6.2 toolchain.")
+    }
+
     private static func elapsedMilliseconds(since start: Date) -> Int {
         Int(Date().timeIntervalSince(start) * 1000)
-    }
-
-    private static func firstTokenMilliseconds(from timing: TranscriptionTimings?) -> Int? {
-        guard let timing,
-            timing.firstTokenTime.isFinite,
-            timing.pipelineStart.isFinite,
-            timing.firstTokenTime >= timing.pipelineStart
-        else { return nil }
-
-        return Int((timing.firstTokenTime - timing.pipelineStart) * 1000)
-    }
-
-    private static func pipelineMilliseconds(from timing: TranscriptionTimings?) -> Int? {
-        guard let timing, timing.fullPipeline.isFinite else { return nil }
-        return Int(timing.fullPipeline * 1000)
     }
 }
 
@@ -283,11 +416,43 @@ extension FileManager {
 enum TranscriptionError: LocalizedError {
     case modelNotReady
     case modelLoadFailed(String)
+    case engineUnavailable(String)
+    case speechRecognitionNotAuthorized(String)
+    case audioConversionFailed(String)
 
     var errorDescription: String? {
         switch self {
         case .modelNotReady: return "Transcription model is not ready"
         case .modelLoadFailed(let msg): return "Model failed to load: \(msg)"
+        case .engineUnavailable(let msg): return msg
+        case .speechRecognitionNotAuthorized(let status):
+            return "Speech recognition permission is \(status)"
+        case .audioConversionFailed(let msg):
+            return "Audio conversion failed: \(msg)"
         }
     }
+}
+
+@MainActor
+private final class UnavailableTranscriptionEngine: TranscriptionEngine {
+    let backend: TranscriptionBackend
+    let modelIdentifier: String
+    private let message: String
+
+    init(backend: TranscriptionBackend, message: String) {
+        self.backend = backend
+        self.modelIdentifier = backend.rawValue
+        self.message = message
+    }
+
+    func load(updateState: @escaping @MainActor (ModelState) -> Void) async throws {
+        updateState(.error(message))
+        throw TranscriptionError.engineUnavailable(message)
+    }
+
+    func transcribe(audioSamples: [Float]) async throws -> EngineTranscriptionResult {
+        throw TranscriptionError.engineUnavailable(message)
+    }
+
+    func unload() {}
 }

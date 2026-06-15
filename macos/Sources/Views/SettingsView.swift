@@ -8,7 +8,9 @@ struct SettingsView: View {
     @EnvironmentObject var usageStats: UsageStatsStore
 
     @AppStorage("removeFillerWords") private var removeFillerWords = true
-    @AppStorage(Defaults.cleanUpSelfCorrections) private var cleanUpSelfCorrections = true
+    @AppStorage(Defaults.cleanUpSelfCorrections) private var cleanUpSelfCorrections = false
+    @AppStorage(Defaults.appendTrailingSpace) private var appendTrailingSpace = true
+    @AppStorage(Defaults.smartSpacing) private var smartSpacing = true
     @AppStorage(Defaults.showInDock) private var showInDock = true
     @AppStorage(Defaults.dimSystemAudio) private var dimSystemAudio = true
     @AppStorage(Defaults.overlayStyle) private var overlayStyle = OverlayStyle.crab.rawValue
@@ -52,17 +54,38 @@ struct SettingsView: View {
 
             // Model
             Section {
-                Picker(selection: $transcription.selectedModel) {
-                    Text("Tiny (~75 MB)").tag("tiny")
-                    Text("Base (~142 MB)").tag("base")
-                    Text("Small (~466 MB)").tag("small")
-                    Text("Medium (~1.5 GB)").tag("medium")
-                    Text("Large v3 Turbo (~626 MB)").tag("large-v3-v20240930_626MB")
+                Picker(selection: $transcription.selectedBackend) {
+                    ForEach(transcription.availableBackends) { backend in
+                        Text(backend.displayName).tag(backend)
+                    }
                 } label: {
-                    Label("Model", systemImage: "cpu")
+                    Label("Engine", systemImage: "waveform.path.ecg")
                 }
-                .onChange(of: transcription.selectedModel) {
+                .onChange(of: transcription.selectedBackend) {
+                    permissions.refresh()
                     Task { await transcription.loadModel() }
+                }
+
+                HStack {
+                    Label("Engine mode", systemImage: "slider.horizontal.3")
+                    Spacer()
+                    Text(transcription.selectedBackend.detailText)
+                        .foregroundStyle(.secondary)
+                }
+
+                if transcription.selectedBackend.requiresManagedModel {
+                    Picker(selection: $transcription.selectedModel) {
+                        Text("Tiny (~75 MB)").tag("tiny")
+                        Text("Base (~142 MB)").tag("base")
+                        Text("Small (~466 MB)").tag("small")
+                        Text("Medium (~1.5 GB)").tag("medium")
+                        Text("Large v3 Turbo (~626 MB)").tag("large-v3-v20240930_626MB")
+                    } label: {
+                        Label("Model", systemImage: "cpu")
+                    }
+                    .onChange(of: transcription.selectedModel) {
+                        Task { await transcription.loadModel() }
+                    }
                 }
 
                 HStack {
@@ -100,7 +123,15 @@ struct SettingsView: View {
                 }
 
                 Toggle(isOn: $cleanUpSelfCorrections) {
-                    Label("Clean up self-corrections", systemImage: "arrow.uturn.backward")
+                    Label("Rewrite self-corrections", systemImage: "arrow.uturn.backward")
+                }
+
+                Toggle(isOn: $smartSpacing) {
+                    Label("Smart spacing", systemImage: "text.cursor")
+                }
+
+                Toggle(isOn: $appendTrailingSpace) {
+                    Label("Fallback trailing space", systemImage: "arrow.right.to.line")
                 }
             } header: {
                 Text("Post-processing")
@@ -195,6 +226,23 @@ struct SettingsView: View {
                     }
                 }
 
+                if transcription.selectedBackend.requiresSpeechRecognitionPermission {
+                    HStack {
+                        Label("Speech Recognition", systemImage: "waveform")
+                        Spacer()
+                        if permissions.hasSpeechRecognition {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundStyle(.green)
+                        } else {
+                            Button("Grant") {
+                                Task { await permissions.requestSpeechRecognition() }
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                        }
+                    }
+                }
+
                 HStack {
                     Label("Accessibility", systemImage: "hand.raised")
                     Spacer()
@@ -245,7 +293,7 @@ struct SettingsView: View {
             // Storage
             Section {
                 HStack {
-                    Label("Model data", systemImage: "internaldrive")
+                    Label("Whisper model data", systemImage: "internaldrive")
                     Spacer()
                     Text(transcription.modelsDiskUsage)
                         .foregroundStyle(.secondary)
@@ -301,7 +349,7 @@ struct SettingsView: View {
                     Text("v0.2.0")
                         .foregroundStyle(.secondary)
                 }
-                Text("Local voice-to-text powered by WhisperKit. Based on MIT-licensed Inputalk.")
+                Text("Local voice-to-text with swappable on-device engines. Based on MIT-licensed Inputalk.")
                     .font(.caption)
                     .foregroundStyle(.tertiary)
             } header: {
@@ -338,7 +386,10 @@ struct SettingsView: View {
         case .downloading(let progress):
             return "Downloading \(Int(progress * 100))% of \(transcription.selectedModel)"
         case .loading:
-            return "Download complete. Preparing the local model."
+            if transcription.selectedBackend == .whisperKit {
+                return "Download complete. Preparing the local model."
+            }
+            return "Preparing \(transcription.selectedBackend.displayName)."
         default:
             return ""
         }

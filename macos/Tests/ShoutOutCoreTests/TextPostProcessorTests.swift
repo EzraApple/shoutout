@@ -23,26 +23,47 @@ final class TextPostProcessorTests: XCTestCase {
         XCTAssertEqual(process("um I sent it", options: options), "um I sent it")
     }
 
-    func testCleansRepeatedActionSelfCorrection() {
+    func testDefaultPreservesSelfCorrectionPhrases() {
         XCTAssertEqual(
-            process("when I press the boom oh I mean or press function rather"),
+            process("when I press the boom scratch that press function"),
+            "when I press the boom scratch that press function"
+        )
+        XCTAssertEqual(process("let's meet at 2 scratch that 3"), "let's meet at 2 scratch that 3")
+    }
+
+    func testCanRewriteRepeatedActionSelfCorrectionWhenEnabled() {
+        let options = TextPostProcessingOptions(cleanUpSelfCorrections: true)
+        XCTAssertEqual(
+            process("when I press the boom scratch that press function", options: options),
             "when I press function"
         )
     }
 
-    func testCleansPrepositionSelfCorrection() {
-        XCTAssertEqual(process("let's meet at 2 actually 3"), "let's meet at 3")
+    func testCanRewritePrepositionSelfCorrectionWhenEnabled() {
+        let options = TextPostProcessingOptions(cleanUpSelfCorrections: true)
+        XCTAssertEqual(process("let's meet at 2 scratch that 3", options: options), "let's meet at 3")
     }
 
     func testPreservesActuallyWhenItIsNotACorrection() {
         XCTAssertEqual(process("I actually liked it"), "I actually liked it")
     }
 
+    func testPreservesActuallyInCorrectionLikePhrase() {
+        XCTAssertEqual(process("let's meet at 2 actually 3"), "let's meet at 2 actually 3")
+    }
+
+    func testPreservesIMeanInCorrectionLikePhrase() {
+        XCTAssertEqual(
+            process("when I press the boom oh I mean or press function rather"),
+            "when I press the boom oh I mean or press function rather"
+        )
+    }
+
     func testDisablesSelfCorrectionCleanupWhenRequested() {
         let options = TextPostProcessingOptions(cleanUpSelfCorrections: false)
         XCTAssertEqual(
-            process("when I press the boom oh I mean or press function rather", options: options),
-            "when I press the boom oh I mean or press function rather"
+            process("when I press the boom scratch that press function", options: options),
+            "when I press the boom scratch that press function"
         )
     }
 

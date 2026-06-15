@@ -8,7 +8,7 @@ public struct TextPostProcessingOptions: Equatable, Sendable {
 
     public init(
         removeFillerWords: Bool = true,
-        cleanUpSelfCorrections: Bool = true,
+        cleanUpSelfCorrections: Bool = false,
         applySpokenCommands: Bool = true,
         collapseWhitespace: Bool = true
     ) {
@@ -86,7 +86,7 @@ public enum TextPostProcessor {
         var result = text
 
         let repeatedActionPattern =
-            #"\b(press|click|open|use|select|choose|set|make|call|send|go|do)\s+([^,.!?\n]+?)\s+(?:oh\s+)?(?:i mean|actually|scratch that|or rather|rather)\s+(?:or\s+)?\1\s+([^,.!?\n]+?)(?:\s+rather)?(?=$|[,.!?\n])"#
+            #"\b(press|click|open|use|select|choose|set|make|call|send|go|do)\s+([^,.!?\n]+?)\s+(?:oh\s+)?(?:scratch that|or rather)\s+(?:or\s+)?\1\s+([^,.!?\n]+?)(?:\s+rather)?(?=$|[,.!?\n])"#
         result = result.replacingOccurrences(
             of: repeatedActionPattern,
             with: "$1 $3",
@@ -94,14 +94,14 @@ public enum TextPostProcessor {
         )
 
         let prepositionCorrectionPattern =
-            #"\b(at|on|for|by|to|from|with)\s+([^,.!?\n]+?)\s+(?:actually|scratch that|or rather|rather|i mean)\s+([^,.!?\n]+?)(?=$|[,.!?\n])"#
+            #"\b(at|on|for|by|to|from|with)\s+([^,.!?\n]+?)\s+(?:scratch that|or rather)\s+([^,.!?\n]+?)(?=$|[,.!?\n])"#
         result = result.replacingOccurrences(
             of: prepositionCorrectionPattern,
             with: "$1 $3",
             options: [.regularExpression, .caseInsensitive]
         )
 
-        let trailingCorrectionMarkerPattern = #"\s+(?:oh\s+)?(?:i mean|or rather|rather)\s*$"#
+        let trailingCorrectionMarkerPattern = #"\s+(?:oh\s+)?(?:scratch that|or rather)\s*$"#
         result = result.replacingOccurrences(
             of: trailingCorrectionMarkerPattern,
             with: "",

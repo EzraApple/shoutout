@@ -6,7 +6,7 @@
 
 ShoutOut is a small local-first macOS dictation app with a tiny wall-crawling crab mascot. Hold Fn, speak, release, and it pastes cleaned-up text into the app you were already using.
 
-I built it around the voice loop I wanted for everyday writing: quick global Fn/Globe capture, microphone recording, on-device WhisperKit transcription, dictionary-aware cleanup, focused-app paste, and lightweight WPM stats.
+I built it around the voice loop I wanted for everyday writing: quick global Fn/Globe capture, microphone recording, swappable on-device transcription engines, dictionary-aware cleanup, focused-app paste, and lightweight WPM stats.
 
 The app stays intentionally small: no cloud transcription service, no account system, and no extra editor to manage. The little crab waits on the edge of the screen, pops into boom-mic mode while listening, and shows a tiny spinner while text is being generated.
 
@@ -16,8 +16,8 @@ The app stays intentionally small: no cloud transcription service, no account sy
 flowchart LR
     Fn["Fn / Globe"] --> Recorder["AVAudioEngine recorder"]
     Recorder --> Samples["16 kHz mono samples"]
-    Samples --> Whisper["WhisperKit + Core ML model"]
-    Whisper --> Cleanup["Local cleanup\nfillers, commands, corrections, dictionary"]
+    Samples --> Engine["Apple Speech, Apple Dictation, or WhisperKit engine"]
+    Engine --> Cleanup["Local cleanup\nfillers, commands, corrections, dictionary"]
     Cleanup --> Paste["Focused-app paste"]
     Cleanup --> Stats["Local word + WPM + latency stats"]
 ```
@@ -54,13 +54,14 @@ If `gh auth status` fails, run:
 gh auth login
 ```
 
-If artifact download is unavailable, `make install` falls back to a local build. Local builds require Xcode 16 or a working Swift 6 Command Line Tools install.
+If artifact download is unavailable, `make install` falls back to a local build. Local builds require Xcode 16 or a working Swift 6 Command Line Tools install. The macOS 26 Apple Dictation path builds when current Swift 6.2+ tools are available; `make build`, `make test`, and `make restart-local` automatically use the newer Command Line Tools if your selected Xcode is older.
 
 ### Permissions
 
 On first launch, grant these in System Settings → Privacy & Security:
 
 - Microphone, so ShoutOut can record your voice.
+- Speech Recognition, if you use the Apple Speech engine.
 - Accessibility, so it can paste text into the focused app.
 - Input Monitoring, so it can detect Fn/Globe while another app is focused.
 
@@ -87,11 +88,18 @@ This rebuilds, replaces `~/Applications/ShoutOut.app`, skips onboarding, preserv
 - Hold Fn/Globe to record. Release to transcribe and paste.
 - Double-tap Fn/Globe for hands-free recording. Tap Fn/Globe again to stop.
 - Click the menu bar waveform icon for Settings and today’s word/WPM/latency count.
+- Pick Apple Speech, Apple Dictation, or WhisperKit in Settings → Transcription. Apple Speech is the current default for testing.
 - Add custom dictionary entries in Settings for names and acronyms Whisper tends to miss.
-- Toggle cleanup for filler words and obvious self-corrections like “press X, I mean press Y.”
+- Toggle formatting cleanup for filler words, spoken punctuation, smart insertion spacing, and custom dictionary replacements.
+- Smart spacing falls back to a trailing space when focused-field context is unavailable.
+- Semantic self-correction rewrites are off by default and can be enabled separately in Settings.
 - Toggle “Dim system audio while recording” if you want music lowered during dictation and restored afterward.
 
-## Models
+## Engines And Models
+
+Apple Speech is the current default experimental engine. It uses Apple’s built-in Speech framework with `requiresOnDeviceRecognition`, so it fails closed instead of sending audio to cloud recognition. On macOS 26+, recordings longer than about 15 seconds are routed to Apple Dictation, which uses SpeechAnalyzer and the long-dictation transcriber path instead of the older one-request recognizer. WhisperKit remains selectable in Settings as the open local-model fallback and baseline.
+
+Apple Dictation is only available when running on macOS 26+ and building with Swift 6.2+ tools. Older systems still build and run with Apple Speech and WhisperKit.
 
 Whisper models download on first use and run locally through WhisperKit/Core ML.
 
@@ -119,4 +127,4 @@ Each successful dictation records local performance metrics, including Fn-to-rec
 
 ## Attribution
 
-ShoutOut is based on the MIT-licensed Inputalk macOS dictation app by the Inputalk contributors. The original license is retained in `LICENSE`. Transcription is powered by WhisperKit.
+ShoutOut is based on the MIT-licensed Inputalk macOS dictation app by the Inputalk contributors. The original license is retained in `LICENSE`.

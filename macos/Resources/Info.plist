@@ -32,6 +32,8 @@
 	<true/>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>ShoutOut needs microphone access to record your voice for local transcription.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>ShoutOut needs speech recognition access when the Apple Speech engine is selected.</string>
 	<key>NSAccessibilityUsageDescription</key>
 	<string>ShoutOut needs accessibility permissions for global keyboard shortcuts and text insertion.</string>
 	<key>NSInputMonitoringUsageDescription</key>
