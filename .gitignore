@@ -3,10 +3,10 @@
 node_modules/
 
 # macOS app
-macos/.build/
-macos/Packages/
-macos/dist/
-macos/.swiftpm/
-macos/xcuserdata/
-macos/DerivedData/
+apps/macos/.build/
+apps/macos/Packages/
+apps/macos/dist/
+apps/macos/.swiftpm/
+apps/macos/xcuserdata/
+apps/macos/DerivedData/
 *.xcodeproj

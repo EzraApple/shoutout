@@ -21,20 +21,20 @@ jobs:
         run: SKIP_SWIFTPM=true ./scripts/test.sh
 
       - name: Unit tests
-        run: cd macos && swift test
+        run: cd apps/macos && swift test
 
       - name: Build Swift package
-        run: cd macos && swift build
+        run: cd apps/macos && swift build
 
       - name: Build app bundle
-        run: cd macos && UNIVERSAL=false SKIP_NOTARIZE=true ./scripts/build-app.sh
+        run: cd apps/macos && UNIVERSAL=false SKIP_NOTARIZE=true ./scripts/build-app.sh
 
       - name: Archive app bundle
-        run: ditto -c -k --keepParent "macos/dist/ShoutOut.app" macos/dist/ShoutOut-app.zip
+        run: ditto -c -k --keepParent "apps/macos/dist/ShoutOut.app" apps/macos/dist/ShoutOut-app.zip
 
       - name: Upload app bundle
         uses: actions/upload-artifact@v4
         with:
           name: ShoutOut-app
-          path: macos/dist/ShoutOut-app.zip
+          path: apps/macos/dist/ShoutOut-app.zip
           if-no-files-found: error

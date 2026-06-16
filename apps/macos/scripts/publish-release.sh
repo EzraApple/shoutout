@@ -3,9 +3,9 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
-ROOT_DIR="$(dirname "$PROJECT_DIR")"
+ROOT_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 
-# Load .env (check repo root first, then macos/)
+# Load .env (check repo root first, then the macOS app)
 for ENV_FILE in "$ROOT_DIR/.env" "$PROJECT_DIR/.env"; do
     if [ -f "$ENV_FILE" ]; then
         set -a
@@ -48,14 +48,14 @@ echo -e "${BLUE}======================================${NC}"
 echo ""
 
 # Check required env vars
-if [ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SECRET_ACCESS_KEY" ] || [ -z "$AWS_S3_BUCKET_NAME" ]; then
+if [ -z "${AWS_ACCESS_KEY_ID:-}" ] || [ -z "${AWS_SECRET_ACCESS_KEY:-}" ] || [ -z "${AWS_S3_BUCKET_NAME:-}" ]; then
     echo -e "${RED}Error: AWS credentials not set in .env${NC}"
     echo -e "${RED}Required: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_S3_BUCKET_NAME${NC}"
     exit 1
 fi
 
 # Read version from Info.plist
-VERSION=$(grep -A1 "CFBundleShortVersionString" "$PROJECT_DIR/Resources/Info.plist" | grep -o '[0-9]\+\.[0-9]\+\.[0-9]\+')
+VERSION=$(plutil -extract CFBundleShortVersionString raw -o - "$PROJECT_DIR/Resources/Info.plist" 2>/dev/null || true)
 
 if [ -z "$VERSION" ]; then
     echo -e "${RED}Error: Could not read version from Info.plist${NC}"

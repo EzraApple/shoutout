@@ -63,3 +63,13 @@ dictation metrics ... pressToRecordStartMs=... stopToPasteMs=... transcriptionWa
 ```
 
 Use `make restart-local` after code changes to rebuild, replace the installed app, skip onboarding, and reopen ShoutOut in place.
+
+## Release Build Location
+
+The macOS app package lives under `apps/macos/`. Release artifacts are created in:
+
+```text
+apps/macos/dist/
+```
+
+Use [docs/release/dmg-readiness-checklist.md](docs/release/dmg-readiness-checklist.md) for public DMG validation.

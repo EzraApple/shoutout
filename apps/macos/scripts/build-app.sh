@@ -1,10 +1,10 @@
 #!/bin/bash
 set -e
 
-# Load .env (check repo root first, then macos/)
+# Load .env (check repo root first, then the macOS app)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
-ROOT_DIR="$(dirname "$PROJECT_DIR")"
+ROOT_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 for ENV_FILE in "$ROOT_DIR/.env" "$PROJECT_DIR/.env"; do
     if [ -f "$ENV_FILE" ]; then
         set -a
@@ -27,6 +27,7 @@ BUNDLE_ID="com.ezraapple.shoutout"
 DIST_DIR="dist"
 APP_BUNDLE="$DIST_DIR/$APP_NAME.app"
 UNIVERSAL="${UNIVERSAL:-true}"
+NOTARY_PROFILE="${NOTARY_PROFILE:-notarytool-profile}"
 
 select_speech_analyzer_toolchain_if_available() {
     if [ -n "${DEVELOPER_DIR:-}" ]; then
@@ -121,7 +122,7 @@ file "$APP_BUNDLE/Contents/MacOS/$EXECUTABLE_NAME"
 lipo -info "$APP_BUNDLE/Contents/MacOS/$EXECUTABLE_NAME"
 
 # Code signing
-if [ ! -z "$CODE_SIGN_IDENTITY" ]; then
+if [[ -n "${CODE_SIGN_IDENTITY:-}" ]]; then
     echo -e "${BLUE}Code signing with identity: $CODE_SIGN_IDENTITY${NC}"
 
     # Sign inside-out: nested bundles first, then the main app
@@ -155,7 +156,7 @@ if [ ! -z "$CODE_SIGN_IDENTITY" ]; then
         ditto -c -k --sequesterRsrc --keepParent "$APP_BUNDLE" "$NOTARIZE_ZIP"
 
         NOTARIZE_OUTPUT=$(xcrun notarytool submit "$NOTARIZE_ZIP" \
-            --keychain-profile "notarytool-profile" \
+            --keychain-profile "$NOTARY_PROFILE" \
             --wait --timeout 30m 2>&1) || true
 
         echo "$NOTARIZE_OUTPUT"
@@ -173,7 +174,7 @@ if [ ! -z "$CODE_SIGN_IDENTITY" ]; then
 
             if [ -n "$SUBMISSION_ID" ]; then
                 echo -e "${YELLOW}Fetching notarization log...${NC}"
-                xcrun notarytool log "$SUBMISSION_ID" --keychain-profile "notarytool-profile" 2>&1 || true
+                xcrun notarytool log "$SUBMISSION_ID" --keychain-profile "$NOTARY_PROFILE" 2>&1 || true
             fi
 
             echo -e "${RED}Notarization failed or timed out.${NC}"

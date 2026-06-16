@@ -2,6 +2,7 @@
 set -euo pipefail
 
 REPO_ROOT="${SHOUTOUT_REPO_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+MACOS_DIR="${REPO_ROOT}/apps/macos"
 REPO="${SHOUTOUT_REPO:-EzraApple/shoutout}"
 WORKFLOW="${SHOUTOUT_WORKFLOW:-macos.yml}"
 BRANCH="${SHOUTOUT_BRANCH:-main}"
@@ -34,12 +35,12 @@ install_bundle() {
 
     if [[ -n "${CODE_SIGN_IDENTITY:-}" ]]; then
         codesign --force --deep --sign "$CODE_SIGN_IDENTITY" \
-            --entitlements "${REPO_ROOT}/macos/Resources/ShoutOut.entitlements" \
+            --entitlements "${MACOS_DIR}/Resources/ShoutOut.entitlements" \
             --options runtime \
             "$app_bundle"
     else
         codesign --force --deep --sign - \
-            --entitlements "${REPO_ROOT}/macos/Resources/ShoutOut.entitlements" \
+            --entitlements "${MACOS_DIR}/Resources/ShoutOut.entitlements" \
             --requirements "=designated => identifier \"${BUNDLE_ID}\"" \
             "$app_bundle"
     fi
@@ -88,7 +89,7 @@ download_latest_artifact() {
 
 build_locally() {
     (
-        cd "${REPO_ROOT}/macos"
+        cd "${MACOS_DIR}"
         UNIVERSAL=false SKIP_NOTARIZE=true ./scripts/build-app.sh
     )
 }
@@ -97,5 +98,5 @@ if download_latest_artifact; then
     install_bundle "${WORK_DIR}/${APP_NAME}.app"
 else
     build_locally
-    install_bundle "${REPO_ROOT}/macos/dist/${APP_NAME}.app"
+    install_bundle "${MACOS_DIR}/dist/${APP_NAME}.app"
 fi

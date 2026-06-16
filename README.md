@@ -121,9 +121,30 @@ make build
 make restart-local
 ```
 
-The app is a Swift Package under `macos/`. The core dictionary, post-processing, and stats logic live in the `ShoutOutCore` target and are covered by XCTest.
+The repo is organized as a small monorepo:
+
+```text
+apps/macos/  ShoutOut Swift package and app bundle scripts
+apps/web/    placeholder download site
+docs/        implementation notes and release checklists
+scripts/     repo-level install and test helpers
+```
+
+The app is a Swift Package under `apps/macos/`. The core dictionary, post-processing, and stats logic live in the `ShoutOutCore` target and are covered by XCTest.
 
 Each successful dictation records local performance metrics, including Fn-to-recording latency, stop-to-paste latency, transcription wall time, first-token timing, real-time factor, and speed factor. These show up in Settings and in `~/Library/Logs/ShoutOut/runtime.log` as `dictation metrics ...`.
+
+## Release Prep
+
+The public download path will be a Developer ID signed and notarized DMG. The release script is wired through:
+
+```bash
+CODE_SIGN_IDENTITY="Developer ID Application: ..." make release-dmg
+```
+
+Local release dry-runs default to the current Mac architecture. Use `UNIVERSAL=true` for the public DMG once the signing machine has a toolchain that supports the universal release build.
+
+Until Apple Developer membership and notarization credentials are active, local builds should keep using `make restart-local`. The release QA checklist lives in [docs/release/dmg-readiness-checklist.md](docs/release/dmg-readiness-checklist.md).
 
 ## Attribution
 

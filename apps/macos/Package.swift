@@ -22,7 +22,7 @@ let package = Package(
                 .product(name: "WhisperKit", package: "WhisperKit"),
             ],
             path: "Sources",
-            exclude: ["Core"],
+            exclude: ["Core", "Resources"],
             swiftSettings: [
                 .define("DEBUG", .when(configuration: .debug)),
             ]

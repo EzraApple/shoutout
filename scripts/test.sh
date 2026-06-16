@@ -2,7 +2,7 @@
 set -euo pipefail
 
 REPO_ROOT="${SHOUTOUT_REPO_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
-MACOS_DIR="$REPO_ROOT/macos"
+MACOS_DIR="$REPO_ROOT/apps/macos"
 
 SPEECH_ANALYZER_DEVELOPER_DIR=""
 
@@ -128,6 +128,9 @@ assert_contains "Troubleshooting documents signal diagnosis" "$REPO_ROOT/TROUBLE
 assert_contains "Makefile has install target" "$REPO_ROOT/Makefile" "^install:"
 assert_contains "Makefile has local install target" "$REPO_ROOT/Makefile" "^install-local:"
 assert_contains "Makefile has local restart target" "$REPO_ROOT/Makefile" "^restart-local:"
+assert_contains "Makefile has release DMG target" "$REPO_ROOT/Makefile" "^release-dmg:"
+assert_contains "Makefile release DMG passes architecture setting" "$REPO_ROOT/Makefile" 'UNIVERSAL="\$\(UNIVERSAL\)" ./scripts/release.sh'
+assert_contains "Makefile has web placeholder check" "$REPO_ROOT/Makefile" "^web-check:"
 assert_contains "Makefile restart skips onboarding" "$REPO_ROOT/Makefile" "hasCompletedOnboarding"
 assert_contains "Install script downloads CI artifact" "$REPO_ROOT/scripts/install-latest.sh" "gh run download"
 assert_contains "Install script uses stable local signing" "$REPO_ROOT/scripts/install-latest.sh" "designated => identifier"
@@ -150,6 +153,10 @@ assert_contains "Build script has executable name" "$MACOS_DIR/scripts/build-app
 assert_contains "Build script signs for local use" "$MACOS_DIR/scripts/build-app.sh" "Ad-hoc signing"
 assert_contains "Build script uses stable local signing" "$MACOS_DIR/scripts/build-app.sh" "designated => identifier"
 assert_contains "Build script auto-selects current CLT" "$MACOS_DIR/scripts/build-app.sh" "Command Line Tools for Apple Dictation support"
+assert_contains "Release script creates DMG" "$MACOS_DIR/scripts/release.sh" "create-dmg.sh"
+assert_contains "DMG script supports notarization profile" "$MACOS_DIR/scripts/create-dmg.sh" "NOTARY_PROFILE"
+assert_contains "DMG script uses built-in hdiutil" "$MACOS_DIR/scripts/create-dmg.sh" "hdiutil create"
+assert_contains "Web placeholder exists" "$REPO_ROOT/apps/web/index.html" "Download coming soon"
 assert_contains "Test script auto-selects current CLT" "$REPO_ROOT/scripts/test.sh" "Command Line Tools for Apple Dictation support"
 assert_contains "Transcription imports core" "$MACOS_DIR/Sources/Services/TranscriptionService.swift" "import ShoutOutCore"
 assert_contains "Transcription returns result shape" "$MACOS_DIR/Sources/Services/TranscriptionService.swift" "DictationResult"
