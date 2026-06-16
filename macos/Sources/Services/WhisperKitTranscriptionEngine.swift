@@ -23,6 +23,7 @@ final class WhisperKitTranscriptionEngine: TranscriptionEngine {
             at: modelsDirectory,
             withIntermediateDirectories: true
         )
+        Self.cleanupInterruptedDownloads(in: modelsDirectory)
 
         let progressCallback: @Sendable (Progress) -> Void = { progress in
             let fraction = progress.fractionCompleted
@@ -31,14 +32,20 @@ final class WhisperKitTranscriptionEngine: TranscriptionEngine {
             }
         }
 
-        let modelFolder = try await WhisperKit.download(
-            variant: modelIdentifier,
-            downloadBase: modelsDirectory,
-            progressCallback: progressCallback
-        )
-        RuntimeLog.write(
-            "model downloaded backend=\(backend.rawValue) selected=\(modelIdentifier) path=\(modelFolder.path)"
-        )
+        let modelFolder: URL
+        do {
+            modelFolder = try await WhisperKit.download(
+                variant: modelIdentifier,
+                downloadBase: modelsDirectory,
+                progressCallback: progressCallback
+            )
+            RuntimeLog.write(
+                "model downloaded backend=\(backend.rawValue) selected=\(modelIdentifier) path=\(modelFolder.path)"
+            )
+        } catch {
+            Self.cleanupInterruptedDownloads(in: modelsDirectory)
+            throw error
+        }
 
         updateState(.loading)
         let kit = try await WhisperKit(
@@ -103,4 +110,43 @@ final class WhisperKitTranscriptionEngine: TranscriptionEngine {
         guard let timing, timing.fullPipeline.isFinite else { return nil }
         return Int(timing.fullPipeline * 1000)
     }
+
+    private static func cleanupInterruptedDownloads(in directory: URL) {
+        guard FileManager.default.fileExists(atPath: directory.path),
+            let enumerator = FileManager.default.enumerator(
+                at: directory,
+                includingPropertiesForKeys: [.isDirectoryKey],
+                options: [.skipsHiddenFiles]
+            )
+        else {
+            return
+        }
+
+        let interruptedURLs = enumerator.compactMap { item -> URL? in
+            guard let url = item as? URL else { return nil }
+            let name = url.lastPathComponent
+            guard transientDownloadSuffixes.contains(where: { name.hasSuffix($0) }) else {
+                return nil
+            }
+            return url
+        }
+        .sorted { $0.path.count > $1.path.count }
+
+        for url in interruptedURLs {
+            do {
+                try FileManager.default.removeItem(at: url)
+                RuntimeLog.write("model cleanup interrupted path=\(url.path)")
+            } catch {
+                RuntimeLog.write("model cleanup failed path=\(url.path) error=\(error)")
+            }
+        }
+    }
+
+    private static let transientDownloadSuffixes = [
+        ".partial",
+        ".tmp",
+        ".download",
+        ".incomplete",
+        ".extracting",
+    ]
 }

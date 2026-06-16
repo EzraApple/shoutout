@@ -32,11 +32,11 @@ enum TranscriptionBackend: String, CaseIterable, Hashable, Identifiable, Sendabl
     var detailText: String {
         switch self {
         case .whisperKit:
-            return "Local Whisper models"
+            return "Local Whisper models, downloaded when selected"
         case .appleSpeech:
-            return "Fast native dictation, with long recordings routed automatically"
+            return "Built in; no model download required"
         case .appleDictation:
-            return "Long-form native dictation on macOS 26+"
+            return "Built in on macOS 26+; assets install if needed"
         }
     }
 

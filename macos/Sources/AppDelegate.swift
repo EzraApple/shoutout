@@ -57,6 +57,7 @@ private struct RecordingTailPolicy {
 
 private struct DictationLatencyMetrics {
     let id = UUID().uuidString.prefix(8)
+    var insertionTarget: TextInserter.CapturedTarget?
     var inputMode: DictationInputMode = .unknown
     var tailPolicy = ""
     var tailGraceMs = 0
@@ -436,6 +437,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if activeDictationMetrics == nil {
             activeDictationMetrics = DictationLatencyMetrics()
         }
+        if activeDictationMetrics?.insertionTarget == nil {
+            activeDictationMetrics?.insertionTarget = TextInserter.captureFocusedTarget()
+        }
         activeDictationMetrics?.inputMode = commitImmediately ? .handsFree : .unknown
         activeDictationMetrics?.recordStartRequestedAt = startRequestedAt
 
@@ -716,7 +720,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                             forKey: Defaults.smartSpacing
                         ) == nil
                             || UserDefaults.standard.bool(forKey: Defaults.smartSpacing)
-                    )
+                    ),
+                    target: metrics.insertionTarget
                 )
                 metrics.pastePostedAt = Date()
                 metrics.log(status: "inserted", transcriptionTiming: transcription.timing)
