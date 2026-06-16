@@ -21,9 +21,9 @@ enum TextInserter {
         )
 
         if let target {
-            if target.snapshot.isPlaceholderValue {
-                RuntimeLog.write("paste accessibility skipped placeholder target")
-            } else if insertWithAccessibility(pasteText, target: target) {
+            if shouldUseAccessibilityInsertion(for: target),
+                insertWithAccessibility(pasteText, target: target)
+            {
                 RuntimeLog.write("paste accessibility inserted")
                 return
             }
@@ -37,6 +37,7 @@ enum TextInserter {
     private struct FocusedTextInsertionTarget {
         let element: AXUIElement
         let snapshot: TextInsertionTargetSnapshot
+        let bundleIdentifier: String?
 
         var context: TextInsertionContext? {
             snapshot.context
@@ -150,7 +151,11 @@ enum TextInserter {
             RuntimeLog.write("paste accessibility placeholder ignored")
         }
 
-        return FocusedTextInsertionTarget(element: focusedElement, snapshot: snapshot)
+        return FocusedTextInsertionTarget(
+            element: focusedElement,
+            snapshot: snapshot,
+            bundleIdentifier: frontmostApp.bundleIdentifier
+        )
     }
 
     private static func focusedTextInsertionContext() -> TextInsertionContext? {
@@ -193,6 +198,54 @@ enum TextInserter {
 
         return true
     }
+
+    private static func shouldUseAccessibilityInsertion(
+        for target: FocusedTextInsertionTarget
+    ) -> Bool {
+        if target.snapshot.isPlaceholderValue {
+            RuntimeLog.write("paste accessibility skipped reason=placeholder")
+            return false
+        }
+
+        guard let bundleIdentifier = target.bundleIdentifier else {
+            return true
+        }
+
+        if Self.prefersClipboardInsertion(bundleIdentifier: bundleIdentifier) {
+            RuntimeLog.write("paste accessibility skipped reason=webShell bundle=\(bundleIdentifier)")
+            return false
+        }
+
+        return true
+    }
+
+    private static func prefersClipboardInsertion(bundleIdentifier: String) -> Bool {
+        if clipboardPreferredBundleIdentifiers.contains(bundleIdentifier) {
+            return true
+        }
+
+        return clipboardPreferredBundlePrefixes.contains { prefix in
+            bundleIdentifier.hasPrefix(prefix)
+        }
+    }
+
+    private static let clipboardPreferredBundleIdentifiers: Set<String> = [
+        "com.apple.Safari",
+        "com.brave.Browser",
+        "com.google.Chrome",
+        "com.linear",
+        "com.microsoft.edgemac",
+        "com.openai.chat",
+        "com.openai.codex",
+        "com.tinyspeck.slackmacgap",
+        "com.todesktop.230313mzl4w4u92",
+        "company.thebrowser.Browser",
+        "org.mozilla.firefox",
+    ]
+
+    private static let clipboardPreferredBundlePrefixes = [
+        "com.openai.",
+    ]
 
     private static func copyStringAttribute(_ element: AXUIElement, _ attribute: CFString) -> String? {
         var value: CFTypeRef?

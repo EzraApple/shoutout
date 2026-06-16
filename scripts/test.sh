@@ -189,6 +189,8 @@ assert_contains "App delegate logs dictation metrics" "$MACOS_DIR/Sources/AppDel
 assert_contains "App delegate uses structured tail policy" "$MACOS_DIR/Sources/AppDelegate.swift" "RecordingTailPolicy"
 assert_contains "App delegate logs tail grace" "$MACOS_DIR/Sources/AppDelegate.swift" "tailGraceMs"
 assert_contains "Text inserter supports smart spacing" "$MACOS_DIR/Sources/Services/TextInserter.swift" "focusedTextInsertionContext"
+assert_contains "Text inserter routes Codex through clipboard paste" "$MACOS_DIR/Sources/Services/TextInserter.swift" "com.openai.codex"
+assert_contains "Text inserter avoids AX insertion for web shells" "$MACOS_DIR/Sources/Services/TextInserter.swift" "prefersClipboardInsertion"
 assert_contains "Core supports trailing fallback" "$MACOS_DIR/Sources/Core/TextInsertionFormatter.swift" "fallbackTrailing"
 assert_contains "Core formats insertion spacing" "$MACOS_DIR/Sources/Core/TextInsertionFormatter.swift" "TextInsertionFormatter"
 assert_contains "Postprocessor defaults semantic rewrites off" "$MACOS_DIR/Sources/Core/TextPostProcessor.swift" "cleanUpSelfCorrections: Bool = false"
