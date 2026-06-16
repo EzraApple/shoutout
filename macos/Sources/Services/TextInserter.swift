@@ -32,11 +32,10 @@ enum TextInserter {
 
     private struct FocusedTextInsertionTarget {
         let element: AXUIElement
-        let text: String
-        let selectedRange: NSRange
+        let snapshot: TextInsertionTargetSnapshot
 
         var context: TextInsertionContext? {
-            TextInsertionContext(text: text, selectedUTF16Range: selectedRange)
+            snapshot.context
         }
     }
 
@@ -127,14 +126,20 @@ enum TextInserter {
             return nil
         }
 
-        return FocusedTextInsertionTarget(
-            element: focusedElement,
+        let snapshot = TextInsertionTargetSnapshot(
             text: text,
-            selectedRange: NSRange(
+            selectedUTF16Range: NSRange(
                 location: selectedRange.location,
                 length: selectedRange.length
-            )
+            ),
+            placeholder: copyStringAttribute(focusedElement, "AXPlaceholderValue" as CFString),
+            characterCount: copyIntAttribute(focusedElement, "AXNumberOfCharacters" as CFString)
         )
+        if snapshot.isPlaceholderValue {
+            RuntimeLog.write("paste accessibility placeholder ignored")
+        }
+
+        return FocusedTextInsertionTarget(element: focusedElement, snapshot: snapshot)
     }
 
     private static func focusedTextInsertionContext() -> TextInsertionContext? {
@@ -146,8 +151,8 @@ enum TextInserter {
         target: FocusedTextInsertionTarget
     ) -> Bool {
         guard let replacement = replacingSelection(
-            in: target.text,
-            selectedRange: target.selectedRange,
+            in: target.snapshot.editableText,
+            selectedRange: target.snapshot.editableSelectedUTF16Range,
             with: insertion
         ) else {
             return false
@@ -176,6 +181,25 @@ enum TextInserter {
         }
 
         return true
+    }
+
+    private static func copyStringAttribute(_ element: AXUIElement, _ attribute: CFString) -> String? {
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, attribute, &value) == .success else {
+            return nil
+        }
+        return value as? String
+    }
+
+    private static func copyIntAttribute(_ element: AXUIElement, _ attribute: CFString) -> Int? {
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, attribute, &value) == .success else {
+            return nil
+        }
+        if let number = value as? NSNumber {
+            return number.intValue
+        }
+        return value as? Int
     }
 
     private static func replacingSelection(

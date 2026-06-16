@@ -73,6 +73,37 @@ final class TextInsertionFormatterTests: XCTestCase {
         XCTAssertEqual(context?.characterAfter, "w")
     }
 
+    func testPlaceholderValueIsTreatedAsEmptyText() {
+        let snapshot = TextInsertionTargetSnapshot(
+            text: "Ask for follow-up changes",
+            selectedUTF16Range: NSRange(location: 0, length: 0),
+            placeholder: "Ask for follow-up changes",
+            characterCount: 0
+        )
+
+        XCTAssertTrue(snapshot.isPlaceholderValue)
+        XCTAssertEqual(snapshot.editableText, "")
+        XCTAssertEqual(snapshot.editableSelectedUTF16Range, NSRange(location: 0, length: 0))
+        XCTAssertEqual(
+            TextInsertionFormatter.prepare("ship this", context: snapshot.context).text,
+            "ship this"
+        )
+    }
+
+    func testPlaceholderLikeRealTextIsPreservedWhenCharacterCountIsNonzero() {
+        let snapshot = TextInsertionTargetSnapshot(
+            text: "Ask for follow-up changes",
+            selectedUTF16Range: NSRange(location: 4, length: 0),
+            placeholder: "Ask for follow-up changes",
+            characterCount: 25
+        )
+
+        XCTAssertFalse(snapshot.isPlaceholderValue)
+        XCTAssertEqual(snapshot.editableText, "Ask for follow-up changes")
+        XCTAssertEqual(snapshot.context?.characterBefore, " ")
+        XCTAssertEqual(snapshot.context?.characterAfter, "f")
+    }
+
     private func format(
         _ text: String,
         before: Character?,

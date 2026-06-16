@@ -52,6 +52,49 @@ public struct TextInsertionContext: Equatable, Sendable {
     }
 }
 
+public struct TextInsertionTargetSnapshot: Equatable, Sendable {
+    public var text: String
+    public var selectedUTF16Range: NSRange
+    public var placeholder: String?
+    public var characterCount: Int?
+
+    public init(
+        text: String,
+        selectedUTF16Range: NSRange,
+        placeholder: String? = nil,
+        characterCount: Int? = nil
+    ) {
+        self.text = text
+        self.selectedUTF16Range = selectedUTF16Range
+        self.placeholder = placeholder
+        self.characterCount = characterCount
+    }
+
+    public var isPlaceholderValue: Bool {
+        guard let placeholder, !placeholder.isEmpty, text == placeholder else {
+            return false
+        }
+
+        if let characterCount {
+            return characterCount == 0
+        }
+
+        return true
+    }
+
+    public var editableText: String {
+        isPlaceholderValue ? "" : text
+    }
+
+    public var editableSelectedUTF16Range: NSRange {
+        isPlaceholderValue ? NSRange(location: 0, length: 0) : selectedUTF16Range
+    }
+
+    public var context: TextInsertionContext? {
+        TextInsertionContext(text: editableText, selectedUTF16Range: editableSelectedUTF16Range)
+    }
+}
+
 public struct TextInsertionFormattingResult: Equatable, Sendable {
     public var text: String
     public var strategy: String
