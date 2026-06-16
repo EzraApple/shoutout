@@ -20,9 +20,13 @@ enum TextInserter {
             "paste start length=\(pasteText.count) spacing=\(formatted.strategy) smartSpacing=\(options.useSmartSpacing) appendTrailingSpace=\(options.appendTrailingSpace)"
         )
 
-        if let target, insertWithAccessibility(pasteText, target: target) {
-            RuntimeLog.write("paste accessibility inserted")
-            return
+        if let target {
+            if target.snapshot.isPlaceholderValue {
+                RuntimeLog.write("paste accessibility skipped placeholder target")
+            } else if insertWithAccessibility(pasteText, target: target) {
+                RuntimeLog.write("paste accessibility inserted")
+                return
+            }
         }
 
         insertWithClipboard(pasteText)
