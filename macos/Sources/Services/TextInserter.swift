@@ -132,7 +132,14 @@ enum TextInserter {
                 location: selectedRange.location,
                 length: selectedRange.length
             ),
-            placeholder: copyStringAttribute(focusedElement, "AXPlaceholderValue" as CFString),
+            placeholder: copyFirstStringAttribute(
+                focusedElement,
+                [
+                    "AXPlaceholderValue" as CFString,
+                    "AXDescription" as CFString,
+                    "AXHelp" as CFString,
+                ]
+            ),
             characterCount: copyIntAttribute(focusedElement, "AXNumberOfCharacters" as CFString)
         )
         if snapshot.isPlaceholderValue {
@@ -189,6 +196,18 @@ enum TextInserter {
             return nil
         }
         return value as? String
+    }
+
+    private static func copyFirstStringAttribute(
+        _ element: AXUIElement,
+        _ attributes: [CFString]
+    ) -> String? {
+        for attribute in attributes {
+            if let value = copyStringAttribute(element, attribute), !value.isEmpty {
+                return value
+            }
+        }
+        return nil
     }
 
     private static func copyIntAttribute(_ element: AXUIElement, _ attribute: CFString) -> Int? {

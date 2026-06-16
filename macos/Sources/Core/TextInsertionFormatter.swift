@@ -71,7 +71,8 @@ public struct TextInsertionTargetSnapshot: Equatable, Sendable {
     }
 
     public var isPlaceholderValue: Bool {
-        guard let placeholder, !placeholder.isEmpty, text == placeholder else {
+        let normalizedText = Self.normalized(text)
+        guard !normalizedText.isEmpty else {
             return false
         }
 
@@ -79,7 +80,21 @@ public struct TextInsertionTargetSnapshot: Equatable, Sendable {
             return characterCount == 0
         }
 
-        return true
+        if let placeholder,
+            !placeholder.isEmpty,
+            normalizedText == Self.normalized(placeholder)
+        {
+            return true
+        }
+
+        if Self.knownEmptyComposerPlaceholders.contains(normalizedText),
+            selectedUTF16Range.location == 0,
+            selectedUTF16Range.length == 0
+        {
+            return true
+        }
+
+        return false
     }
 
     public var editableText: String {
@@ -92,6 +107,14 @@ public struct TextInsertionTargetSnapshot: Equatable, Sendable {
 
     public var context: TextInsertionContext? {
         TextInsertionContext(text: editableText, selectedUTF16Range: editableSelectedUTF16Range)
+    }
+
+    private static let knownEmptyComposerPlaceholders: Set<String> = [
+        "Ask for follow-up changes",
+    ]
+
+    private static func normalized(_ value: String) -> String {
+        value.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
 

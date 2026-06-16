@@ -90,6 +90,16 @@ final class TextInsertionFormatterTests: XCTestCase {
         )
     }
 
+    func testKnownEmptyComposerPlaceholderIsTreatedAsEmptyTextWithoutPlaceholderAttribute() {
+        let snapshot = TextInsertionTargetSnapshot(
+            text: "Ask for follow-up changes",
+            selectedUTF16Range: NSRange(location: 0, length: 0)
+        )
+
+        XCTAssertTrue(snapshot.isPlaceholderValue)
+        XCTAssertEqual(snapshot.editableText, "")
+    }
+
     func testPlaceholderLikeRealTextIsPreservedWhenCharacterCountIsNonzero() {
         let snapshot = TextInsertionTargetSnapshot(
             text: "Ask for follow-up changes",
