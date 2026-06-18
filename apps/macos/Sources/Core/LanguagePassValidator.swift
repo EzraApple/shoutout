@@ -24,21 +24,97 @@ public struct LanguagePassValidation: Equatable, Sendable {
     }
 }
 
+public enum LanguagePassStyle: String, CaseIterable, Identifiable, Sendable {
+    case standard
+    case casual
+    case formal
+
+    public static let defaultStyle: LanguagePassStyle = .standard
+
+    public var id: String { rawValue }
+
+    public init(storedValue: String?) {
+        self = storedValue.flatMap(LanguagePassStyle.init(rawValue:)) ?? .defaultStyle
+    }
+
+    public var title: String {
+        switch self {
+        case .standard:
+            return "Normal"
+        case .casual:
+            return "Casual"
+        case .formal:
+            return "Formal"
+        }
+    }
+
+    public var detail: String {
+        switch self {
+        case .standard:
+            return "Balanced punctuation and sentence casing."
+        case .casual:
+            return "Lowercase text with almost no added punctuation."
+        case .formal:
+            return "Clear sentence casing and punctuation for polished text."
+        }
+    }
+
+    fileprivate var formattingInstruction: String {
+        switch self {
+        case .standard:
+            return "Add light punctuation and sentence casing when obvious."
+        case .casual:
+            return "Keep the output lowercase. Do not add punctuation unless it is already part of the input."
+        case .formal:
+            return "Add clear sentence casing and punctuation when obvious."
+        }
+    }
+
+    fileprivate var instruction: String {
+        switch self {
+        case .standard:
+            return "Use a normal style: sentence casing, natural punctuation, and no extra polish."
+        case .casual:
+            return "Use a casual style: keep casual wording, avoid corporate polish, and stay close to the raw transcript."
+        case .formal:
+            return "Use a formal style: use clear sentence casing and punctuation, but do not change the speaker's word choice."
+        }
+    }
+
+}
+
 public enum LanguagePassPrompt {
-    public static let systemInstructions = """
+    public static var systemInstructions: String {
+        systemInstructions(for: .defaultStyle)
+    }
+
+    public static func systemInstructions(for style: LanguagePassStyle) -> String {
+        """
         You are a dictation cleanup filter.
+        The user message contains the transcript to clean.
         Return only the final text to paste.
         Do not include labels, quotes, markdown, or explanation.
         This is not a chat. Rewrite the dictated words; do not answer the speaker.
         Preserve the speaker's meaning, perspective, and task details. Do not summarize. Do not add facts.
         Clean obvious speech artifacts: filler words, repeated starts, stutters, and self-corrections.
+        Remove filler words like "um", "uh", "er", and "you know"; do not preserve them as punctuated words.
         Keep the final choice when the speaker corrects themself.
         Do not remove casual wording like "wait, no, actually" when it is the sentence the speaker meant to say.
-        Add light punctuation and sentence casing when obvious.
+        \(style.formattingInstruction)
+        \(style.instruction)
         If the input is already good, return the same text.
         """
+    }
 
-    public static let examples: [LanguagePassExample] = [
+    public static var examples: [LanguagePassExample] {
+        examples(for: .defaultStyle)
+    }
+
+    public static func examples(for style: LanguagePassStyle) -> [LanguagePassExample] {
+        baseExamples + style.examples
+    }
+
+    private static let baseExamples: [LanguagePassExample] = [
         LanguagePassExample(
             input: "um can you can you send this over when you get a chance",
             output: "Can you send this over when you get a chance?"
@@ -93,11 +169,53 @@ public enum LanguagePassPrompt {
         ),
     ]
 
-    public static func userPrompt(for input: String) -> String {
-        """
-        Input: \(input)
-        Output:
-        """
+    fileprivate static let casualExamples: [LanguagePassExample] = [
+        LanguagePassExample(
+            input: "um yeah yeah that works can you send it over",
+            output: "yeah that works can you send it over"
+        ),
+        LanguagePassExample(
+            input: "wait no actually make it the smaller one",
+            output: "wait no actually make it the smaller one"
+        ),
+    ]
+
+    fileprivate static let formalExamples: [LanguagePassExample] = [
+        LanguagePassExample(
+            input: "i can join monday probably around three",
+            output: "I can join Monday, probably around three."
+        ),
+        LanguagePassExample(
+            input: "can you review this when you have time",
+            output: "Can you review this when you have time?"
+        ),
+    ]
+
+    fileprivate static let standardExamples: [LanguagePassExample] = []
+
+    public static func userPrompt(for input: String, style: LanguagePassStyle = .defaultStyle) -> String {
+        switch style {
+        case .casual:
+            return input
+        case .standard, .formal:
+            return """
+            Input: \(input)
+            Output:
+            """
+        }
+    }
+}
+
+private extension LanguagePassStyle {
+    var examples: [LanguagePassExample] {
+        switch self {
+        case .standard:
+            return LanguagePassPrompt.standardExamples
+        case .casual:
+            return LanguagePassPrompt.casualExamples
+        case .formal:
+            return LanguagePassPrompt.formalExamples
+        }
     }
 }
 

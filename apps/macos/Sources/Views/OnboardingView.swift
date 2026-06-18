@@ -358,7 +358,7 @@ struct OnboardingView: View {
                     .glassed(in: Circle())
 
                 VStack(spacing: 8) {
-                    Text(transcription.selectedBackend.requiresManagedModel ? "Speech Model" : "Speech Engine")
+                    Text("Dictation Setup")
                         .font(.system(size: 20, weight: .semibold))
                         .tracking(-0.3)
                         .foregroundStyle(.white)
@@ -395,7 +395,7 @@ struct OnboardingView: View {
         switch transcription.modelState {
         case .ready:
             VStack(spacing: 12) {
-                Text("\(transcription.activeModelIdentifier) is ready")
+                Text("\(transcription.selectedPreset.title) mode is ready")
                     .font(.system(size: 13))
                     .foregroundStyle(Color.white.opacity(0.4))
 
@@ -403,7 +403,7 @@ struct OnboardingView: View {
             }
         case .loading:
             VStack(spacing: 12) {
-                Text(transcription.selectedBackend.requiresManagedModel ? "Preparing model..." : "Preparing engine...")
+                Text("Preparing dictation...")
                     .font(.system(size: 13))
                     .foregroundStyle(Color.white.opacity(0.4))
                 ModelProgressBar(progress: 1)
@@ -411,7 +411,7 @@ struct OnboardingView: View {
             }
         case .downloading(let progress):
             VStack(spacing: 12) {
-                Text("Downloading \"\(transcription.selectedModel)\" \(Int(progress * 100))%")
+                Text("Downloading local dictation model \(Int(progress * 100))%")
                     .font(.system(size: 13))
                     .foregroundStyle(Color.white.opacity(0.4))
                 ModelProgressBar(progress: progress)
@@ -475,7 +475,7 @@ struct OnboardingView: View {
                     )
                     OnboardingSummaryRow(
                         icon: "cpu",
-                        title: "\(transcription.selectedBackend.requiresManagedModel ? "Model" : "Engine"): \(transcription.activeModelIdentifier)",
+                        title: "Dictation: \(transcription.selectedPreset.title)",
                         granted: transcription.modelState == .ready
                     )
                 }

@@ -13,9 +13,26 @@ struct SmokeCase {
 
     var name: String
     var input: String
+    var style: LanguagePassStyle
     var expectedFragments: [String]
     var rejectedFragments: [String]
     var expectation: Expectation
+
+    init(
+        name: String,
+        input: String,
+        style: LanguagePassStyle = .defaultStyle,
+        expectedFragments: [String],
+        rejectedFragments: [String],
+        expectation: Expectation
+    ) {
+        self.name = name
+        self.input = input
+        self.style = style
+        self.expectedFragments = expectedFragments
+        self.rejectedFragments = rejectedFragments
+        self.expectation = expectation
+    }
 }
 
 @main
@@ -69,6 +86,22 @@ struct LanguagePassSmoke {
             rejectedFragments: [],
             expectation: .requiredRewrite
         ),
+        SmokeCase(
+            name: "casual style stays lowercase and unpunctuated",
+            input: "um yeah yeah that works can you send it over",
+            style: .casual,
+            expectedFragments: ["yeah", "that works", "send it over"],
+            rejectedFragments: ["um", ".", "?", "please", "certainly", "i can"],
+            expectation: .requiredRewrite
+        ),
+        SmokeCase(
+            name: "formal style keeps original words",
+            input: "i can join monday probably around three",
+            style: .formal,
+            expectedFragments: ["I can join Monday", "around three"],
+            rejectedFragments: ["I will", "Please", "certainly"],
+            expectation: .requiredRewrite
+        ),
     ]
 
     static func main() async throws {
@@ -99,14 +132,18 @@ struct LanguagePassSmoke {
 
     static func run(_ smokeCase: SmokeCase, container: ModelContainer) async throws -> String? {
         let startedAt = Date()
-        let rawOutput = try await generate(input: smokeCase.input, container: container)
+        let rawOutput = try await generate(
+            input: smokeCase.input,
+            style: smokeCase.style,
+            container: container
+        )
         let wallMs = elapsedMilliseconds(since: startedAt)
         let validation = LanguagePassValidator.validate(output: rawOutput, baseText: smokeCase.input)
         let finalText = validation.acceptedText ?? smokeCase.input
         let finalLower = finalText.lowercased()
         let rawCandidate = LanguagePassValidator.extractCandidate(from: rawOutput)
 
-        print("\n[\(smokeCase.name)] \(wallMs)ms")
+        print("\n[\(smokeCase.name)] \(wallMs)ms style=\(smokeCase.style.rawValue)")
         print("input: \(smokeCase.input)")
         print("raw: \(rawCandidate)")
         print("final: \(finalText)")
@@ -135,11 +172,11 @@ struct LanguagePassSmoke {
         return nil
     }
 
-    static func generate(input: String, container: ModelContainer) async throws -> String {
+    static func generate(input: String, style: LanguagePassStyle, container: ModelContainer) async throws -> String {
         let session = ChatSession(
             container,
-            instructions: LanguagePassPrompt.systemInstructions,
-            history: fewShotHistory(),
+            instructions: LanguagePassPrompt.systemInstructions(for: style),
+            history: fewShotHistory(style: style),
             generateParameters: GenerateParameters(
                 maxTokens: 96,
                 maxKVSize: 2048,
@@ -148,13 +185,13 @@ struct LanguagePassSmoke {
             )
         )
 
-        return try await session.respond(to: LanguagePassPrompt.userPrompt(for: input))
+        return try await session.respond(to: LanguagePassPrompt.userPrompt(for: input, style: style))
     }
 
-    static func fewShotHistory() -> [Chat.Message] {
-        LanguagePassPrompt.examples.flatMap { example in
+    static func fewShotHistory(style: LanguagePassStyle) -> [Chat.Message] {
+        LanguagePassPrompt.examples(for: style).flatMap { example in
             [
-                Chat.Message.user(LanguagePassPrompt.userPrompt(for: example.input)),
+                Chat.Message.user(LanguagePassPrompt.userPrompt(for: example.input, style: style)),
                 Chat.Message.assistant(example.output),
             ]
         }

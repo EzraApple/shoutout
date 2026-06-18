@@ -87,6 +87,12 @@ final class LanguagePassService: ObservableObject {
             }
         }
     }
+    @Published var selectedStyle: LanguagePassStyle {
+        didSet {
+            UserDefaults.standard.set(selectedStyle.rawValue, forKey: Defaults.languagePassStyle)
+            RuntimeLog.write("languagePass style=\(selectedStyle.rawValue)")
+        }
+    }
     @Published private(set) var lastRunSummary: LanguagePassRunSummary?
 
     let availableModels = LanguagePassModelOption.all.map(\.id)
@@ -122,6 +128,10 @@ final class LanguagePassService: ObservableObject {
         } else {
             self.isEnabled = UserDefaults.standard.bool(forKey: Defaults.languagePassEnabled)
         }
+
+        self.selectedStyle = LanguagePassStyle(
+            storedValue: UserDefaults.standard.string(forKey: Defaults.languagePassStyle)
+        )
     }
 
     func prepareIfNeeded() async {
@@ -189,6 +199,7 @@ final class LanguagePassService: ObservableObject {
     func process(rawText _: String, baseText: String) async -> LanguagePassRunResult {
         let startedAt = Date()
         let modelID = selectedModelID
+        let style = selectedStyle
 
         guard isEnabled else {
             return .passthrough(baseText, enabled: false, fallbackReason: "disabled")
@@ -212,7 +223,7 @@ final class LanguagePassService: ObservableObject {
 
         do {
             let output = try await runWithTimeout(seconds: generationTimeoutNanoseconds) {
-                try await Self.generateCleanup(container: container, baseText: baseText)
+                try await Self.generateCleanup(container: container, baseText: baseText, style: style)
             }
             let wallMs = Self.elapsedMilliseconds(since: startedAt)
             let validation = LanguagePassValidator.validate(output: output, baseText: baseText)
@@ -239,7 +250,7 @@ final class LanguagePassService: ObservableObject {
             )
             recordSummary(result)
             RuntimeLog.write(
-                "languagePass accepted model=\(modelID) wallMs=\(wallMs) inputChars=\(baseText.count) outputChars=\(acceptedText.count)"
+                "languagePass accepted model=\(modelID) style=\(style.rawValue) wallMs=\(wallMs) inputChars=\(baseText.count) outputChars=\(acceptedText.count)"
             )
             return result
         } catch {
@@ -268,12 +279,13 @@ final class LanguagePassService: ObservableObject {
 
     nonisolated private static func generateCleanup(
         container: ModelContainer,
-        baseText: String
+        baseText: String,
+        style: LanguagePassStyle
     ) async throws -> String {
         let session = ChatSession(
             container,
-            instructions: LanguagePassPrompt.systemInstructions,
-            history: Self.fewShotHistory(),
+            instructions: LanguagePassPrompt.systemInstructions(for: style),
+            history: Self.fewShotHistory(style: style),
             generateParameters: GenerateParameters(
                 maxTokens: 96,
                 maxKVSize: 2048,
@@ -281,13 +293,13 @@ final class LanguagePassService: ObservableObject {
                 topP: 1.0
             )
         )
-        return try await session.respond(to: LanguagePassPrompt.userPrompt(for: baseText))
+        return try await session.respond(to: LanguagePassPrompt.userPrompt(for: baseText, style: style))
     }
 
-    nonisolated private static func fewShotHistory() -> [Chat.Message] {
-        LanguagePassPrompt.examples.flatMap { example in
+    nonisolated private static func fewShotHistory(style: LanguagePassStyle) -> [Chat.Message] {
+        LanguagePassPrompt.examples(for: style).flatMap { example in
             [
-                Chat.Message.user(LanguagePassPrompt.userPrompt(for: example.input)),
+                Chat.Message.user(LanguagePassPrompt.userPrompt(for: example.input, style: style)),
                 Chat.Message.assistant(example.output),
             ]
         }
@@ -331,6 +343,7 @@ final class LanguagePassService: ObservableObject {
                 "changed=\(result.changed)",
                 "wallMs=\(result.wallMs.map(String.init) ?? "na")",
                 "model=\(result.modelID ?? "none")",
+                "style=\(selectedStyle.rawValue)",
                 "fallback=\(result.fallbackReason ?? "none")",
             ].joined(separator: " ")
         )

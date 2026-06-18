@@ -50,14 +50,39 @@ final class LanguagePassValidatorTests: XCTestCase {
         XCTAssertNil(validation.fallbackReason)
     }
 
-    func testAcceptsCasualWaitNoActuallyPhrasing() {
+    func testLeavesUnchangedCasualWaitNoActuallyPhrasingAsNoOp() {
         let validation = LanguagePassValidator.validate(
-            output: "Wait, no, actually make it the smaller one.",
+            output: "wait no actually make it the smaller one",
             baseText: "wait no actually make it the smaller one"
         )
 
-        XCTAssertEqual(validation.acceptedText, "Wait, no, actually make it the smaller one.")
+        XCTAssertNil(validation.acceptedText)
+        XCTAssertEqual(validation.fallbackReason, "unchanged")
+    }
+
+    func testAcceptsCasualStyleCleanupWithoutCasingOrPunctuation() {
+        let validation = LanguagePassValidator.validate(
+            output: "yeah that works can you send it over",
+            baseText: "um yeah yeah that works can you send it over"
+        )
+
+        XCTAssertEqual(validation.acceptedText, "yeah that works can you send it over")
         XCTAssertNil(validation.fallbackReason)
+    }
+
+    func testAcceptsFormalStyleFormatting() {
+        let validation = LanguagePassValidator.validate(
+            output: "I can join Monday, probably around three.",
+            baseText: "i can join monday probably around three"
+        )
+
+        XCTAssertEqual(validation.acceptedText, "I can join Monday, probably around three.")
+        XCTAssertNil(validation.fallbackReason)
+    }
+
+    func testStylePromptsDescribeFormattingOnly() {
+        XCTAssertTrue(LanguagePassPrompt.systemInstructions(for: .casual).contains("lowercase"))
+        XCTAssertTrue(LanguagePassPrompt.systemInstructions(for: .formal).contains("word choice"))
     }
 
     func testUnchangedOutputIsNoOp() {

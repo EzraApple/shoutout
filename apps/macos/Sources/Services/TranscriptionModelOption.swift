@@ -5,23 +5,20 @@ struct TranscriptionModelOption: Identifiable, Hashable, Sendable {
     let title: String
     let detail: String
 
-    static let defaultID = "large-v3-v20240930_626MB"
+    static let bestID = "large-v3-v20240930_626MB"
+    static let fastID = "small.en"
+    static let defaultID = bestID
 
     static let all: [TranscriptionModelOption] = [
         TranscriptionModelOption(
-            id: "large-v3-v20240930_626MB",
+            id: bestID,
             title: "Large v3 Turbo",
             detail: "Best default. Strong quality, good Mac speed, ~626 MB download."
         ),
         TranscriptionModelOption(
-            id: "small.en",
+            id: fastID,
             title: "Fast English",
             detail: "Lighter English-only fallback when speed matters more than accuracy."
-        ),
-        TranscriptionModelOption(
-            id: "tiny.en",
-            title: "Tiny fallback",
-            detail: "Smallest English model for quick tests or very low memory."
         ),
     ]
 

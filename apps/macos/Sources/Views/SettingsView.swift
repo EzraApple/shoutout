@@ -21,6 +21,7 @@ struct SettingsView: View {
 
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var isConfirmingStatsClear = false
+    @State private var advancedControlsExpanded = false
 
     var body: some View {
         Form {
@@ -81,60 +82,22 @@ struct SettingsView: View {
                 Text("Input")
             }
 
-            // Model
+            // Dictation
             Section {
-                Picker(selection: $transcription.selectedBackend) {
-                    ForEach(transcription.availableBackends) { backend in
-                        Text(backend.displayName).tag(backend)
+                Picker(selection: dictationPresetBinding) {
+                    ForEach(DictationPreset.allCases) { preset in
+                        Text(preset.title).tag(preset)
                     }
                 } label: {
-                    Label("Engine", systemImage: "waveform.path.ecg")
-                }
-                .onChange(of: transcription.selectedBackend) {
-                    permissions.refresh()
-                    Task { await transcription.loadModel() }
+                    Label("Mode", systemImage: "waveform.path.ecg")
                 }
 
                 VStack(alignment: .leading, spacing: 6) {
-                    Label("Selected engine", systemImage: "slider.horizontal.3")
-                    Text(transcription.selectedBackend.detailText)
+                    Label("Selected mode", systemImage: "slider.horizontal.3")
+                    Text(transcription.selectedPreset.detail)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
-                }
-
-                VStack(alignment: .leading, spacing: 8) {
-                    Label("Engine guide", systemImage: "speedometer")
-
-                    ForEach(TranscriptionBackend.allCases) { backend in
-                        EngineGuideRow(backend: backend)
-                    }
-
-                    Text("Available options depend on your macOS version.")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                }
-
-                if transcription.selectedBackend.requiresManagedModel {
-                    Picker(selection: $transcription.selectedModel) {
-                        ForEach(TranscriptionModelOption.all) { option in
-                            Text(option.title).tag(option.id)
-                        }
-                    } label: {
-                        Label("Model", systemImage: "cpu")
-                    }
-                    .onChange(of: transcription.selectedModel) {
-                        Task { await transcription.loadModel() }
-                    }
-
-                    HStack {
-                        Label("Model detail", systemImage: "tag")
-                        Spacer()
-                        Text(TranscriptionModelOption.option(for: transcription.selectedModel).detail)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.75)
-                    }
                 }
 
                 HStack {
@@ -162,49 +125,25 @@ struct SettingsView: View {
                     }
                 }
             } header: {
-                Text("Transcription")
-            }
-
-            // Post-processing
-            Section {
-                Toggle(isOn: $removeFillerWords) {
-                    Label("Remove filler words", systemImage: "text.badge.minus")
-                }
-
-                Toggle(isOn: $smartSpacing) {
-                    Label("Smart spacing", systemImage: "text.cursor")
-                }
-
-                Toggle(isOn: $appendTrailingSpace) {
-                    Label("Fallback trailing space", systemImage: "arrow.right.to.line")
-                }
-            } header: {
-                Text("Post-processing")
+                Text("Dictation")
             }
 
             Section {
-                Toggle(isOn: languagePassEnabledBinding) {
-                    Label("Language cleanup", systemImage: "sparkles")
-                }
-
-                VStack(alignment: .leading, spacing: 6) {
-                    Label("What it does", systemImage: "wand.and.stars")
-                    Text("Runs a fast local model after transcription to clean stutters, repeated starts, and obvious self-corrections. If it is slow or unsure, ShoutOut pastes the normal transcript.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                Picker(selection: $languagePass.selectedModelID) {
-                    ForEach(LanguagePassModelOption.all) { option in
-                        Text(option.title).tag(option.id)
+                Picker(selection: $languagePass.selectedStyle) {
+                    ForEach(LanguagePassStyle.allCases) { style in
+                        Text(style.title).tag(style)
                     }
                 } label: {
-                    Label("Cleanup model", systemImage: "cpu")
+                    Label("Writing style", systemImage: "text.quote")
                 }
-                .disabled(!languagePass.isEnabled)
-                .onChange(of: languagePass.selectedModelID) {
-                    Task { await languagePass.prepareIfNeeded() }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(languagePass.selectedStyle.detail)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text("ShoutOut also cleans stutters, repeated starts, and obvious self-corrections when the local cleanup model is ready.")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
                 }
 
                 HStack {
@@ -243,7 +182,87 @@ struct SettingsView: View {
                     }
                 }
             } header: {
-                Text("Writing cleanup")
+                Text("Writing")
+            }
+
+            Section {
+                DisclosureGroup(isExpanded: $advancedControlsExpanded) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Toggle(isOn: languagePassEnabledBinding) {
+                            Label("Language cleanup", systemImage: "sparkles")
+                        }
+                        AdvancedSettingDescription(
+                            "Runs the local cleanup model after transcription. If it is off, slow, or unsure, ShoutOut pastes the transcript without the LM pass."
+                        )
+
+                        Picker(selection: $transcription.selectedBackend) {
+                            ForEach(transcription.availableBackends) { backend in
+                                Text(backend.displayName).tag(backend)
+                            }
+                        } label: {
+                            Label("Engine", systemImage: "waveform.path.ecg")
+                        }
+                        .onChange(of: transcription.selectedBackend) {
+                            permissions.refresh()
+                            Task { await transcription.loadModel() }
+                        }
+                        AdvancedSettingDescription(
+                            "Exact transcription backend. The normal mode picker is safer; use this when debugging permissions, startup, or device-specific behavior."
+                        )
+
+                        if transcription.selectedBackend.requiresManagedModel {
+                            Picker(selection: $transcription.selectedModel) {
+                                ForEach(TranscriptionModelOption.all) { option in
+                                    Text(option.title).tag(option.id)
+                                }
+                            } label: {
+                                Label("Model", systemImage: "cpu")
+                            }
+                            .onChange(of: transcription.selectedModel) {
+                                Task { await transcription.loadModel() }
+                            }
+
+                            Text(TranscriptionModelOption.option(for: transcription.selectedModel).detail)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                            AdvancedSettingDescription(
+                                "Exact WhisperKit model. Changing it unloads the current model and prepares the selected one."
+                            )
+                        }
+
+                        Toggle(isOn: $removeFillerWords) {
+                            Label("Remove filler words", systemImage: "text.badge.minus")
+                        }
+                        AdvancedSettingDescription(
+                            "Removes simple filler like um, uh, and you know before the language cleanup pass."
+                        )
+
+                        Toggle(isOn: $smartSpacing) {
+                            Label("Smart spacing", systemImage: "text.cursor")
+                        }
+                        AdvancedSettingDescription(
+                            "Uses nearby text around the cursor to avoid extra spaces and keep mid-sentence insertions natural."
+                        )
+
+                        Toggle(isOn: $appendTrailingSpace) {
+                            Label("Fallback trailing space", systemImage: "arrow.right.to.line")
+                        }
+                        AdvancedSettingDescription(
+                            "Adds a trailing space when ShoutOut cannot inspect the focused field's surrounding text."
+                        )
+                    }
+                    .padding(.top, 6)
+                } label: {
+                    Label("Advanced controls", systemImage: "wrench.adjustable")
+                }
+
+                Text("Most people can leave these alone. They expose exact engines, model choices, and paste cleanup fallbacks for debugging or unusual Macs.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            } header: {
+                Text("Advanced")
             }
 
             // Insights
@@ -259,14 +278,6 @@ struct SettingsView: View {
                             .foregroundStyle(.secondary)
                     }
 
-                    if let performance = lastSession.performance {
-                        HStack {
-                            Label("Last latency", systemImage: "timer")
-                            Spacer()
-                            Text(performanceLatencyText(performance))
-                                .foregroundStyle(.secondary)
-                        }
-                    }
                 }
 
                 Button("Clear Stats", role: .destructive) {
@@ -566,7 +577,7 @@ struct SettingsView: View {
     private var modelProgressCaption: String {
         switch transcription.modelState {
         case .downloading(let progress):
-            return "Downloading \(Int(progress * 100))% of \(transcription.selectedModel)"
+            return "Downloading local dictation model \(Int(progress * 100))%"
         case .loading:
             if transcription.selectedBackend == .whisperKit {
                 return "Download complete. Preparing the local model."
@@ -582,6 +593,23 @@ struct SettingsView: View {
             get: { languagePass.isEnabled },
             set: { languagePass.isEnabled = $0 }
         )
+    }
+
+    private var dictationPresetBinding: Binding<DictationPreset> {
+        Binding(
+            get: { transcription.selectedPreset },
+            set: { applyDictationPreset($0) }
+        )
+    }
+
+    private func applyDictationPreset(_ preset: DictationPreset) {
+        transcription.applyPreset(preset)
+        languagePass.isEnabled = true
+        permissions.refresh()
+        Task {
+            await transcription.loadModel()
+            await languagePass.prepareIfNeeded()
+        }
     }
 
     private var languagePassStatusColor: Color {
@@ -617,9 +645,9 @@ struct SettingsView: View {
     private var languagePassProgressCaption: String {
         switch languagePass.modelState {
         case .downloading(let progress):
-            return "Downloading \(Int(progress * 100))% of \(languagePass.selectedModel.title)"
+            return "Downloading \(Int(progress * 100))% of the local cleanup model"
         case .loading:
-            return "Preparing \(languagePass.selectedModel.title)."
+            return "Preparing language cleanup."
         default:
             return ""
         }
@@ -658,6 +686,21 @@ private struct CrabColorMenuLabel: View {
                 .frame(width: 28, height: 18)
             Text(variant.displayName)
         }
+    }
+}
+
+private struct AdvancedSettingDescription: View {
+    let text: String
+
+    init(_ text: String) {
+        self.text = text
+    }
+
+    var body: some View {
+        Text(text)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
     }
 }
 
@@ -707,29 +750,7 @@ private struct StatsRow: View {
             .font(.caption)
             .foregroundStyle(.tertiary)
 
-            if let performanceText {
-                Text(performanceText)
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-            }
         }
-    }
-
-    private var performanceText: String? {
-        var parts: [String] = []
-        if let pressMs = summary.averagePressToRecordStartMs {
-            parts.append("Fn->rec \(pressMs) ms")
-        }
-        if let pasteMs = summary.averageStopToPasteMs {
-            parts.append("stop->paste \(pasteMs) ms")
-        }
-        if let transcriptionMs = summary.averageTranscriptionWallMs {
-            parts.append("ASR \(transcriptionMs) ms")
-        }
-        if let rtf = summary.averageRealTimeFactor {
-            parts.append("RTF \(String(format: "%.2f", rtf))")
-        }
-        return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
     private var durationText: String {
@@ -739,22 +760,4 @@ private struct StatsRow: View {
         }
         return "\(minutes) min"
     }
-}
-
-private func performanceLatencyText(_ performance: UsagePerformanceMetrics) -> String {
-    var parts: [String] = []
-    if let pressMs = performance.pressToRecordStartMs {
-        parts.append("Fn->rec \(pressMs) ms")
-    }
-    if let pasteMs = performance.stopToPasteMs {
-        parts.append("stop->paste \(pasteMs) ms")
-    }
-    parts.append("ASR \(performance.transcriptionWallMs ?? performance.whisperWallMs) ms")
-    if let languageMs = performance.languagePassWallMs {
-        parts.append("LM \(languageMs) ms")
-    }
-    if let rtf = performance.realTimeFactor {
-        parts.append("RTF \(String(format: "%.2f", rtf))")
-    }
-    return parts.joined(separator: " · ")
 }

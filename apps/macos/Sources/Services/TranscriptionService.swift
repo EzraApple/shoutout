@@ -124,7 +124,7 @@ class TranscriptionService: ObservableObject {
 
     init() {
         let backendRaw = UserDefaults.standard.string(forKey: Defaults.transcriptionBackend)
-        let storedBackend = TranscriptionBackend(rawValue: backendRaw ?? "") ?? .appleSpeech
+        let storedBackend = TranscriptionBackend(rawValue: backendRaw ?? "") ?? .whisperKit
         self.selectedBackend = TranscriptionBackend.selectableCases.contains(storedBackend)
             ? storedBackend
             : .appleSpeech

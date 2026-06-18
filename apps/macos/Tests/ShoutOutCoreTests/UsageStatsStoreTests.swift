@@ -70,7 +70,10 @@ final class UsageStatsStoreTests: XCTestCase {
         let store = UsageStatsStore(fileURL: temporaryFileURL())
         try store.record(finalText: "old", duration: 10, date: Date(timeIntervalSince1970: 1), model: "base")
         try store.record(finalText: "new", duration: 10, date: Date(timeIntervalSince1970: 2), model: "base")
-        XCTAssertEqual(store.recentSessions.map(\.finalText), ["new", "old"])
+        XCTAssertEqual(store.recentSessions.map(\.date), [
+            Date(timeIntervalSince1970: 2),
+            Date(timeIntervalSince1970: 1),
+        ])
     }
 
     func testAverageWordsPerMinuteUsesTotalDuration() throws {
@@ -130,6 +133,45 @@ final class UsageStatsStoreTests: XCTestCase {
         let store = UsageStatsStore(fileURL: temporaryFileURL())
         try store.record(finalText: "   ", duration: 10, date: Date(), model: "base")
         XCTAssertEqual(store.allTimeSummary.sessionCount, 0)
+    }
+
+    func testDoesNotPersistDictatedText() throws {
+        let fileURL = temporaryFileURL()
+        let store = UsageStatsStore(fileURL: fileURL)
+
+        try store.record(finalText: "private dictated words", duration: 10, date: Date(), model: "base")
+
+        let savedJSON = try String(contentsOf: fileURL, encoding: .utf8)
+        XCTAssertFalse(savedJSON.contains("private dictated words"))
+        XCTAssertFalse(savedJSON.contains("finalText"))
+    }
+
+    func testCachesDailyInsightSummaries() throws {
+        let store = UsageStatsStore(fileURL: temporaryFileURL())
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        let yesterday = try XCTUnwrap(calendar.date(byAdding: .day, value: -1, to: today))
+
+        try store.record(finalText: "one two three", duration: 30, date: yesterday, model: "base")
+        try store.record(finalText: "four five", duration: 30, date: today, model: "base")
+
+        XCTAssertEqual(store.insights.days.count, 2)
+        XCTAssertEqual(store.insights.days.map(\.wordCount), [3, 2])
+        XCTAssertEqual(store.insights.currentStreakDays, 2)
+        XCTAssertEqual(store.insights.longestStreakDays, 2)
+        XCTAssertEqual(store.insights.bestDayWordCount, 3)
+        XCTAssertEqual(store.insights.averageWordsPerActiveDay, 3)
+    }
+
+    func testClearRefreshesCachedInsights() throws {
+        let store = UsageStatsStore(fileURL: temporaryFileURL())
+        try store.record(finalText: "one two", duration: 10, date: Date(), model: "base")
+
+        try store.clear()
+
+        XCTAssertEqual(store.insights, .empty)
+        XCTAssertEqual(store.todaySummary, .empty)
+        XCTAssertEqual(store.allTimeSummary, .empty)
     }
 
     private func temporaryFileURL() -> URL {

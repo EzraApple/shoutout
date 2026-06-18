@@ -17,6 +17,7 @@ enum Defaults {
     static let boringMode = "boringMode"
     static let languagePassEnabled = "languagePassEnabled"
     static let languagePassModel = "languagePassModel"
+    static let languagePassStyle = "languagePassStyle"
 }
 
 // MARK: - App State
@@ -235,6 +236,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     let hotkeyManager = HotkeyManager()
     let permissions = PermissionManager.shared
     let usageStats = UsageStatsStore.defaultStore()
+    let transcriptionHistory = TranscriptionHistoryStore.defaultStore()
     let audioDucker = SystemAudioDucker()
 
     var mainWindow: NSWindow?
@@ -278,13 +280,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             Defaults.dimSystemAudio: true,
             Defaults.overlayStyle: OverlayStyle.crab.rawValue,
             Defaults.crabColorVariant: CrabColorVariant.ocean.rawValue,
-            Defaults.transcriptionBackend: TranscriptionBackend.appleSpeech.rawValue,
+            Defaults.transcriptionBackend: TranscriptionBackend.whisperKit.rawValue,
             Defaults.appendTrailingSpace: true,
             Defaults.smartSpacing: true,
             Defaults.hotkeyTrigger: HotkeyTrigger.defaultTrigger.rawValue,
             Defaults.boringMode: false,
             Defaults.languagePassEnabled: true,
             Defaults.languagePassModel: LanguagePassModelOption.defaultID,
+            Defaults.languagePassStyle: LanguagePassStyle.defaultStyle.rawValue,
             "removeFillerWords": true,
         ])
 
@@ -791,6 +794,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     duration: recordingDuration,
                     model: transcription.timing.modelIdentifier,
                     performance: performance
+                )
+                try? transcriptionHistory.record(
+                    text: finalText,
+                    duration: recordingDuration,
+                    model: transcription.timing.modelIdentifier
                 )
                 TextInserter.insertText(
                     finalText,
@@ -1337,12 +1345,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func positionClassicAtScreenRight() {
-        guard let panel = indicatorPanel,
-            let hostingView = indicatorHostingView,
-            let screen = NSScreen.main
-        else { return }
+        guard let panel = indicatorPanel, let screen = NSScreen.main else { return }
 
-        let contentSize = hostingView.fittingSize
+        let contentSize = ClassicOverlayLayout.size
         let screenFrame = screen.visibleFrame
         let x = screenFrame.maxX - contentSize.width - ClassicOverlayLayout.screenEdgeInset
         let y = screenFrame.midY - contentSize.height / 2
@@ -1665,6 +1670,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     .environmentObject(languagePassService)
                     .environmentObject(permissions)
                     .environmentObject(usageStats)
+                    .environmentObject(transcriptionHistory)
             )
             window.isReleasedWhenClosed = false
             window.delegate = self

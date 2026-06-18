@@ -4,7 +4,6 @@ import Foundation
 public struct UsageStatsSession: Codable, Equatable, Identifiable, Sendable {
     public var id: UUID
     public var date: Date
-    public var finalText: String
     public var duration: TimeInterval
     public var model: String
     public var wordCount: Int
@@ -14,7 +13,6 @@ public struct UsageStatsSession: Codable, Equatable, Identifiable, Sendable {
     public init(
         id: UUID = UUID(),
         date: Date,
-        finalText: String,
         duration: TimeInterval,
         model: String,
         wordCount: Int,
@@ -23,13 +21,38 @@ public struct UsageStatsSession: Codable, Equatable, Identifiable, Sendable {
     ) {
         self.id = id
         self.date = date
-        self.finalText = finalText
         self.duration = duration
         self.model = model
         self.wordCount = wordCount
         self.wordsPerMinute = wordsPerMinute
         self.performance = performance
     }
+}
+
+public struct UsageDailySummary: Codable, Equatable, Identifiable, Sendable {
+    public var date: Date
+    public var sessionCount: Int
+    public var wordCount: Int
+    public var totalDuration: TimeInterval
+    public var averageWordsPerMinute: Int
+
+    public var id: Date { date }
+}
+
+public struct UsageInsights: Equatable, Sendable {
+    public var days: [UsageDailySummary]
+    public var currentStreakDays: Int
+    public var longestStreakDays: Int
+    public var bestDayWordCount: Int
+    public var averageWordsPerActiveDay: Int
+
+    public static let empty = UsageInsights(
+        days: [],
+        currentStreakDays: 0,
+        longestStreakDays: 0,
+        bestDayWordCount: 0,
+        averageWordsPerActiveDay: 0
+    )
 }
 
 public struct UsageStatsSummary: Equatable, Sendable {
@@ -135,6 +158,9 @@ public struct UsagePerformanceMetrics: Codable, Equatable, Sendable {
 
 public final class UsageStatsStore: ObservableObject {
     @Published public private(set) var sessions: [UsageStatsSession]
+    @Published public private(set) var todaySummary: UsageStatsSummary
+    @Published public private(set) var allTimeSummary: UsageStatsSummary
+    @Published public private(set) var insights: UsageInsights
 
     private let fileURL: URL
 
@@ -142,17 +168,15 @@ public final class UsageStatsStore: ObservableObject {
         sessions.sorted { $0.date > $1.date }
     }
 
-    public var todaySummary: UsageStatsSummary {
-        summarize(sessions.filter { Calendar.current.isDateInToday($0.date) })
-    }
-
-    public var allTimeSummary: UsageStatsSummary {
-        summarize(sessions)
-    }
-
     public init(fileURL: URL) {
         self.fileURL = fileURL
-        self.sessions = Self.loadSessions(fileURL: fileURL)
+        let loadedSessions = Self.loadSessions(fileURL: fileURL)
+        self.sessions = loadedSessions
+        self.todaySummary = Self.summarize(
+            loadedSessions.filter { Calendar.current.isDateInToday($0.date) }
+        )
+        self.allTimeSummary = Self.summarize(loadedSessions)
+        self.insights = Self.buildInsights(from: loadedSessions)
     }
 
     public static func defaultStore(bundleIdentifier: String? = Bundle.main.bundleIdentifier)
@@ -191,7 +215,6 @@ public final class UsageStatsStore: ObservableObject {
         sessions.append(
             UsageStatsSession(
                 date: date,
-                finalText: normalizedText,
                 duration: safeDuration,
                 model: model,
                 wordCount: wordCount,
@@ -200,15 +223,23 @@ public final class UsageStatsStore: ObservableObject {
             )
         )
 
+        rebuildCachedStats()
         try save()
     }
 
     public func clear() throws {
         sessions = []
+        rebuildCachedStats()
         try save()
     }
 
-    private func summarize(_ sessions: [UsageStatsSession]) -> UsageStatsSummary {
+    private func rebuildCachedStats() {
+        todaySummary = Self.summarize(sessions.filter { Calendar.current.isDateInToday($0.date) })
+        allTimeSummary = Self.summarize(sessions)
+        insights = Self.buildInsights(from: sessions)
+    }
+
+    private static func summarize(_ sessions: [UsageStatsSession]) -> UsageStatsSummary {
         guard !sessions.isEmpty else {
             return .empty
         }
@@ -229,25 +260,105 @@ public final class UsageStatsStore: ObservableObject {
             wordCount: wordCount,
             totalDuration: totalDuration,
             averageWordsPerMinute: averageWordsPerMinute,
-            averagePressToRecordStartMs: averageInt(
+            averagePressToRecordStartMs: Self.averageInt(
                 performanceMetrics.compactMap(\.pressToRecordStartMs)
             ),
-            averageStopToPasteMs: averageInt(performanceMetrics.compactMap(\.stopToPasteMs)),
-            averageTranscriptionWallMs: averageInt(
+            averageStopToPasteMs: Self.averageInt(performanceMetrics.compactMap(\.stopToPasteMs)),
+            averageTranscriptionWallMs: Self.averageInt(
                 performanceMetrics.compactMap(\.transcriptionWallMs)
             ),
-            averageRealTimeFactor: averageDouble(
+            averageRealTimeFactor: Self.averageDouble(
                 performanceMetrics.compactMap(\.realTimeFactor)
             )
         )
     }
 
-    private func averageInt(_ values: [Int]) -> Int? {
+    private static func buildInsights(from sessions: [UsageStatsSession]) -> UsageInsights {
+        guard !sessions.isEmpty else {
+            return .empty
+        }
+
+        let calendar = Calendar.current
+        let groupedByDay = Dictionary(grouping: sessions) { session in
+            calendar.startOfDay(for: session.date)
+        }
+        let days = groupedByDay.map { day, sessions in
+            let summary = summarize(sessions)
+            return UsageDailySummary(
+                date: day,
+                sessionCount: summary.sessionCount,
+                wordCount: summary.wordCount,
+                totalDuration: summary.totalDuration,
+                averageWordsPerMinute: summary.averageWordsPerMinute
+            )
+        }
+        .sorted { $0.date < $1.date }
+
+        let activeDates = days.map(\.date)
+        let activeDateSet = Set(activeDates)
+        let currentStreakDays = currentStreak(in: activeDateSet, calendar: calendar)
+        let longestStreakDays = longestStreak(in: activeDates, calendar: calendar)
+        let totalWords = days.reduce(0) { $0 + $1.wordCount }
+
+        return UsageInsights(
+            days: days,
+            currentStreakDays: currentStreakDays,
+            longestStreakDays: longestStreakDays,
+            bestDayWordCount: days.map(\.wordCount).max() ?? 0,
+            averageWordsPerActiveDay: days.isEmpty
+                ? 0
+                : Int(round(Double(totalWords) / Double(days.count)))
+        )
+    }
+
+    private static func currentStreak(in activeDates: Set<Date>, calendar: Calendar) -> Int {
+        guard !activeDates.isEmpty else { return 0 }
+
+        var cursor = calendar.startOfDay(for: Date())
+        if !activeDates.contains(cursor),
+            let yesterday = calendar.date(byAdding: .day, value: -1, to: cursor),
+            activeDates.contains(yesterday)
+        {
+            cursor = yesterday
+        }
+
+        var count = 0
+        while activeDates.contains(cursor) {
+            count += 1
+            guard let previousDay = calendar.date(byAdding: .day, value: -1, to: cursor) else {
+                break
+            }
+            cursor = previousDay
+        }
+        return count
+    }
+
+    private static func longestStreak(in sortedDates: [Date], calendar: Calendar) -> Int {
+        guard !sortedDates.isEmpty else { return 0 }
+
+        var longest = 1
+        var current = 1
+        for index in sortedDates.indices.dropFirst() {
+            let previous = sortedDates[sortedDates.index(before: index)]
+            let date = sortedDates[index]
+            if let expected = calendar.date(byAdding: .day, value: 1, to: previous),
+                calendar.isDate(date, inSameDayAs: expected)
+            {
+                current += 1
+            } else {
+                current = 1
+            }
+            longest = max(longest, current)
+        }
+        return longest
+    }
+
+    private static func averageInt(_ values: [Int]) -> Int? {
         guard !values.isEmpty else { return nil }
         return Int(round(Double(values.reduce(0, +)) / Double(values.count)))
     }
 
-    private func averageDouble(_ values: [Double]) -> Double? {
+    private static func averageDouble(_ values: [Double]) -> Double? {
         let finiteValues = values.filter(\.isFinite)
         guard !finiteValues.isEmpty else { return nil }
         return finiteValues.reduce(0, +) / Double(finiteValues.count)

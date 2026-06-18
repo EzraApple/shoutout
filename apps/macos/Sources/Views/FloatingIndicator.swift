@@ -364,7 +364,11 @@ struct ClassicIndicatorView: View {
                 .id(visualKind)
                 .transition(.opacity.combined(with: .scale(scale: 0.92)))
         }
-        .frame(width: ClassicOverlayLayout.size.width, height: ClassicOverlayLayout.size.height)
+        .frame(
+            width: ClassicOverlayLayout.size.width,
+            height: ClassicOverlayLayout.size.height,
+            alignment: .trailing
+        )
         .help(accessibilityLabel)
         .animation(.spring(response: 0.32, dampingFraction: 0.86), value: visualKind)
         .animation(.spring(response: 0.36, dampingFraction: 0.88), value: surfaceSize)

@@ -5,6 +5,7 @@ import SwiftUI
 
 enum ShoutOutHomeSection: String, CaseIterable, Identifiable {
     case dashboard
+    case history
     case permissions
     case settings
     case insights
@@ -14,6 +15,7 @@ enum ShoutOutHomeSection: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .dashboard: return "Dashboard"
+        case .history: return "History"
         case .permissions: return "Permissions"
         case .settings: return "Settings"
         case .insights: return "Insights"
@@ -23,6 +25,7 @@ enum ShoutOutHomeSection: String, CaseIterable, Identifiable {
     var systemImage: String {
         switch self {
         case .dashboard: return "rectangle.grid.2x2"
+        case .history: return "clock.arrow.circlepath"
         case .permissions: return "checklist.checked"
         case .settings: return "slider.horizontal.3"
         case .insights: return "chart.bar"
@@ -40,6 +43,7 @@ struct ShoutOutHomeView: View {
     @EnvironmentObject var languagePass: LanguagePassService
     @EnvironmentObject var permissions: PermissionManager
     @EnvironmentObject var usageStats: UsageStatsStore
+    @EnvironmentObject var transcriptionHistory: TranscriptionHistoryStore
     @ObservedObject var model: ShoutOutHomeWindowModel
     @AppStorage("removeFillerWords") private var removeFillerWords = true
     @AppStorage(Defaults.appendTrailingSpace) private var appendTrailingSpace = true
@@ -52,6 +56,8 @@ struct ShoutOutHomeView: View {
     @AppStorage(Defaults.boringMode) private var boringMode = false
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var isConfirmingStatsClear = false
+    @State private var isConfirmingHistoryClear = false
+    @State private var advancedSettingsExpanded = false
 
     var body: some View {
         HomeWindowShell {
@@ -75,6 +81,14 @@ struct ShoutOutHomeView: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("This deletes your local word counts, sessions, and latency history from this Mac.")
+        }
+        .alert("Clear transcription history?", isPresented: $isConfirmingHistoryClear) {
+            Button("Clear History", role: .destructive) {
+                try? transcriptionHistory.clear()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This deletes saved transcript text from this Mac. Usage stats stay intact.")
         }
     }
 
@@ -109,8 +123,8 @@ struct ShoutOutHomeView: View {
             )
 
             HomeStatusBadge(
-                title: "Engine",
-                value: transcription.selectedBackend.displayName,
+                title: "Mode",
+                value: transcription.selectedPreset.title,
                 systemImage: "waveform.path.ecg"
             )
         }
@@ -126,6 +140,8 @@ struct ShoutOutHomeView: View {
                 switch model.selectedSection {
                 case .dashboard:
                     dashboardPage
+                case .history:
+                    historyPage
                 case .permissions:
                     permissionsPage
                 case .settings:
@@ -164,9 +180,9 @@ struct ShoutOutHomeView: View {
                     color: ShoutOutHomeTheme.panelMint
                 )
                 MetricTile(
-                    title: "Model",
-                    value: modelShortName,
-                    caption: transcription.selectedBackend.displayName,
+                    title: "Mode",
+                    value: transcription.selectedPreset.title,
+                    caption: "dictation preset",
                     color: ShoutOutHomeTheme.panelLilac
                 )
             }
@@ -185,7 +201,7 @@ struct ShoutOutHomeView: View {
 
                 ActionPanel(
                     title: "Tuning",
-                    message: "Choose the indicator, crab color, engine, and paste behavior.",
+                    message: "Choose the dictation mode, writing style, indicator, and crab color.",
                     buttonTitle: "Open",
                     systemImage: "paintpalette"
                 ) {
@@ -261,27 +277,48 @@ struct ShoutOutHomeView: View {
         }
     }
 
+    private var historyPage: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            PageHeader(
+                title: "History",
+                subtitle: "Recent local transcriptions saved on this Mac."
+            )
+
+            if transcriptionHistory.recentEntries.isEmpty {
+                HomePanel {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Label("No transcriptions yet", systemImage: "text.badge.plus")
+                            .font(.headline)
+                        Text("Your pasted dictations will show up here after ShoutOut captures text.")
+                            .foregroundStyle(ShoutOutHomeTheme.muted)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            } else {
+                VStack(spacing: 12) {
+                    ForEach(transcriptionHistory.recentEntries) { entry in
+                        TranscriptionHistoryRow(entry: entry)
+                    }
+                }
+
+                Button("Clear History", role: .destructive) {
+                    isConfirmingHistoryClear = true
+                }
+                .buttonStyle(HomeSecondaryButtonStyle())
+            }
+        }
+    }
+
     private var settingsPage: some View {
         VStack(alignment: .leading, spacing: 16) {
             PageHeader(
                 title: "Settings",
-                subtitle: "Tune the shortcut, mascot, engine, and paste behavior without leaving the dashboard."
+                subtitle: "Tune the shortcut, mascot, dictation mode, and writing style without leaving the dashboard."
             )
 
-            ViewThatFits(in: .horizontal) {
-                HStack(alignment: .top, spacing: HomeSettingsLayout.gap) {
-                    settingsPrimaryColumn
-                    settingsSecondaryColumn
-                }
-
-                VStack(spacing: HomeSettingsLayout.gap) {
-                    shortcutSettingsCard
-                    indicatorSettingsCard
-                    transcriptionSettingsCard
-                    textSettingsCard
-                    generalSettingsCard
-                    filesSettingsCard
-                }
+            HStack(alignment: .top, spacing: HomeSettingsLayout.gap) {
+                settingsPrimaryColumn
+                settingsSecondaryColumn
             }
             .frame(maxWidth: .infinity, alignment: .topLeading)
         }
@@ -291,18 +328,19 @@ struct ShoutOutHomeView: View {
         VStack(spacing: HomeSettingsLayout.gap) {
             shortcutSettingsCard
             transcriptionSettingsCard
+            textSettingsCard
             generalSettingsCard
         }
-        .frame(minWidth: HomeSettingsLayout.columnMinWidth, maxWidth: .infinity, alignment: .top)
+        .frame(minWidth: 0, maxWidth: .infinity, alignment: .top)
     }
 
     private var settingsSecondaryColumn: some View {
         VStack(spacing: HomeSettingsLayout.gap) {
             indicatorSettingsCard
-            textSettingsCard
+            advancedSettingsCard
             filesSettingsCard
         }
-        .frame(minWidth: HomeSettingsLayout.columnMinWidth, maxWidth: .infinity, alignment: .top)
+        .frame(minWidth: 0, maxWidth: .infinity, alignment: .top)
     }
 
     private var shortcutSettingsCard: some View {
@@ -375,38 +413,23 @@ struct ShoutOutHomeView: View {
 
     private var transcriptionSettingsCard: some View {
         HomeSettingSection(
-            title: "Transcription",
-            subtitle: transcription.selectedBackend.detailText,
+            title: "Dictation",
+            subtitle: transcription.selectedPreset.detail,
             systemImage: "waveform.path.ecg",
-            minHeight: HomeSettingsLayout.tallCardHeight
+            minHeight: HomeSettingsLayout.shortCardHeight
         ) {
             HomeControlRow(
-                title: "Engine",
-                detail: "\(transcription.selectedBackend.speedLabel) speed · \(transcription.selectedBackend.qualityLabel) quality",
+                title: "Mode",
+                detail: dictationPresetDetail,
                 systemImage: "cpu"
             ) {
-                HomeBackendMenu(
-                    selection: $transcription.selectedBackend,
-                    backends: transcription.availableBackends,
-                    width: 160
-                ) {
-                    permissions.refresh()
-                    Task { await transcription.loadModel() }
-                }
-            }
-
-            if transcription.selectedBackend.requiresManagedModel {
-                HomeControlRow(title: "Model", systemImage: "internaldrive") {
-                    HomeStringMenu(
-                        selection: $transcription.selectedModel,
-                        choices: TranscriptionModelOption.all.map {
-                            HomeStringChoice(value: $0.id, title: $0.title, subtitle: $0.detail)
-                        },
-                        width: 250
-                    ) {
-                        Task { await transcription.loadModel() }
-                    }
-                }
+                HomeStringMenu(
+                    selection: dictationPresetValueBinding,
+                    choices: DictationPreset.allCases.map {
+                        HomeStringChoice(value: $0.rawValue, title: $0.title, subtitle: $0.detail)
+                    },
+                    width: 270
+                ) {}
             }
 
             HomeStatusLine(
@@ -420,15 +443,24 @@ struct ShoutOutHomeView: View {
 
     private var textSettingsCard: some View {
         HomeSettingSection(
-            title: "Text",
-            subtitle: "Spacing, filler words, and local cleanup.",
+            title: "Writing",
+            subtitle: "Pick how cleaned-up dictation should read.",
             systemImage: "text.cursor",
-            minHeight: HomeSettingsLayout.tallCardHeight
+            minHeight: HomeSettingsLayout.shortCardHeight
         ) {
-            HomeToggleRow(title: "Remove filler words", systemImage: "text.badge.minus", isOn: $removeFillerWords)
-            HomeToggleRow(title: "Smart spacing", systemImage: "text.alignleft", isOn: $smartSpacing)
-            HomeToggleRow(title: "Fallback trailing space", systemImage: "arrow.right.to.line", isOn: $appendTrailingSpace)
-            HomeToggleRow(title: "Language cleanup", systemImage: "sparkles", isOn: languagePassEnabledBinding)
+            HomeControlRow(
+                title: "Writing style",
+                detail: languagePass.selectedStyle.detail,
+                systemImage: "text.quote"
+            ) {
+                HomeStringMenu(
+                    selection: languagePassStyleBinding,
+                    choices: LanguagePassStyle.allCases.map {
+                        HomeStringChoice(value: $0.rawValue, title: $0.title, subtitle: $0.detail)
+                    },
+                    width: 270
+                ) {}
+            }
             HomeStatusLine(
                 title: "Cleanup",
                 value: languagePassStatusText,
@@ -456,6 +488,101 @@ struct ShoutOutHomeView: View {
                     value: languagePassSummaryText(summary),
                     systemImage: "timer",
                     color: ShoutOutHomeTheme.teal
+                )
+            }
+        }
+    }
+
+    private var advancedSettingsCard: some View {
+        HomeSettingSection(
+            title: "Advanced",
+            subtitle: "Exact controls for debugging, unusual Macs, and support.",
+            systemImage: "wrench.adjustable",
+            minHeight: advancedSettingsExpanded ? HomeSettingsLayout.tallCardHeight : HomeSettingsLayout.shortCardHeight
+        ) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.16)) {
+                    advancedSettingsExpanded.toggle()
+                }
+            } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: advancedSettingsExpanded ? "chevron.down" : "chevron.right")
+                        .font(.caption.weight(.black))
+                        .frame(width: 18)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(advancedSettingsExpanded ? "Hide exact controls" : "Show exact controls")
+                            .font(.headline)
+                        Text("Engine, model, paste spacing, and cleanup toggles")
+                            .font(.caption)
+                            .foregroundStyle(ShoutOutHomeTheme.muted)
+                    }
+                    Spacer()
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(10)
+                .background(ShoutOutHomeTheme.panelBlue.opacity(0.45))
+                .overlay(ShoutOutHomeTheme.pixelBorder)
+            }
+            .buttonStyle(.plain)
+
+            if advancedSettingsExpanded {
+                HomeToggleRow(
+                    title: "Language cleanup",
+                    detail: "Runs the local cleanup model after transcription. If it is off, slow, or unsure, ShoutOut pastes the transcript without the LM pass.",
+                    systemImage: "sparkles",
+                    isOn: languagePassEnabledBinding
+                )
+
+                HomeControlRow(
+                    title: "Engine",
+                    detail: "Exact transcription backend. Presets are safer unless you are debugging permissions, startup, or device-specific behavior.",
+                    systemImage: "waveform.path.ecg"
+                ) {
+                    HomeBackendMenu(
+                        selection: $transcription.selectedBackend,
+                        backends: transcription.availableBackends,
+                        width: 160
+                    ) {
+                        permissions.refresh()
+                        Task { await transcription.loadModel() }
+                    }
+                }
+
+                if transcription.selectedBackend.requiresManagedModel {
+                    HomeControlRow(
+                        title: "Model",
+                        detail: "\(TranscriptionModelOption.option(for: transcription.selectedModel).detail) Changing it unloads and prepares the selected model.",
+                        systemImage: "internaldrive"
+                    ) {
+                        HomeStringMenu(
+                            selection: $transcription.selectedModel,
+                            choices: TranscriptionModelOption.all.map {
+                                HomeStringChoice(value: $0.id, title: $0.title, subtitle: $0.detail)
+                            },
+                            width: 250
+                        ) {
+                            Task { await transcription.loadModel() }
+                        }
+                    }
+                }
+
+                HomeToggleRow(
+                    title: "Remove filler words",
+                    detail: "Removes simple filler like um, uh, and you know before the language cleanup pass.",
+                    systemImage: "text.badge.minus",
+                    isOn: $removeFillerWords
+                )
+                HomeToggleRow(
+                    title: "Smart spacing",
+                    detail: "Uses nearby cursor context to avoid extra spaces and keep mid-sentence insertions natural.",
+                    systemImage: "text.alignleft",
+                    isOn: $smartSpacing
+                )
+                HomeToggleRow(
+                    title: "Fallback trailing space",
+                    detail: "Adds a trailing space when ShoutOut cannot inspect the focused field's surrounding text.",
+                    systemImage: "arrow.right.to.line",
+                    isOn: $appendTrailingSpace
                 )
             }
         }
@@ -552,8 +679,48 @@ struct ShoutOutHomeView: View {
         VStack(alignment: .leading, spacing: 16) {
             PageHeader(
                 title: "Insights",
-                subtitle: "A small pulse check on usage and latency. No accounts required."
+                subtitle: "Your local dictation pace, streaks, and daily volume. No accounts required."
             )
+
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 190), spacing: 14)], spacing: 14) {
+                InsightMetricPanel(
+                    title: "Current Streak",
+                    value: "\(usageStats.insights.currentStreakDays)",
+                    caption: dayCountText(usageStats.insights.currentStreakDays)
+                )
+                InsightMetricPanel(
+                    title: "Best Day",
+                    value: "\(usageStats.insights.bestDayWordCount)",
+                    caption: "words"
+                )
+                InsightMetricPanel(
+                    title: "Active Days",
+                    value: "\(usageStats.insights.days.count)",
+                    caption: dayCountText(usageStats.insights.days.count)
+                )
+                InsightMetricPanel(
+                    title: "All-Time Pace",
+                    value: "\(usageStats.allTimeSummary.averageWordsPerMinute)",
+                    caption: "WPM"
+                )
+            }
+
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 320), spacing: 14)], spacing: 14) {
+                UsageDailyBarChart(
+                    title: "Words Per Day",
+                    subtitle: "Last 14 active days",
+                    days: Array(usageStats.insights.days.suffix(14)),
+                    value: \.wordCount,
+                    color: ShoutOutHomeTheme.coral
+                )
+                UsageDailyBarChart(
+                    title: "Sessions Per Day",
+                    subtitle: "Last 14 active days",
+                    days: Array(usageStats.insights.days.suffix(14)),
+                    value: \.sessionCount,
+                    color: ShoutOutHomeTheme.teal
+                )
+            }
 
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 240), spacing: 14)], spacing: 14) {
                 SummaryPanel(title: "Today", summary: usageStats.todaySummary)
@@ -567,11 +734,6 @@ struct ShoutOutHomeView: View {
                             .font(.headline)
                         Text("\(lastSession.wordCount) words at \(lastSession.wordsPerMinute) WPM")
                             .foregroundStyle(ShoutOutHomeTheme.muted)
-                        if let performance = lastSession.performance {
-                            Text(homePerformanceLatencyText(performance))
-                                .font(.system(.caption, design: .monospaced))
-                                .foregroundStyle(ShoutOutHomeTheme.muted)
-                        }
                     }
                 }
             }
@@ -582,6 +744,10 @@ struct ShoutOutHomeView: View {
             .buttonStyle(HomeSecondaryButtonStyle())
             .disabled(usageStats.recentSessions.isEmpty)
         }
+    }
+
+    private func dayCountText(_ count: Int) -> String {
+        count == 1 ? "day" : "days"
     }
 
     private var modelStatusText: String {
@@ -603,17 +769,47 @@ struct ShoutOutHomeView: View {
         }
     }
 
-    private var modelShortName: String {
-        if transcription.selectedBackend.requiresManagedModel {
-            return TranscriptionModelOption.option(for: transcription.selectedModel).title
+    private var dictationPresetDetail: String {
+        switch transcription.selectedPreset {
+        case .best:
+            return "Highest quality"
+        case .fast:
+            return "Lower latency"
+        case .system:
+            return "No download"
         }
-        return transcription.selectedBackend.displayName
+    }
+
+    private var dictationPresetValueBinding: Binding<String> {
+        Binding(
+            get: { transcription.selectedPreset.rawValue },
+            set: { value in
+                applyDictationPreset(DictationPreset(rawValue: value) ?? .best)
+            }
+        )
+    }
+
+    private func applyDictationPreset(_ preset: DictationPreset) {
+        transcription.applyPreset(preset)
+        languagePass.isEnabled = true
+        permissions.refresh()
+        Task {
+            await transcription.loadModel()
+            await languagePass.prepareIfNeeded()
+        }
     }
 
     private var languagePassEnabledBinding: Binding<Bool> {
         Binding(
             get: { languagePass.isEnabled },
             set: { languagePass.isEnabled = $0 }
+        )
+    }
+
+    private var languagePassStyleBinding: Binding<String> {
+        Binding(
+            get: { languagePass.selectedStyle.rawValue },
+            set: { languagePass.selectedStyle = LanguagePassStyle(storedValue: $0) }
         )
     }
 
@@ -650,9 +846,9 @@ struct ShoutOutHomeView: View {
     private var languagePassProgressCaption: String {
         switch languagePass.modelState {
         case .downloading(let progress):
-            return "Downloading \(Int(progress * 100))% of \(languagePass.selectedModel.title)"
+            return "Downloading \(Int(progress * 100))% of the local cleanup model"
         case .loading:
-            return "Preparing \(languagePass.selectedModel.title)"
+            return "Preparing language cleanup"
         default:
             return ""
         }
@@ -817,7 +1013,7 @@ private struct HomeHeroPanel: View {
                         .fixedSize(horizontal: false, vertical: true)
 
                     HStack(alignment: .top, spacing: 10) {
-                        HeroChip(title: "Model", value: modelStateText)
+                        HeroChip(title: "Dictation", value: modelStateText)
                         HeroChip(title: "Setup", value: permissionText)
                         HeroChip(title: "Today", value: "\(todayWordCount) words")
                     }
@@ -1245,30 +1441,31 @@ private struct HomeMenuLabel: View {
     let isOpen: Bool
 
     var body: some View {
-        HStack(spacing: 8) {
-            Text(title)
-                .font(.system(.caption, design: .monospaced).weight(.heavy))
-                .foregroundStyle(ShoutOutHomeTheme.ink)
-                .lineLimit(1)
-                .minimumScaleFactor(0.72)
-
-            if let subtitle {
-                Text(subtitle)
-                    .font(.system(size: 9, weight: .bold, design: .monospaced))
-                    .foregroundStyle(ShoutOutHomeTheme.muted)
+        HStack(alignment: .center, spacing: 8) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(.caption, design: .monospaced).weight(.heavy))
+                    .foregroundStyle(ShoutOutHomeTheme.ink)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.55)
-                    .layoutPriority(-1)
-            }
+                    .minimumScaleFactor(0.72)
 
-            Spacer(minLength: 6)
+                if let subtitle {
+                    Text(subtitle)
+                        .font(.system(size: 10, weight: .bold, design: .monospaced))
+                        .foregroundStyle(ShoutOutHomeTheme.muted)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.7)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
 
             Image(systemName: "chevron.up.chevron.down")
                 .font(.system(size: 10, weight: .heavy))
                 .foregroundStyle(isOpen ? ShoutOutHomeTheme.coral : ShoutOutHomeTheme.ink)
         }
-        .frame(width: width)
-        .frame(minHeight: 28)
+        .frame(width: width, alignment: .leading)
+        .frame(minHeight: subtitle == nil ? 28 : 48)
         .padding(.horizontal, 9)
         .padding(.vertical, 5)
         .background(ShoutOutHomeTheme.panel)
@@ -1361,13 +1558,22 @@ private struct HomeMenuOption: View {
 
 private struct HomeToggleRow: View {
     let title: String
+    var detail: String?
     let systemImage: String
     @Binding var isOn: Bool
 
     var body: some View {
         Toggle(isOn: $isOn) {
-            Label(title, systemImage: systemImage)
-                .font(.headline)
+            VStack(alignment: .leading, spacing: 4) {
+                Label(title, systemImage: systemImage)
+                    .font(.headline)
+                if let detail {
+                    Text(detail)
+                        .font(.caption)
+                        .foregroundStyle(ShoutOutHomeTheme.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
         }
         .toggleStyle(.switch)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -1484,6 +1690,104 @@ private struct PermissionChecklistRow: View {
     }
 }
 
+private struct TranscriptionHistoryRow: View {
+    let entry: TranscriptionHistoryEntry
+    @State private var didCopy = false
+    @State private var copyFeedbackToken = UUID()
+
+    var body: some View {
+        HomePanel {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(alignment: .firstTextBaseline, spacing: 12) {
+                    Label(entry.date.formatted(date: .abbreviated, time: .shortened), systemImage: "clock")
+                        .font(.system(.caption, design: .monospaced).weight(.heavy))
+                        .foregroundStyle(ShoutOutHomeTheme.muted)
+
+                    Spacer(minLength: 8)
+
+                    Text("\(entry.wordCount) \(entry.wordCount == 1 ? "word" : "words")")
+                        .font(.system(.caption, design: .monospaced).weight(.heavy))
+                        .foregroundStyle(ShoutOutHomeTheme.teal)
+                }
+
+                HistoryTranscriptTextWell(text: entry.text)
+
+                HStack(spacing: 10) {
+                    Button {
+                        copyText()
+                    } label: {
+                        Image(systemName: didCopy ? "checkmark" : "doc.on.doc")
+                            .font(.system(size: 13, weight: .heavy))
+                            .foregroundStyle(didCopy ? ShoutOutHomeTheme.ink : ShoutOutHomeTheme.muted)
+                            .frame(width: 34, height: 30)
+                            .pixelBox(
+                                background: didCopy
+                                    ? ShoutOutHomeTheme.panelMint
+                                    : ShoutOutHomeTheme.panelBlue,
+                                shadow: didCopy ? ShoutOutHomeTheme.teal : .clear,
+                                shadowOffset: CGSize(width: didCopy ? 2 : 0, height: didCopy ? 2 : 0)
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .help(didCopy ? "Copied" : "Copy transcription")
+                    .accessibilityLabel(didCopy ? "Copied" : "Copy transcription")
+
+                    Text(durationText)
+                        .font(.system(.caption, design: .monospaced).weight(.semibold))
+                        .foregroundStyle(ShoutOutHomeTheme.muted)
+
+                    Spacer()
+                }
+            }
+        }
+    }
+
+    private func copyText() {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(entry.text, forType: .string)
+
+        let token = UUID()
+        copyFeedbackToken = token
+        didCopy = true
+
+        Task {
+            try? await Task.sleep(nanoseconds: 5_000_000_000)
+            await MainActor.run {
+                if copyFeedbackToken == token {
+                    didCopy = false
+                }
+            }
+        }
+    }
+
+    private var durationText: String {
+        if entry.duration < 1 {
+            return "<1 sec"
+        }
+        return "\(Int(round(entry.duration))) sec"
+    }
+}
+
+private struct HistoryTranscriptTextWell: View {
+    let text: String
+
+    var body: some View {
+        ScrollView {
+            Text(text)
+                .font(.body.weight(.medium))
+                .foregroundStyle(ShoutOutHomeTheme.ink)
+                .textSelection(.enabled)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+                .padding(10)
+        }
+        .frame(maxWidth: .infinity, minHeight: 44, maxHeight: 168, alignment: .topLeading)
+        .background(ShoutOutHomeTheme.panelBlue.opacity(0.32))
+        .overlay(ShoutOutHomeTheme.pixelBorder)
+        .scrollIndicators(.visible)
+    }
+}
+
 private struct SummaryPanel: View {
     let title: String
     let summary: UsageStatsSummary
@@ -1508,6 +1812,124 @@ private struct SummaryPanel: View {
     private var durationText: String {
         let minutes = Int(round(summary.totalDuration / 60))
         return minutes < 1 ? "<1 min" : "\(minutes) min"
+    }
+}
+
+private struct InsightMetricPanel: View {
+    let title: String
+    let value: String
+    let caption: String
+
+    var body: some View {
+        HomePanel {
+            VStack(alignment: .leading, spacing: 10) {
+                Text(title.uppercased())
+                    .font(.system(.caption, design: .monospaced).weight(.heavy))
+                    .foregroundStyle(ShoutOutHomeTheme.muted)
+                Text(value)
+                    .font(.system(size: 38, weight: .heavy, design: .rounded))
+                    .foregroundStyle(ShoutOutHomeTheme.ink)
+                Text(caption)
+                    .font(.system(.caption, design: .monospaced).weight(.semibold))
+                    .foregroundStyle(ShoutOutHomeTheme.muted)
+            }
+        }
+    }
+}
+
+private struct UsageDailyBarChart: View {
+    let title: String
+    let subtitle: String
+    let days: [UsageDailySummary]
+    let value: KeyPath<UsageDailySummary, Int>
+    let color: Color
+
+    var body: some View {
+        HomePanel {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text(title)
+                        .font(.headline)
+                    Spacer()
+                    Text(subtitle)
+                        .font(.system(.caption, design: .monospaced).weight(.semibold))
+                        .foregroundStyle(ShoutOutHomeTheme.muted)
+                }
+
+                if days.isEmpty {
+                    Text("Dictate a little and this will fill in.")
+                        .font(.caption)
+                        .foregroundStyle(ShoutOutHomeTheme.muted)
+                        .frame(maxWidth: .infinity, minHeight: 150, alignment: .center)
+                } else {
+                    HStack(alignment: .bottom, spacing: 7) {
+                        ForEach(days) { day in
+                            DailyUsageBar(
+                                day: day,
+                                value: day[keyPath: value],
+                                maxValue: maxValue,
+                                color: color
+                            )
+                        }
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 150, alignment: .bottom)
+                }
+            }
+        }
+    }
+
+    private var maxValue: Int {
+        max(days.map { $0[keyPath: value] }.max() ?? 1, 1)
+    }
+}
+
+private struct DailyUsageBar: View {
+    let day: UsageDailySummary
+    let value: Int
+    let maxValue: Int
+    let color: Color
+
+    var body: some View {
+        VStack(spacing: 6) {
+            Text("\(value)")
+                .font(.system(size: 10, weight: .heavy, design: .monospaced))
+                .foregroundStyle(ShoutOutHomeTheme.ink)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+
+            GeometryReader { proxy in
+                VStack {
+                    Spacer(minLength: 0)
+                    Rectangle()
+                        .fill(color)
+                        .frame(height: barHeight(in: proxy.size.height))
+                        .overlay {
+                            Rectangle()
+                                .stroke(ShoutOutHomeTheme.ink, lineWidth: 1.5)
+                        }
+                }
+            }
+            .frame(height: 104)
+
+            Text(dayLabel)
+                .font(.system(size: 9, weight: .heavy, design: .monospaced))
+                .foregroundStyle(ShoutOutHomeTheme.muted)
+                .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity, minHeight: 142)
+    }
+
+    private func barHeight(in availableHeight: CGFloat) -> CGFloat {
+        guard value > 0 else { return 4 }
+        let ratio = CGFloat(value) / CGFloat(max(maxValue, 1))
+        return max(8, availableHeight * ratio)
+    }
+
+    private var dayLabel: String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "M/d"
+        return formatter.string(from: day.date)
     }
 }
 
@@ -1631,22 +2053,4 @@ private extension NSImage {
 
         return NSImage(contentsOf: url)
     }
-}
-
-private func homePerformanceLatencyText(_ performance: UsagePerformanceMetrics) -> String {
-    var parts: [String] = []
-    if let pressMs = performance.pressToRecordStartMs {
-        parts.append("Fn->rec \(pressMs) ms")
-    }
-    if let pasteMs = performance.stopToPasteMs {
-        parts.append("stop->paste \(pasteMs) ms")
-    }
-    parts.append("ASR \(performance.transcriptionWallMs ?? performance.whisperWallMs) ms")
-    if let languageMs = performance.languagePassWallMs {
-        parts.append("LM \(languageMs) ms")
-    }
-    if let rtf = performance.realTimeFactor {
-        parts.append("RTF \(String(format: "%.2f", rtf))")
-    }
-    return parts.joined(separator: " · ")
 }
