@@ -96,9 +96,8 @@ class TranscriptionService: ObservableObject {
         }
     }
 
-    let availableModels = ["tiny", "base", "small", "medium", "large-v3-v20240930_626MB"]
+    let availableModels = TranscriptionModelOption.all.map(\.id)
     let availableBackends = TranscriptionBackend.selectableCases
-    let dictionaryStore = DictionaryStore.defaultStore()
 
     private var activeEngine: TranscriptionEngine?
     private var appleDictationEngine: TranscriptionEngine?
@@ -129,8 +128,15 @@ class TranscriptionService: ObservableObject {
         self.selectedBackend = TranscriptionBackend.selectableCases.contains(storedBackend)
             ? storedBackend
             : .appleSpeech
-        self.selectedModel =
-            UserDefaults.standard.string(forKey: "selectedModel") ?? "large-v3-v20240930_626MB"
+        let storedModel = UserDefaults.standard.string(forKey: "selectedModel")
+            ?? TranscriptionModelOption.defaultID
+        let normalizedModel = TranscriptionModelOption.all.contains { $0.id == storedModel }
+            ? storedModel
+            : TranscriptionModelOption.defaultID
+        self.selectedModel = normalizedModel
+        if normalizedModel != storedModel {
+            UserDefaults.standard.set(normalizedModel, forKey: "selectedModel")
+        }
     }
 
     var activeModelIdentifier: String {
@@ -255,17 +261,13 @@ class TranscriptionService: ObservableObject {
         let postProcessingOptions = TextPostProcessingOptions(
             removeFillerWords: UserDefaults.standard.object(forKey: "removeFillerWords") == nil
                 || UserDefaults.standard.bool(forKey: "removeFillerWords"),
-            cleanUpSelfCorrections: UserDefaults.standard.bool(
-                forKey: Defaults.cleanUpSelfCorrections
-            ),
             applySpokenCommands: true,
             collapseWhitespace: true
         )
         let postProcessStart = Date()
         let finalText = TextPostProcessor.process(
             rawText,
-            options: postProcessingOptions,
-            dictionaryEntries: dictionaryStore.entries
+            options: postProcessingOptions
         )
         let postProcessMs = Self.elapsedMilliseconds(since: postProcessStart)
         let timing = TranscriptionTimingSnapshot(

@@ -16,12 +16,29 @@ public struct TextInsertionFormattingOptions: Equatable, Sendable {
 }
 
 public struct TextInsertionContext: Equatable, Sendable {
+    private static let contextWindowCharacterCount = 120
+
     public var characterBefore: Character?
     public var characterAfter: Character?
+    public var textBefore: String
+    public var textAfter: String
+    public var selectedText: String
+    public var hasTextWindow: Bool
 
-    public init(characterBefore: Character?, characterAfter: Character?) {
+    public init(
+        characterBefore: Character?,
+        characterAfter: Character?,
+        textBefore: String? = nil,
+        textAfter: String? = nil,
+        selectedText: String = "",
+        hasTextWindow: Bool = false
+    ) {
         self.characterBefore = characterBefore
         self.characterAfter = characterAfter
+        self.textBefore = textBefore ?? characterBefore.map(String.init) ?? ""
+        self.textAfter = textAfter ?? characterAfter.map(String.init) ?? ""
+        self.selectedText = selectedText
+        self.hasTextWindow = hasTextWindow
     }
 
     public init?(text: String, selectedUTF16Range: NSRange) {
@@ -47,8 +64,15 @@ public struct TextInsertionContext: Equatable, Sendable {
             return nil
         }
 
-        characterBefore = start > text.startIndex ? text[text.index(before: start)] : nil
-        characterAfter = end < text.endIndex ? text[end] : nil
+        let before = String(text[..<start])
+        let after = String(text[end...])
+        let selected = String(text[start..<end])
+        characterBefore = before.last
+        characterAfter = after.first
+        textBefore = String(before.suffix(Self.contextWindowCharacterCount))
+        textAfter = String(after.prefix(Self.contextWindowCharacterCount))
+        selectedText = selected
+        hasTextWindow = true
     }
 }
 
@@ -134,10 +158,11 @@ public enum TextInsertionFormatter {
         }
 
         if options.useSmartSpacing, let context {
-            let prefix = shouldPrefixSpace(before: context.characterBefore, text: text) ? " " : ""
-            let suffix = shouldSuffixSpace(after: context.characterAfter, text: text) ? " " : ""
+            let fittedText = fitCapitalization(text, context: context)
+            let prefix = shouldPrefixSpace(before: context.characterBefore, text: fittedText) ? " " : ""
+            let suffix = shouldSuffixSpace(after: context.characterAfter, text: fittedText) ? " " : ""
             return TextInsertionFormattingResult(
-                text: prefix + text + suffix,
+                text: prefix + fittedText + suffix,
                 strategy: "smart"
             )
         }
@@ -172,6 +197,129 @@ public enum TextInsertionFormatter {
         return true
     }
 
+    private static func fitCapitalization(_ text: String, context: TextInsertionContext) -> String {
+        guard let firstLetterIndex = text.firstIndex(where: { $0.isInsertionLetter }) else {
+            return text
+        }
+        guard context.hasTextWindow else {
+            return text
+        }
+        guard text[..<firstLetterIndex].allSatisfy({ $0.isInsertionWhitespace || openingPunctuation.contains($0) || $0 == "\"" || $0 == "'" }) else {
+            return text
+        }
+        guard isLikelyNaturalText(text), isLikelyNaturalContext(context) else {
+            return text
+        }
+
+        let firstWord = firstWord(in: text, from: firstLetterIndex)
+        if shouldLowercaseFirstWord(firstWord, context: context) {
+            return replacingCharacter(at: firstLetterIndex, in: text) { Character(String($0).lowercased()) }
+        }
+
+        if shouldUppercaseFirstWord(firstWord, context: context) {
+            return replacingCharacter(at: firstLetterIndex, in: text) { Character(String($0).uppercased()) }
+        }
+
+        return text
+    }
+
+    private static func shouldLowercaseFirstWord(
+        _ firstWord: String,
+        context: TextInsertionContext
+    ) -> Bool {
+        guard let previous = lastNonWhitespace(in: context.textBefore) else {
+            return false
+        }
+        guard !trailingWhitespaceContainsNewline(context.textBefore) else {
+            return false
+        }
+        guard !sentenceTerminators.contains(previous) else {
+            return false
+        }
+        guard let first = firstWord.first, first.isUppercase else {
+            return false
+        }
+        let lowered = firstWord.lowercased()
+        guard lowercasedMidSentenceWords.contains(lowered) else {
+            return false
+        }
+        return true
+    }
+
+    private static func shouldUppercaseFirstWord(
+        _ firstWord: String,
+        context: TextInsertionContext
+    ) -> Bool {
+        guard let first = firstWord.first, first.isLowercase else {
+            return false
+        }
+        guard lowercasedMidSentenceWords.contains(firstWord.lowercased()) else {
+            return false
+        }
+        if trailingWhitespaceContainsNewline(context.textBefore) {
+            return true
+        }
+        guard let previous = lastNonWhitespace(in: context.textBefore) else {
+            return context.textBefore.isEmpty
+        }
+        return sentenceTerminators.contains(previous)
+    }
+
+    private static func isLikelyNaturalText(_ text: String) -> Bool {
+        let lowered = text.lowercased()
+        if lowered.contains("://") || lowered.contains("www.") {
+            return false
+        }
+
+        let codeMarkers: Set<Character> = ["`", "{", "}", "=", "<", ">"]
+        return !text.contains { codeMarkers.contains($0) }
+    }
+
+    private static func isLikelyNaturalContext(_ context: TextInsertionContext) -> Bool {
+        let surrounding = context.textBefore + context.textAfter
+        let lowered = surrounding.lowercased()
+        if lowered.contains("://") || lowered.contains("www.") {
+            return false
+        }
+
+        let codeMarkers: Set<Character> = ["`", "{", "}", "=", "<", ">"]
+        return !surrounding.contains { codeMarkers.contains($0) }
+    }
+
+    private static func firstWord(in text: String, from start: String.Index) -> String {
+        var end = start
+        while end < text.endIndex, text[end].isInsertionLetter {
+            end = text.index(after: end)
+        }
+        return String(text[start..<end])
+    }
+
+    private static func replacingCharacter(
+        at index: String.Index,
+        in text: String,
+        transform: (Character) -> Character
+    ) -> String {
+        var updated = text
+        updated.replaceSubrange(index...index, with: String(transform(text[index])))
+        return updated
+    }
+
+    private static func lastNonWhitespace(in text: String) -> Character? {
+        text.reversed().first { !$0.isInsertionWhitespace }
+    }
+
+    private static func trailingWhitespaceContainsNewline(_ text: String) -> Bool {
+        for character in text.reversed() {
+            guard character.isInsertionWhitespace else {
+                return false
+            }
+            if character == "\n" {
+                return true
+            }
+        }
+        return text.contains("\n")
+    }
+
     private static let leadingPunctuation: Set<Character> = [
         ".", ",", "?", "!", ":", ";", ")", "]", "}", "%",
     ]
@@ -183,10 +331,39 @@ public enum TextInsertionFormatter {
     private static let openingPunctuation: Set<Character> = [
         "(", "[", "{", "$", "#", "@",
     ]
+
+    private static let sentenceTerminators: Set<Character> = [
+        ".", "?", "!", "\n",
+    ]
+
+    private static let lowercasedMidSentenceWords: Set<String> = [
+        "a", "an", "and", "are", "as", "at", "be", "because", "but", "by", "can",
+        "could", "did", "do", "does", "for", "from", "had", "has", "have", "he",
+        "here", "if", "in", "is", "it", "its", "let", "make", "maybe", "of", "on",
+        "or", "please", "should", "so", "that", "the", "then", "there", "these",
+        "they", "this", "those", "to", "was", "we", "were", "which", "will",
+        "with", "would", "you",
+    ]
 }
 
 private extension Character {
     var isInsertionWhitespace: Bool {
         unicodeScalars.allSatisfy { CharacterSet.whitespacesAndNewlines.contains($0) }
+    }
+
+    var isInsertionLetter: Bool {
+        unicodeScalars.allSatisfy { CharacterSet.letters.contains($0) }
+    }
+
+    var isUppercase: Bool {
+        guard isInsertionLetter else { return false }
+        let value = String(self)
+        return value == value.uppercased() && value != value.lowercased()
+    }
+
+    var isLowercase: Bool {
+        guard isInsertionLetter else { return false }
+        let value = String(self)
+        return value == value.lowercased() && value != value.uppercased()
     }
 }

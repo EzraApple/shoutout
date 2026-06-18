@@ -1,17 +1,22 @@
 import AppKit
 import Combine
 import ShoutOutCore
+import Sparkle
 import SwiftUI
 
 enum Defaults {
     static let showInDock = "showInDock"
     static let dimSystemAudio = "dimSystemAudio"
     static let overlayStyle = "overlayStyle"
+    static let crabColorVariant = "crabColorVariant"
     static let requestPermissionsOnLaunch = "requestPermissionsOnLaunch"
-    static let cleanUpSelfCorrections = "cleanUpSelfCorrections"
     static let transcriptionBackend = "transcriptionBackend"
     static let appendTrailingSpace = "appendTrailingSpace"
     static let smartSpacing = "smartSpacing"
+    static let hotkeyTrigger = "hotkeyTrigger"
+    static let boringMode = "boringMode"
+    static let languagePassEnabled = "languagePassEnabled"
+    static let languagePassModel = "languagePassModel"
 }
 
 // MARK: - App State
@@ -76,6 +81,12 @@ private struct DictationLatencyMetrics {
     var finalTextLength = 0
     var wordCount = 0
     var model = ""
+    var languagePassEnabled = false
+    var languagePassAccepted: Bool?
+    var languagePassChanged: Bool?
+    var languagePassWallMs: Int?
+    var languagePassModel: String?
+    var languagePassFallbackReason: String?
 
     mutating func markRecordingStarted(sampleCount: Int = 0) {
         recorderStartedAt = Date()
@@ -103,6 +114,12 @@ private struct DictationLatencyMetrics {
                 "words=\(wordCount)",
                 "chars=\(finalTextLength)",
                 "model=\(model)",
+                "lmEnabled=\(languagePassEnabled)",
+                "lmAccepted=\(languagePassAccepted.map(String.init) ?? "na")",
+                "lmChanged=\(languagePassChanged.map(String.init) ?? "na")",
+                "lmWallMs=\(languagePassWallMs.map(String.init) ?? "na")",
+                "lmModel=\(languagePassModel ?? "none")",
+                "lmFallback=\(languagePassFallbackReason ?? "none")",
                 transcriptionTiming?.logFields ?? "",
             ].filter { !$0.isEmpty }.joined(separator: " ")
         )
@@ -140,8 +157,25 @@ private struct DictationLatencyMetrics {
             realTimeFactor: transcriptionTiming.realTimeFactor,
             speedFactor: transcriptionTiming.speedFactor,
             tokensPerSecond: transcriptionTiming.tokensPerSecond,
-            fallbackCount: transcriptionTiming.fallbackCount
+            fallbackCount: transcriptionTiming.fallbackCount,
+            languagePassEnabled: languagePassEnabled,
+            languagePassAccepted: languagePassAccepted,
+            languagePassChanged: languagePassChanged,
+            languagePassWallMs: languagePassWallMs,
+            languagePassModel: languagePassModel,
+            languagePassFallbackReason: languagePassFallbackReason
         )
+    }
+
+    mutating func applyLanguagePass(_ result: LanguagePassRunResult) {
+        languagePassEnabled = result.enabled
+        languagePassAccepted = result.accepted
+        languagePassChanged = result.changed
+        languagePassWallMs = result.wallMs
+        languagePassModel = result.modelID
+        languagePassFallbackReason = result.fallbackReason
+        finalTextLength = result.finalText.count
+        wordCount = result.finalText.split { $0.isWhitespace || $0.isNewline }.count
     }
 
     private func elapsedMilliseconds(from start: Date?, to end: Date?) -> Int? {
@@ -197,13 +231,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var statusItem: NSStatusItem!
     let audioRecorder = AudioRecorder()
     let transcriptionService = TranscriptionService()
+    let languagePassService = LanguagePassService()
     let hotkeyManager = HotkeyManager()
     let permissions = PermissionManager.shared
     let usageStats = UsageStatsStore.defaultStore()
     let audioDucker = SystemAudioDucker()
 
-    var settingsWindow: NSWindow?
+    var mainWindow: NSWindow?
     var onboardingWindow: NSWindow?
+    let homeWindowModel = ShoutOutHomeWindowModel()
     private var appState: AppState = .idle
     private var recordingStartedAt: Date?
     private var recordingIsCommitted = false
@@ -221,32 +257,43 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Floating Indicator
 
     private var indicatorPanel: NSPanel?
-    private var indicatorHostingView: NSHostingView<AppOverlayView>?
+    private var indicatorOverlayModel: IndicatorOverlayModel?
+    private var indicatorHostingView: NSHostingView<IndicatorOverlayHostView>?
     private var currentIndicatorState: IndicatorState = .idle
     private var audioLevelCancellable: AnyCancellable?
     private var indicatorDismissTask: Task<Void, Never>?
     private var modelStateCancellable: AnyCancellable?
+    private var updaterController: SPUStandardUpdaterController?
     private var shortcutUnavailableMessage: String?
     private var lastLoggedRecordingLevelAt: Date?
+    private var displayedClassicRecordingLevel: Float = 0
     private var permissionChangeObserver: NSObjectProtocol?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        RuntimeLog.write("app launch bundle=\(Bundle.main.bundleIdentifier ?? "unknown")")
+        RuntimeLog.write(
+            "app launch bundle=\(AppVersionInfo.bundleIdentifier) version=\(AppVersionInfo.version) build=\(AppVersionInfo.build) git=\(AppVersionInfo.gitCommit ?? "unknown") builtAt=\(AppVersionInfo.builtAt ?? "unknown")"
+        )
         UserDefaults.standard.register(defaults: [
             Defaults.showInDock: true,
             Defaults.dimSystemAudio: true,
             Defaults.overlayStyle: OverlayStyle.crab.rawValue,
+            Defaults.crabColorVariant: CrabColorVariant.ocean.rawValue,
             Defaults.transcriptionBackend: TranscriptionBackend.appleSpeech.rawValue,
             Defaults.appendTrailingSpace: true,
             Defaults.smartSpacing: true,
+            Defaults.hotkeyTrigger: HotkeyTrigger.defaultTrigger.rawValue,
+            Defaults.boringMode: false,
+            Defaults.languagePassEnabled: true,
+            Defaults.languagePassModel: LanguagePassModelOption.defaultID,
             "removeFillerWords": true,
-            Defaults.cleanUpSelfCorrections: false,
         ])
 
         let overlayPreviewState = requestedOverlayPreviewState()
 
         setupMainMenu()
+        setupUpdater()
         setupMenuBar()
+        applyApplicationIconVariant()
         observeModelState()
         if overlayPreviewState == nil {
             setupHotkey()
@@ -298,6 +345,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             // Load model in background (recording is allowed even before it's ready)
             Task {
                 await transcriptionService.loadModel()
+            }
+            Task {
+                await languagePassService.prepareIfNeeded()
             }
         }
 
@@ -373,8 +423,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             self?.showTransientAttention(message)
         }
 
-        if hotkeyManager.start() {
-            RuntimeLog.write("hotkey setup complete")
+        let trigger = HotkeyTrigger.stored
+
+        if hotkeyManager.start(trigger: trigger) {
+            RuntimeLog.write("hotkey setup complete trigger=\(trigger.rawValue)")
             shortcutUnavailableMessage = nil
             if currentIndicatorState.hasAttention {
                 showIndicator(state: currentIdleIndicatorState())
@@ -382,6 +434,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         } else {
             RuntimeLog.write("hotkey setup failed")
         }
+    }
+
+    func restartHotkey() {
+        guard appState == .idle else { return }
+        hotkeyManager.stop()
+        setupHotkey()
     }
 
     private func continuePermissionSetupIfRequested() {
@@ -465,11 +523,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             recordingStartedAt = Date()
             appState = .recording
             recordingIsCommitted = commitImmediately
+            displayedClassicRecordingLevel = 0
             let elapsedMs = Int(Date().timeIntervalSince(startRequestedAt) * 1000)
             activeDictationMetrics?.markRecordingStarted()
             RuntimeLog.write("record started elapsedMs=\(elapsedMs)")
             refreshMenuBarIcon()
-            showIndicator(state: .recording(level: 0))
+            showIndicator(state: .recording(level: displayedClassicRecordingLevel, mode: recordingIndicatorMode))
             if commitImmediately {
                 activeDictationMetrics?.recordingCommittedAt = Date()
                 RuntimeLog.write("record committed")
@@ -481,8 +540,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             audioLevelCancellable = audioRecorder.$audioLevel
                 .receive(on: RunLoop.main)
                 .sink { [weak self] level in
-                    self?.logRecordingLevel(level)
-                    self?.updateIndicator(state: .recording(level: level))
+                    guard let self else { return }
+                    self.logRecordingLevel(level)
+                    let overlayLevel = self.displayLevelForRecordingOverlay(rawLevel: level)
+                    self.updateIndicator(state: .recording(level: overlayLevel, mode: self.recordingIndicatorMode))
                 }
         } catch {
             recordingStartedAt = nil
@@ -523,6 +584,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    private var recordingIndicatorMode: IndicatorRecordingMode {
+        if activeDictationMetrics?.inputMode == .handsFree {
+            return .handsFree
+        }
+        return .hold
+    }
+
     private func scheduleLongFormWarmupIfNeeded() {
         longFormWarmupTask?.cancel()
         longFormWarmupTask = Task { @MainActor in
@@ -541,14 +609,21 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         guard audioRecorder.isRecording else { return }
         audioLevelCancellable?.cancel()
         audioLevelCancellable = nil
+        displayedClassicRecordingLevel = 0
 
-        let samples = audioRecorder.stopRecording()
+        let recordedSamples = audioRecorder.stopRecording()
+        let samples = AudioSignalAnalysis.trimmingTrailingSilence(
+            from: recordedSamples,
+            sampleRate: AudioRecorder.sampleRate
+        )
         activeDictationMetrics?.samplesReadyAt = Date()
         activeDictationMetrics?.sampleCount = samples.count
-        let recordingDuration = max(
+        let heldRecordingDuration = max(
             Date().timeIntervalSince(recordingStartedAt ?? Date()),
-            Double(samples.count) / AudioRecorder.sampleRate
+            Double(recordedSamples.count) / AudioRecorder.sampleRate
         )
+        let transcriptionAudioDuration = Double(samples.count) / AudioRecorder.sampleRate
+        let recordingDuration = max(transcriptionAudioDuration, 0)
         activeDictationMetrics?.recordingDuration = recordingDuration
         activeDictationMetrics?.model = transcriptionService.activeModelIdentifier
         recordingStartedAt = nil
@@ -556,12 +631,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         appState = .idle
         audioDucker.endDucking()
         RuntimeLog.write(
-            "record stopped samples=\(samples.count) duration=\(String(format: "%.2f", recordingDuration))"
+            "record stopped samples=\(recordedSamples.count) trimmedSamples=\(samples.count) heldDuration=\(String(format: "%.2f", heldRecordingDuration)) transcriptionDuration=\(String(format: "%.2f", recordingDuration))"
         )
 
         guard samples.count >= AudioRecorder.minimumSamples else {
             refreshMenuBarIcon()
-            showTransientAttention("No audio", durationNanoseconds: 700_000_000)
+            finishIndicator()
             activeDictationMetrics?.log(status: "noAudio")
             activeDictationMetrics = nil
             RuntimeLog.write("record stopped noAudio samples=\(samples.count)")
@@ -573,9 +648,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             "record signal rms=\(String(format: "%.6f", signal.rms)) peak=\(String(format: "%.6f", signal.peak)) activeRatio=\(String(format: "%.4f", signal.activeRatio))"
         )
 
-        guard signal.hasSpeechLikeAudio else {
+        guard signal.hasSustainedSpeechLikeAudio(sampleRate: AudioRecorder.sampleRate) else {
             refreshMenuBarIcon()
-            showTransientAttention("No speech", durationNanoseconds: 700_000_000)
+            finishIndicator()
             activeDictationMetrics?.log(status: "silent")
             activeDictationMetrics = nil
             RuntimeLog.write(
@@ -605,6 +680,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         longFormWarmupTask = nil
         audioLevelCancellable?.cancel()
         audioLevelCancellable = nil
+        displayedClassicRecordingLevel = 0
 
         let samples = audioRecorder.stopRecording()
         let recordingDuration = max(
@@ -700,17 +776,24 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     return
                 }
 
+                let languagePassResult = await languagePassService.process(
+                    rawText: result.rawText,
+                    baseText: result.finalText
+                )
+                let finalText = languagePassResult.finalText
+                metrics.applyLanguagePass(languagePassResult)
+
                 let performance = metrics.performanceSnapshot(
                     transcriptionTiming: transcription.timing
                 )
                 try? usageStats.record(
-                    finalText: result.finalText,
+                    finalText: finalText,
                     duration: recordingDuration,
                     model: transcription.timing.modelIdentifier,
                     performance: performance
                 )
                 TextInserter.insertText(
-                    result.finalText,
+                    finalText,
                     options: TextInsertionFormattingOptions(
                         appendTrailingSpace: UserDefaults.standard.object(
                             forKey: Defaults.appendTrailingSpace
@@ -725,7 +808,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 )
                 metrics.pastePostedAt = Date()
                 metrics.log(status: "inserted", transcriptionTiming: transcription.timing)
-                showTranscriptionResultIndicator(.done(text: result.finalText))
+                showTranscriptionResultIndicator(.done(text: finalText))
             } else {
                 showTranscriptionResultIndicator(
                     .attention(message: "No speech"),
@@ -807,6 +890,30 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         RuntimeLog.write("record level=\(String(format: "%.3f", level))")
     }
 
+    private func displayLevelForRecordingOverlay(rawLevel: Float) -> Float {
+        guard currentOverlayStyle == .capsule else {
+            return rawLevel
+        }
+
+        let target = min(max(rawLevel, 0), 1)
+        let delta = target - displayedClassicRecordingLevel
+        let response: Float
+        if delta >= 0 {
+            response = 0.48
+        } else if abs(delta) < 0.025 {
+            response = 0.06
+        } else {
+            response = 0.20
+        }
+        displayedClassicRecordingLevel += delta * response
+
+        if displayedClassicRecordingLevel < 0.004, target < 0.004 {
+            displayedClassicRecordingLevel = 0
+        }
+
+        return displayedClassicRecordingLevel
+    }
+
     // MARK: - Floating Indicator
 
     private func observeModelState() {
@@ -841,10 +948,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             dismissIndicator()
             return
         }
-        guard overlayStyle == .crab || state != .idle else {
-            dismissIndicator()
-            return
-        }
 
         let crabHeight = currentCrabHeight()
         let initialFrame = initialIndicatorFrame(style: overlayStyle, crabHeight: crabHeight)
@@ -852,6 +955,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             "showIndicator style=\(overlayStyle.rawValue) state=\(state) frame=\(NSStringFromRect(initialFrame))"
         )
         writeOverlaySnapshotIfRequested(style: overlayStyle, state: state, crabHeight: crabHeight)
+
+        let onCancel: () -> Void = { [weak self] in
+            _ = self?.discardActiveRecording(reason: "cancelled")
+        }
+        let onCommit: () -> Void = { [weak self] in
+            _ = self?.stopRecordingAndTranscribe()
+        }
 
         if indicatorPanel == nil {
             let panel = NSPanel(
@@ -869,14 +979,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             ]
             panel.hidesOnDeactivate = false
             panel.isReleasedWhenClosed = false
-            panel.ignoresMouseEvents = true
+            panel.ignoresMouseEvents = shouldIgnoreIndicatorMouseEvents(
+                style: overlayStyle,
+                state: state
+            )
 
-            let hostingView = NSHostingView(
-                rootView: AppOverlayView(
-                    style: overlayStyle,
-                    state: state,
-                    crabHeight: crabHeight
-                )
+            let overlayModel = IndicatorOverlayModel(
+                style: overlayStyle,
+                state: state,
+                crabHeight: crabHeight,
+                onCancel: onCancel,
+                onCommit: onCommit
+            )
+            let hostingView = NSHostingView<IndicatorOverlayHostView>(
+                rootView: IndicatorOverlayHostView(model: overlayModel)
             )
             hostingView.sizingOptions = .intrinsicContentSize
             hostingView.autoresizingMask = [.width, .height]
@@ -885,12 +1001,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             panel.contentView = hostingView
 
             indicatorPanel = panel
+            indicatorOverlayModel = overlayModel
             indicatorHostingView = hostingView
         } else {
-            indicatorHostingView?.rootView = AppOverlayView(
+            indicatorPanel?.ignoresMouseEvents = shouldIgnoreIndicatorMouseEvents(
+                style: overlayStyle,
+                state: state
+            )
+            indicatorOverlayModel?.update(
                 style: overlayStyle,
                 state: state,
-                crabHeight: crabHeight
+                crabHeight: crabHeight,
+                onCancel: onCancel,
+                onCommit: onCommit
             )
         }
 
@@ -906,10 +1029,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         showIndicator(state: state)
     }
 
+    private func shouldIgnoreIndicatorMouseEvents(style: OverlayStyle, state: IndicatorState) -> Bool {
+        guard style == .capsule else { return true }
+        if case .recording(_, .handsFree) = state {
+            return false
+        }
+        return true
+    }
+
     private func finishIndicator() {
         let idleState = currentIdleIndicatorState()
         currentIndicatorState = idleState
-        if currentOverlayStyle == .crab {
+        if currentOverlayStyle == .crab || currentOverlayStyle == .capsule {
             showIndicator(state: idleState)
         } else {
             dismissIndicator()
@@ -917,6 +1048,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func refreshOverlay() {
+        applyApplicationIconVariant()
+
         if appState != .idle {
             showIndicator(state: currentIndicatorState)
             return
@@ -934,6 +1067,24 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         } else {
             showIndicator(state: currentIndicatorState)
         }
+    }
+
+    private func applyApplicationIconVariant() {
+        let rawVariant = UserDefaults.standard.string(forKey: Defaults.crabColorVariant)
+            ?? CrabColorVariant.ocean.rawValue
+        let variant = CrabColorVariant(rawValue: rawVariant) ?? .ocean
+        guard
+            let url = Bundle.main.url(
+                forResource: variant.rawValue,
+                withExtension: "png",
+                subdirectory: "AppIconVariants"
+            ),
+            let image = NSImage(contentsOf: url)
+        else {
+            return
+        }
+
+        NSApp.applicationIconImage = image
     }
 
     private func dismissIndicator() {
@@ -966,7 +1117,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private var currentOverlayStyle: OverlayStyle {
-        OverlayStyle(rawValue: UserDefaults.standard.string(forKey: Defaults.overlayStyle) ?? "")
+        if UserDefaults.standard.bool(forKey: Defaults.boringMode) {
+            return .capsule
+        }
+        return OverlayStyle(rawValue: UserDefaults.standard.string(forKey: Defaults.overlayStyle) ?? "")
             ?? .crab
     }
 
@@ -1037,7 +1191,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         case "armed":
             return .armed
         case "recording":
-            return .recording(level: 0.75)
+            return .recording(level: 0.75, mode: .hold)
+        case "handsfree", "hands-free":
+            return .recording(level: 0.75, mode: .handsFree)
         case "processing":
             return .processing
         case "done":
@@ -1064,9 +1220,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 height: crabHeight
             )
         case .capsule:
+            guard let screen = NSScreen.main else {
+                return NSRect(
+                    x: 0,
+                    y: 0,
+                    width: ClassicOverlayLayout.size.width,
+                    height: ClassicOverlayLayout.size.height
+                )
+            }
+            let screenFrame = screen.visibleFrame
             return NSRect(
-                x: 0,
-                y: 0,
+                x: screenFrame.maxX - ClassicOverlayLayout.size.width
+                    - ClassicOverlayLayout.screenEdgeInset,
+                y: screenFrame.midY - ClassicOverlayLayout.size.height / 2,
                 width: ClassicOverlayLayout.size.width,
                 height: ClassicOverlayLayout.size.height
             )
@@ -1149,7 +1315,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         case .crab:
             positionCrabAtScreenEdge()
         case .capsule:
-            positionIndicatorAtScreenBottom()
+            positionClassicAtScreenRight()
         case .off:
             break
         }
@@ -1170,7 +1336,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         )
     }
 
-    private func positionIndicatorAtScreenBottom() {
+    private func positionClassicAtScreenRight() {
         guard let panel = indicatorPanel,
             let hostingView = indicatorHostingView,
             let screen = NSScreen.main
@@ -1178,8 +1344,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         let contentSize = hostingView.fittingSize
         let screenFrame = screen.visibleFrame
-        let x = screenFrame.midX - contentSize.width / 2
-        let y = screenFrame.minY + 40  // 40pt above the bottom of the visible area
+        let x = screenFrame.maxX - contentSize.width - ClassicOverlayLayout.screenEdgeInset
+        let y = screenFrame.midY - contentSize.height / 2
 
         panel.setFrame(
             NSRect(x: x, y: y, width: contentSize.width, height: contentSize.height),
@@ -1202,11 +1368,31 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         mainMenu.addItem(appMenuItem)
         let appMenu = NSMenu()
         appMenuItem.submenu = appMenu
+        let openHomeItem = NSMenuItem(
+            title: "Open ShoutOut",
+            action: #selector(showHomeAction),
+            keyEquivalent: "")
+        openHomeItem.target = self
+        appMenu.addItem(openHomeItem)
+        let settingsItem = NSMenuItem(
+            title: "Settings...",
+            action: #selector(showSettingsAction),
+            keyEquivalent: ",")
+        settingsItem.target = self
+        appMenu.addItem(settingsItem)
+        appMenu.addItem(.separator())
         appMenu.addItem(
             NSMenuItem(
                 title: "About ShoutOut",
                 action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)),
                 keyEquivalent: ""))
+        let updateItem = NSMenuItem(
+            title: "Check for Updates...",
+            action: #selector(checkForUpdatesAction(_:)),
+            keyEquivalent: ""
+        )
+        updateItem.target = self
+        appMenu.addItem(updateItem)
         appMenu.addItem(.separator())
         appMenu.addItem(
             NSMenuItem(
@@ -1262,6 +1448,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         NSApp.mainMenu = mainMenu
         NSApp.windowsMenu = windowMenu
+    }
+
+    private func setupUpdater() {
+        guard AppUpdaterConfiguration.isConfigured else {
+            RuntimeLog.write("updates disabled status=\(AppUpdaterConfiguration.statusText)")
+            return
+        }
+
+        updaterController = SPUStandardUpdaterController(
+            startingUpdater: true,
+            updaterDelegate: nil,
+            userDriverDelegate: nil
+        )
+        RuntimeLog.write("updates enabled feed=\(AppUpdaterConfiguration.feedURLString)")
     }
 
     // MARK: - Menu Bar
@@ -1375,6 +1575,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private func showContextMenu() {
         let menu = NSMenu()
 
+        let openItem = NSMenuItem(
+            title: "Open ShoutOut", action: #selector(showHomeAction), keyEquivalent: "")
+        openItem.target = self
+        menu.addItem(openItem)
+
         let todaySummary = usageStats.todaySummary
         let statsItem = NSMenuItem(
             title: "\(todaySummary.wordCount) words today · \(todaySummary.averageWordsPerMinute) WPM",
@@ -1405,34 +1610,69 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Windows
 
+    @objc private func showHomeAction() {
+        showHome()
+    }
+
     @objc private func showSettingsAction() {
         showSettings()
     }
 
+    @objc private func checkForUpdatesAction(_ sender: Any?) {
+        guard let updaterController else {
+            RuntimeLog.write("updates check unavailable status=\(AppUpdaterConfiguration.statusText)")
+            let alert = NSAlert()
+            alert.messageText = "Updates are not configured for this build."
+            alert.informativeText =
+                "Sparkle is wired in, but this app bundle needs a real public update key before it can check \(AppUpdaterConfiguration.feedURLString)."
+            alert.addButton(withTitle: "OK")
+            alert.runModal()
+            return
+        }
+
+        RuntimeLog.write("updates manual check")
+        updaterController.checkForUpdates(sender)
+    }
+
+    func checkForUpdates() {
+        checkForUpdatesAction(nil)
+    }
+
+    func showHome() {
+        showMainWindow(section: .dashboard)
+    }
+
     func showSettings() {
-        if settingsWindow == nil {
+        showMainWindow(section: .settings)
+    }
+
+    private func showMainWindow(section: ShoutOutHomeSection) {
+        homeWindowModel.selectedSection = section
+
+        if mainWindow == nil {
             let window = NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 440, height: 720),
-                styleMask: [.titled, .closable],
+                contentRect: NSRect(x: 0, y: 0, width: 1240, height: 760),
+                styleMask: [.titled, .closable, .miniaturizable, .resizable],
                 backing: .buffered,
                 defer: false
             )
-            window.title = "ShoutOut Settings"
-            window.titlebarAppearsTransparent = true
+            window.title = "ShoutOut"
+            window.minSize = NSSize(width: 820, height: 620)
             window.center()
             window.contentView = NSHostingView(
-                rootView: SettingsView()
+                rootView: ShoutOutHomeView(model: homeWindowModel)
                     .environmentObject(transcriptionService)
+                    .environmentObject(languagePassService)
                     .environmentObject(permissions)
                     .environmentObject(usageStats)
             )
             window.isReleasedWhenClosed = false
             window.delegate = self
-            settingsWindow = window
+            mainWindow = window
         }
 
         NSApp.setActivationPolicy(.regular)
-        settingsWindow?.makeKeyAndOrderFront(nil)
+        mainWindow?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
 
@@ -1487,6 +1727,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func quitApp() {
         NSApp.terminate(nil)
     }
+
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        false
+    }
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool)
+        -> Bool
+    {
+        if !flag {
+            showHome()
+        }
+        return true
+    }
 }
 
 // MARK: - NSWindowDelegate
@@ -1494,11 +1747,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 extension AppDelegate: NSWindowDelegate {
     func windowWillClose(_ notification: Notification) {
         guard let closedWindow = notification.object as? NSWindow else { return }
+        let didCloseMainWindow = closedWindow === mainWindow
+        let didCloseOnboardingWindow = closedWindow === onboardingWindow
+
+        if didCloseMainWindow {
+            mainWindow = nil
+        } else if didCloseOnboardingWindow {
+            onboardingWindow = nil
+        }
 
         if UserDefaults.standard.bool(forKey: Defaults.showInDock) { return }
 
         let otherWindow: NSWindow? =
-            (closedWindow === settingsWindow) ? onboardingWindow : settingsWindow
+            didCloseMainWindow ? onboardingWindow : mainWindow
         if otherWindow?.isVisible != true {
             NSApp.setActivationPolicy(.accessory)
         }

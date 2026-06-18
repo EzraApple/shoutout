@@ -32,11 +32,33 @@ enum TranscriptionBackend: String, CaseIterable, Hashable, Identifiable, Sendabl
     var detailText: String {
         switch self {
         case .whisperKit:
-            return "Local Whisper models, downloaded when selected"
+            return "Best local model control and often strongest quality; requires a download and more startup time."
         case .appleSpeech:
-            return "Built in; no model download required"
+            return "Fastest startup with no download; good for short dictation, but less consistent on long speech."
         case .appleDictation:
-            return "Built in on macOS 26+; assets install if needed"
+            return "Apple's newer on-device dictation path; better for longer speech, with some warmup/setup cost."
+        }
+    }
+
+    var speedLabel: String {
+        switch self {
+        case .appleSpeech:
+            return "Fastest"
+        case .appleDictation:
+            return "Balanced"
+        case .whisperKit:
+            return "Slower start"
+        }
+    }
+
+    var qualityLabel: String {
+        switch self {
+        case .appleSpeech:
+            return "Good"
+        case .appleDictation:
+            return "Better"
+        case .whisperKit:
+            return "Best control"
         }
     }
 

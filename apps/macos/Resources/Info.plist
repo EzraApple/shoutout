@@ -26,6 +26,10 @@
 	<string>Copyright 2026 ShoutOut. Portions copyright 2026 Inputalk contributors.</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
+	<key>SUFeedURL</key>
+	<string>https://shoutout.sh/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>__SPARKLE_PUBLIC_ED_KEY__</string>
 	<key>NSHighResolutionCapable</key>
 	<true/>
 	<key>LSUIElement</key>

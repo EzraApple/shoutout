@@ -1,5 +1,6 @@
 @preconcurrency import WhisperKit
 import Foundation
+import ShoutOutCore
 
 @MainActor
 final class WhisperKitTranscriptionEngine: TranscriptionEngine {
@@ -71,7 +72,7 @@ final class WhisperKitTranscriptionEngine: TranscriptionEngine {
             usePrefillPrompt: true,
             usePrefillCache: true,
             wordTimestamps: false,
-            suppressBlank: true
+            suppressBlank: false
         )
 
         let results = try await kit.transcribe(
@@ -85,9 +86,9 @@ final class WhisperKitTranscriptionEngine: TranscriptionEngine {
             rawText: rawText,
             firstTokenMs: Self.firstTokenMilliseconds(from: whisperTiming),
             pipelineMs: Self.pipelineMilliseconds(from: whisperTiming),
-            realTimeFactor: whisperTiming?.realTimeFactor,
-            speedFactor: whisperTiming?.speedFactor,
-            tokensPerSecond: whisperTiming?.tokensPerSecond,
+            realTimeFactor: TimingMetricSanitizer.finiteNonNegative(whisperTiming?.realTimeFactor),
+            speedFactor: TimingMetricSanitizer.finiteNonNegative(whisperTiming?.speedFactor),
+            tokensPerSecond: TimingMetricSanitizer.finiteNonNegative(whisperTiming?.tokensPerSecond),
             fallbackCount: whisperTiming.map { Int($0.totalDecodingFallbacks) }
         )
     }
@@ -97,18 +98,14 @@ final class WhisperKitTranscriptionEngine: TranscriptionEngine {
     }
 
     private static func firstTokenMilliseconds(from timing: TranscriptionTimings?) -> Int? {
-        guard let timing,
-            timing.firstTokenTime.isFinite,
-            timing.pipelineStart.isFinite,
-            timing.firstTokenTime >= timing.pipelineStart
-        else { return nil }
-
-        return Int((timing.firstTokenTime - timing.pipelineStart) * 1000)
+        TimingMetricSanitizer.milliseconds(
+            between: timing?.pipelineStart,
+            and: timing?.firstTokenTime
+        )
     }
 
     private static func pipelineMilliseconds(from timing: TranscriptionTimings?) -> Int? {
-        guard let timing, timing.fullPipeline.isFinite else { return nil }
-        return Int(timing.fullPipeline * 1000)
+        TimingMetricSanitizer.milliseconds(from: timing?.fullPipeline)
     }
 
     private static func cleanupInterruptedDownloads(in directory: URL) {

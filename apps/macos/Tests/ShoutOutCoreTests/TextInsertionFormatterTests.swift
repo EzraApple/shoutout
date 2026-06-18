@@ -18,6 +18,72 @@ final class TextInsertionFormatterTests: XCTestCase {
         XCTAssertEqual(format("there", before: "i", after: "f").text, " there ")
     }
 
+    func testMidSentenceInsertionLowercasesCommonDictationStarter() {
+        let context = TextInsertionContext(
+            text: "I think  would work",
+            selectedUTF16Range: NSRange(location: 8, length: 0)
+        )
+
+        let result = TextInsertionFormatter.prepare("This is good", context: context)
+
+        XCTAssertEqual(result.text, "this is good")
+    }
+
+    func testMidSentenceInsertionKeepsLikelyProperNoun() {
+        let context = TextInsertionContext(
+            text: "send it to  today",
+            selectedUTF16Range: NSRange(location: 11, length: 0)
+        )
+
+        let result = TextInsertionFormatter.prepare("Ezra", context: context)
+
+        XCTAssertEqual(result.text, "Ezra")
+    }
+
+    func testMidSentenceInsertionKeepsAcronym() {
+        let context = TextInsertionContext(
+            text: "use the  endpoint",
+            selectedUTF16Range: NSRange(location: 8, length: 0)
+        )
+
+        let result = TextInsertionFormatter.prepare("API", context: context)
+
+        XCTAssertEqual(result.text, "API")
+    }
+
+    func testSentenceStartUppercasesCommonStarter() {
+        let context = TextInsertionContext(
+            text: "ship it.  next",
+            selectedUTF16Range: NSRange(location: 9, length: 0)
+        )
+
+        let result = TextInsertionFormatter.prepare("this works", context: context)
+
+        XCTAssertEqual(result.text, "This works")
+    }
+
+    func testNewLineStartsSentenceForCapitalization() {
+        let context = TextInsertionContext(
+            text: "notes:\n",
+            selectedUTF16Range: NSRange(location: 7, length: 0)
+        )
+
+        let result = TextInsertionFormatter.prepare("this works", context: context)
+
+        XCTAssertEqual(result.text, "This works")
+    }
+
+    func testCodeLikeTextDoesNotChangeCapitalization() {
+        let context = TextInsertionContext(
+            text: "let value = ",
+            selectedUTF16Range: NSRange(location: 12, length: 0)
+        )
+
+        let result = TextInsertionFormatter.prepare("This works", context: context)
+
+        XCTAssertEqual(result.text, "This works")
+    }
+
     func testExistingWhitespacePreventsExtraSpaces() {
         XCTAssertEqual(format("there", before: " ", after: nil).text, "there")
         XCTAssertEqual(format("there", before: nil, after: " ").text, "there")
@@ -71,6 +137,8 @@ final class TextInsertionFormatterTests: XCTestCase {
 
         XCTAssertEqual(context?.characterBefore, "👋")
         XCTAssertEqual(context?.characterAfter, "w")
+        XCTAssertEqual(context?.textBefore, "hi 👋")
+        XCTAssertEqual(context?.textAfter, "world")
     }
 
     func testPlaceholderValueIsTreatedAsEmptyText() {

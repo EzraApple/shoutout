@@ -3,11 +3,11 @@ import Carbon.HIToolbox
 
 // MARK: - Hotkey Manager
 
-/// Manages the Fn (Globe) key for dictation:
-/// - **Double-press Fn**: Hands-free mode (recording starts, press Fn again to stop + transcribe)
-/// - **Hold Fn**: Hold-to-talk (release to stop + transcribe)
+/// Manages the global shortcut for dictation:
+/// - **Double-press shortcut**: Hands-free mode (recording starts, press again to stop + transcribe)
+/// - **Hold shortcut**: Hold-to-talk (release to stop + transcribe)
 ///
-/// Uses a CGEvent tap to intercept Fn before macOS shows the emoji picker.
+/// Uses a CGEvent tap so hold-to-talk works outside the app.
 @MainActor
 class HotkeyManager {
     var onRecordArmed: (() -> Void)?
@@ -18,6 +18,7 @@ class HotkeyManager {
 
     private var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
+    private var currentTrigger: HotkeyTrigger = .defaultTrigger
 
     /// Keep the state object alive for the C callback
     private var stateRef: AnyObject?
@@ -35,7 +36,8 @@ class HotkeyManager {
     }
 
     @discardableResult
-    func start() -> Bool {
+    func start(trigger: HotkeyTrigger = .stored) -> Bool {
+        currentTrigger = trigger
         recoverSystemFnBehaviorIfNeeded()
 
         guard AXIsProcessTrusted() else {
@@ -45,11 +47,13 @@ class HotkeyManager {
         }
         stop()
 
-        // Disable the system Globe key behavior (emoji picker / input switching)
-        // by setting AppleFnUsageType to 0 ("Do Nothing"). We restore on stop().
-        disableSystemFnBehavior()
+        if trigger.usesFunctionKey {
+            // Disable the system Globe key behavior (emoji picker / input switching)
+            // by setting AppleFnUsageType to 0 ("Do Nothing"). We restore on stop().
+            disableSystemFnBehavior()
+        }
 
-        let state = FnKeyState()
+        let state = ShortcutKeyState(trigger: trigger)
         state.manager = self
         stateRef = state
 
@@ -71,7 +75,7 @@ class HotkeyManager {
             )
         else {
             RuntimeLog.write("hotkey start failed tapCreate")
-            onShortcutUnavailable?("Fn blocked")
+            onShortcutUnavailable?("\(trigger.displayName) blocked")
             restoreSystemFnBehavior()
             return false
         }
@@ -80,7 +84,7 @@ class HotkeyManager {
         runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
         CFRunLoopAddSource(CFRunLoopGetMain(), runLoopSource, .commonModes)
         CGEvent.tapEnable(tap: tap, enable: true)
-        RuntimeLog.write("hotkey start success eventMask=\(eventMask)")
+        RuntimeLog.write("hotkey start success trigger=\(trigger.rawValue) eventMask=\(eventMask)")
         return true
     }
 
@@ -171,7 +175,7 @@ class HotkeyManager {
     }
 
     func cancelRecording() {
-        if let state = stateRef as? FnKeyState {
+        if let state = stateRef as? ShortcutKeyState {
             state.holdTimer?.cancel()
             state.doubleTapTimer?.cancel()
             state.phase = .idle
@@ -180,33 +184,35 @@ class HotkeyManager {
 
     func restartAfterEventTapDisabled() {
         RuntimeLog.write("hotkey restarting after event tap disabled")
-        _ = start()
+        _ = start(trigger: currentTrigger)
     }
 }
 
 // MARK: - State Machine
 
-/// Fn key detection phases:
+/// Shortcut detection phases:
 /// ```
-/// idle → fnDown:
+/// idle -> shortcutDown:
 ///   start audio capture immediately
 ///   start holdTimer (200ms)
-///   → if held past timer → holdRecording → fnUp → stop + transcribe → idle
-///   → if released quickly → discard capture, waitingForDoubleTap (400ms window)
-///       → fnDown within window → handsFreeRecording starts immediately → fnDown → stop + transcribe → idle
-///       → timeout → idle (single tap, ignored)
+///   -> if held past timer -> holdRecording -> shortcutUp -> stop + transcribe -> idle
+///   -> if released quickly -> discard capture, waitingForDoubleTap (400ms window)
+///       -> shortcutDown within window -> handsFreeRecording starts immediately
+///       -> shortcutDown again -> stop + transcribe -> idle
+///       -> timeout -> idle (single tap, ignored)
 /// ```
-private enum FnPhase {
+private enum ShortcutPhase {
     case idle
-    case fnDownPending          // Fn pressed, waiting to see if it's a hold or first tap
+    case shortcutDownPending    // Shortcut pressed, waiting to see if it's a hold or first tap
     case waitingForDoubleTap    // First quick tap done, waiting for second tap
-    case holdRecording          // Holding Fn, recording in progress
-    case handsFreeRecording     // Double-tapped, recording until next Fn press
+    case holdRecording          // Holding shortcut, recording in progress
+    case handsFreeRecording     // Double-tapped, recording until next shortcut press
 }
 
-private class FnKeyState: @unchecked Sendable {
-    var phase: FnPhase = .idle
-    var fnDownTime: CFAbsoluteTime = 0
+private class ShortcutKeyState: @unchecked Sendable {
+    let trigger: HotkeyTrigger
+    var phase: ShortcutPhase = .idle
+    var shortcutDownTime: CFAbsoluteTime = 0
     var holdTimer: DispatchWorkItem?
     var doubleTapTimer: DispatchWorkItem?
     weak var manager: HotkeyManager?
@@ -214,12 +220,16 @@ private class FnKeyState: @unchecked Sendable {
     /// Track previous Fn flag state so we only suppress events where Fn actually changed.
     /// Without this, modifier key-up events (Shift, Cmd, etc.) get swallowed because
     /// their flags are empty after release, causing "stuck keys" in remote desktop apps.
-    var previousFnDown: Bool = false
+    var previousShortcutDown: Bool = false
 
     /// How long Fn must be held before hold-to-talk activates
     let holdThreshold: TimeInterval = 0.2
     /// Window to detect second tap of double-tap
     let doubleTapWindow: TimeInterval = 0.65
+
+    init(trigger: HotkeyTrigger) {
+        self.trigger = trigger
+    }
 }
 
 // MARK: - CGEvent Callback (C-function, runs on event tap thread)
@@ -234,7 +244,7 @@ private func fnEventCallback(
     if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
         RuntimeLog.write("hotkey event tap disabled type=\(type.rawValue)")
         if let userInfo {
-            let state = Unmanaged<FnKeyState>.fromOpaque(userInfo).takeUnretainedValue()
+            let state = Unmanaged<ShortcutKeyState>.fromOpaque(userInfo).takeUnretainedValue()
             DispatchQueue.main.async {
                 state.manager?.restartAfterEventTapDisabled()
             }
@@ -249,71 +259,103 @@ private func fnEventCallback(
         return Unmanaged.passUnretained(event)
     }
 
-    let state = Unmanaged<FnKeyState>.fromOpaque(userInfo).takeUnretainedValue()
+    let state = Unmanaged<ShortcutKeyState>.fromOpaque(userInfo).takeUnretainedValue()
+    let trigger = state.trigger
 
     let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
-    let isFunctionKeyCode = keyCode == Int64(kVK_Function)
-    let fnFlag: UInt64 = 0x800000
-    let flagsContainFn = (event.flags.rawValue & fnFlag) != 0
-    let fnIsDown: Bool
+    let shortcutIsDown: Bool
     let detection: String
 
-    if isFunctionKeyCode && (type == .keyDown || type == .keyUp) {
-        fnIsDown = type == .keyDown
-        detection = "keyCode"
-    } else if type == .flagsChanged {
-        fnIsDown = flagsContainFn
-        detection = "flags"
+    if trigger.usesFunctionKey {
+        let isFunctionKeyCode = keyCode == Int64(kVK_Function)
+        let fnFlag: UInt64 = 0x800000
+        let flagsContainFn = (event.flags.rawValue & fnFlag) != 0
+
+        if isFunctionKeyCode && (type == .keyDown || type == .keyUp) {
+            shortcutIsDown = type == .keyDown
+            detection = "functionKeyCode"
+        } else if type == .flagsChanged {
+            shortcutIsDown = flagsContainFn
+            detection = "functionFlags"
+        } else {
+            return Unmanaged.passUnretained(event)
+        }
     } else {
-        return Unmanaged.passUnretained(event)
+        guard
+            let triggerKeyCode = trigger.keyCode,
+            keyCode == triggerKeyCode,
+            type == .keyDown || type == .keyUp
+        else {
+            return Unmanaged.passUnretained(event)
+        }
+
+        if type == .keyDown {
+            guard trigger.modifiersMatch(event.flags) else {
+                return Unmanaged.passUnretained(event)
+            }
+            shortcutIsDown = true
+            detection = "keyComboDown"
+        } else {
+            guard state.previousShortcutDown else {
+                return Unmanaged.passUnretained(event)
+            }
+            shortcutIsDown = false
+            detection = "keyComboUp"
+        }
     }
 
-    // Only act on events where the Fn flag actually toggled.
+    // Only act on events where the shortcut actually toggled.
     // flagsChanged fires for ALL modifier changes (Shift, Cmd, etc.).
     // If we suppress non-Fn events, their key-up never reaches the system,
     // causing "stuck" modifiers in remote desktop apps like Parsec.
-    let fnChanged = (fnIsDown != state.previousFnDown)
-    state.previousFnDown = fnIsDown
+    let shortcutChanged = (shortcutIsDown != state.previousShortcutDown)
+    state.previousShortcutDown = shortcutIsDown
 
-    if !fnChanged {
-        return Unmanaged.passUnretained(event)
+    if !shortcutChanged {
+        return nil
     }
 
     RuntimeLog.write(
-        "hotkey fnChanged detection=\(detection) pressed=\(fnIsDown) type=\(type.rawValue) keyCode=\(keyCode) flags=\(event.flags.rawValue)"
+        "hotkey changed trigger=\(trigger.rawValue) detection=\(detection) pressed=\(shortcutIsDown) type=\(type.rawValue) keyCode=\(keyCode) flags=\(event.flags.rawValue)"
     )
 
-    // Fn flag changed — ignore if other modifiers are also held (Cmd, Opt, Shift, Ctrl)
-    let otherModifiers: CGEventFlags = [.maskCommand, .maskAlternate, .maskShift, .maskControl]
-    let hasOtherModifiers = !event.flags.intersection(otherModifiers).isEmpty
-    if hasOtherModifiers {
-        return Unmanaged.passUnretained(event)
+    if trigger.usesFunctionKey {
+        // Fn flag changed. Ignore if other modifiers are also held.
+        let otherModifiers: CGEventFlags = [
+            .maskCommand,
+            .maskAlternate,
+            .maskShift,
+            .maskControl,
+        ]
+        let hasOtherModifiers = !event.flags.intersection(otherModifiers).isEmpty
+        if hasOtherModifiers {
+            return Unmanaged.passUnretained(event)
+        }
     }
 
     DispatchQueue.main.async {
-        handleFnStateChange(state: state, fnPressed: fnIsDown)
+        handleShortcutStateChange(state: state, shortcutPressed: shortcutIsDown)
     }
 
-    // Suppress Fn events to prevent macOS from showing
-    // the emoji picker, keyboard switcher, or dictation panel.
+    // Suppress shortcut events so the chosen trigger does not leak into the app.
     return nil
 }
 
 @MainActor
-private func handleFnStateChange(state: FnKeyState, fnPressed: Bool) {
+private func handleShortcutStateChange(state: ShortcutKeyState, shortcutPressed: Bool) {
     switch state.phase {
 
     case .idle:
-        if fnPressed {
-            state.phase = .fnDownPending
-            state.fnDownTime = CFAbsoluteTimeGetCurrent()
+        if shortcutPressed {
+            state.phase = .shortcutDownPending
+            state.shortcutDownTime = CFAbsoluteTimeGetCurrent()
             state.manager?.onRecordArmed?()
 
             // Start hold timer
             state.holdTimer?.cancel()
             let holdWork = DispatchWorkItem { [weak state] in
-                guard let state, state.phase == .fnDownPending else { return }
-                // Held long enough → hold-to-talk
+                guard let state, state.phase == .shortcutDownPending else { return }
+                // Held long enough -> hold-to-talk
                 state.phase = .holdRecording
                 state.manager?.onRecordStart?()
             }
@@ -322,9 +364,9 @@ private func handleFnStateChange(state: FnKeyState, fnPressed: Bool) {
                 deadline: .now() + state.holdThreshold, execute: holdWork)
         }
 
-    case .fnDownPending:
-        if !fnPressed {
-            // Released quickly → could be first tap of double-tap
+    case .shortcutDownPending:
+        if !shortcutPressed {
+            // Released quickly -> could be first tap of double-tap
             state.holdTimer?.cancel()
             state.holdTimer = nil
             state.phase = .waitingForDoubleTap
@@ -334,7 +376,7 @@ private func handleFnStateChange(state: FnKeyState, fnPressed: Bool) {
             state.doubleTapTimer?.cancel()
             let dtWork = DispatchWorkItem { [weak state] in
                 guard let state, state.phase == .waitingForDoubleTap else { return }
-                // Timeout: was just a single tap → do nothing
+                // Timeout: was just a single tap -> do nothing
                 state.phase = .idle
                 state.manager?.onRecordCancelled?()
             }
@@ -344,8 +386,8 @@ private func handleFnStateChange(state: FnKeyState, fnPressed: Bool) {
         }
 
     case .waitingForDoubleTap:
-        if fnPressed {
-            // Second tap! → hands-free recording
+        if shortcutPressed {
+            // Second tap starts hands-free recording.
             state.doubleTapTimer?.cancel()
             state.doubleTapTimer = nil
             state.phase = .handsFreeRecording
@@ -353,15 +395,15 @@ private func handleFnStateChange(state: FnKeyState, fnPressed: Bool) {
         }
 
     case .holdRecording:
-        if !fnPressed {
-            // Released → stop recording + transcribe
+        if !shortcutPressed {
+            // Released -> stop recording + transcribe
             state.phase = .idle
             state.manager?.onRecordStop?()
         }
 
     case .handsFreeRecording:
-        if fnPressed {
-            // Next Fn press → stop recording + transcribe
+        if shortcutPressed {
+            // Next shortcut press stops recording + transcribes.
             state.phase = .idle
             state.manager?.onRecordStop?()
         }

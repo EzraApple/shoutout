@@ -2,18 +2,15 @@ import Foundation
 
 public struct TextPostProcessingOptions: Equatable, Sendable {
     public var removeFillerWords: Bool
-    public var cleanUpSelfCorrections: Bool
     public var applySpokenCommands: Bool
     public var collapseWhitespace: Bool
 
     public init(
         removeFillerWords: Bool = true,
-        cleanUpSelfCorrections: Bool = false,
         applySpokenCommands: Bool = true,
         collapseWhitespace: Bool = true
     ) {
         self.removeFillerWords = removeFillerWords
-        self.cleanUpSelfCorrections = cleanUpSelfCorrections
         self.applySpokenCommands = applySpokenCommands
         self.collapseWhitespace = collapseWhitespace
     }
@@ -34,8 +31,7 @@ public struct DictationResult: Equatable, Sendable {
 public enum TextPostProcessor {
     public static func process(
         _ text: String,
-        options: TextPostProcessingOptions = .default,
-        dictionaryEntries: [DictionaryEntry] = DictionaryEntry.defaultEntries
+        options: TextPostProcessingOptions = .default
     ) -> String {
         var result = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !result.isEmpty else {
@@ -46,15 +42,9 @@ public enum TextPostProcessor {
             result = removeFillers(from: result)
         }
 
-        if options.cleanUpSelfCorrections {
-            result = cleanUpSelfCorrections(in: result)
-        }
-
         if options.applySpokenCommands {
             result = applySpokenCommands(to: result)
         }
-
-        result = applyDictionary(to: result, entries: dictionaryEntries)
 
         if options.collapseWhitespace {
             result = collapseWhitespace(in: result)
@@ -82,35 +72,6 @@ public enum TextPostProcessor {
         return result
     }
 
-    private static func cleanUpSelfCorrections(in text: String) -> String {
-        var result = text
-
-        let repeatedActionPattern =
-            #"\b(press|click|open|use|select|choose|set|make|call|send|go|do)\s+([^,.!?\n]+?)\s+(?:oh\s+)?(?:scratch that|or rather)\s+(?:or\s+)?\1\s+([^,.!?\n]+?)(?:\s+rather)?(?=$|[,.!?\n])"#
-        result = result.replacingOccurrences(
-            of: repeatedActionPattern,
-            with: "$1 $3",
-            options: [.regularExpression, .caseInsensitive]
-        )
-
-        let prepositionCorrectionPattern =
-            #"\b(at|on|for|by|to|from|with)\s+([^,.!?\n]+?)\s+(?:scratch that|or rather)\s+([^,.!?\n]+?)(?=$|[,.!?\n])"#
-        result = result.replacingOccurrences(
-            of: prepositionCorrectionPattern,
-            with: "$1 $3",
-            options: [.regularExpression, .caseInsensitive]
-        )
-
-        let trailingCorrectionMarkerPattern = #"\s+(?:oh\s+)?(?:scratch that|or rather)\s*$"#
-        result = result.replacingOccurrences(
-            of: trailingCorrectionMarkerPattern,
-            with: "",
-            options: [.regularExpression, .caseInsensitive]
-        )
-
-        return result
-    }
-
     private static func applySpokenCommands(to text: String) -> String {
         var result = text
         let replacements = [
@@ -126,37 +87,6 @@ public enum TextPostProcessor {
             result = result.replacingOccurrences(
                 of: pattern,
                 with: replacement,
-                options: [.regularExpression, .caseInsensitive]
-            )
-        }
-
-        return result
-    }
-
-    private static func applyDictionary(
-        to text: String,
-        entries: [DictionaryEntry]
-    ) -> String {
-        var result = text
-
-        let replacementPairs = entries
-            .flatMap { entry in
-                entry.aliases.map { alias in (alias: alias, phrase: entry.phrase) }
-            }
-            .sorted { left, right in
-                left.alias.count > right.alias.count
-            }
-
-        for pair in replacementPairs {
-            guard !pair.alias.isEmpty else {
-                continue
-            }
-
-            let escapedAlias = NSRegularExpression.escapedPattern(for: pair.alias)
-            let pattern = "(?<![\\p{L}\\p{N}])\(escapedAlias)(?![\\p{L}\\p{N}])"
-            result = result.replacingOccurrences(
-                of: pattern,
-                with: pair.phrase,
                 options: [.regularExpression, .caseInsensitive]
             )
         }

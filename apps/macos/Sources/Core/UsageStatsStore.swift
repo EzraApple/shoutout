@@ -73,6 +73,12 @@ public struct UsagePerformanceMetrics: Codable, Equatable, Sendable {
     public var speedFactor: Double?
     public var tokensPerSecond: Double?
     public var fallbackCount: Int?
+    public var languagePassEnabled: Bool?
+    public var languagePassAccepted: Bool?
+    public var languagePassChanged: Bool?
+    public var languagePassWallMs: Int?
+    public var languagePassModel: String?
+    public var languagePassFallbackReason: String?
 
     public init(
         inputMode: String,
@@ -92,7 +98,13 @@ public struct UsagePerformanceMetrics: Codable, Equatable, Sendable {
         realTimeFactor: Double?,
         speedFactor: Double?,
         tokensPerSecond: Double?,
-        fallbackCount: Int?
+        fallbackCount: Int?,
+        languagePassEnabled: Bool? = nil,
+        languagePassAccepted: Bool? = nil,
+        languagePassChanged: Bool? = nil,
+        languagePassWallMs: Int? = nil,
+        languagePassModel: String? = nil,
+        languagePassFallbackReason: String? = nil
     ) {
         self.inputMode = inputMode
         self.pressToRecordStartMs = pressToRecordStartMs
@@ -112,6 +124,12 @@ public struct UsagePerformanceMetrics: Codable, Equatable, Sendable {
         self.speedFactor = speedFactor
         self.tokensPerSecond = tokensPerSecond
         self.fallbackCount = fallbackCount
+        self.languagePassEnabled = languagePassEnabled
+        self.languagePassAccepted = languagePassAccepted
+        self.languagePassChanged = languagePassChanged
+        self.languagePassWallMs = languagePassWallMs
+        self.languagePassModel = languagePassModel
+        self.languagePassFallbackReason = languagePassFallbackReason
     }
 }
 

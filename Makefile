@@ -7,9 +7,12 @@ INSTALLED_APP := $$HOME/Applications/$(APP_NAME).app
 DIST_APP := $(MACOS_DIR)/dist/$(APP_NAME).app
 UNIVERSAL ?= false
 
-.PHONY: build install install-local restart-local reset-permissions run test clean release-dmg web-check
+.PHONY: build sync-assets install install-local restart-local reset-permissions run test test-language-pass clean release-preflight release-dmg notary-credentials sparkle-public-key sparkle-appcast web-check web-build web-dev
 
-build:
+sync-assets:
+	python3 ./scripts/sync-mascot-assets.py
+
+build: sync-assets
 	cd "$(MACOS_DIR)" && UNIVERSAL="$(UNIVERSAL)" ./scripts/build-app.sh
 
 install:
@@ -47,8 +50,23 @@ run: build
 test:
 	./scripts/test.sh
 
-release-dmg:
+test-language-pass:
+	cd "$(MACOS_DIR)" && ./scripts/run-language-pass-smoke.sh
+
+release-preflight:
+	cd "$(MACOS_DIR)" && ./scripts/release-preflight.sh
+
+release-dmg: sync-assets
 	cd "$(MACOS_DIR)" && UNIVERSAL="$(UNIVERSAL)" ./scripts/release.sh
+
+notary-credentials:
+	cd "$(MACOS_DIR)" && ./scripts/store-notary-credentials.sh
+
+sparkle-public-key:
+	cd "$(MACOS_DIR)" && ./scripts/sparkle-public-key.sh
+
+sparkle-appcast:
+	cd "$(MACOS_DIR)" && ./scripts/generate-appcast.sh
 
 web-check:
 	test -f apps/web/index.html
@@ -56,6 +74,12 @@ web-check:
 	test -f apps/web/src/styles.css
 	test -f apps/web/src/main.ts
 	test -f apps/web/public/assets/site-icon-v2.png
+
+web-build:
+	cd apps/web && npm run build
+
+web-dev:
+	cd apps/web && npm run dev
 
 clean:
 	rm -rf "$(MACOS_DIR)/.build" "$(MACOS_DIR)/dist"

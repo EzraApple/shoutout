@@ -1,6 +1,11 @@
 .DS_Store
 .env
+.vercel/
 node_modules/
+
+# Web app
+apps/web/dist/
+apps/web/public/releases/*.dmg
 
 # macOS app
 apps/macos/.build/

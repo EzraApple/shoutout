@@ -44,6 +44,30 @@ SKIP_NOTARIZE=true make release-dmg
 
 ## Upload
 
-- Upload the stapled DMG.
-- Update the website download link.
+- Do not publish the current dry-run DMG. Finish the LM pass work first, then cut the real release.
+- Store notarization credentials once on the release machine:
+
+```bash
+make notary-credentials
+```
+
+- Build and notarize the real universal DMG:
+
+```bash
+make release-preflight
+UNIVERSAL=true make release-dmg
+```
+
+- Generate the Sparkle appcast and stage the DMG, release notes, and appcast into the website:
+
+```bash
+make sparkle-appcast
+npm --prefix apps/web run build
+```
+
+- Verify these public paths after deploy:
+  - `https://shoutout.sh/appcast.xml`
+  - `https://shoutout.sh/releases/ShoutOut-<version>.dmg`
+  - `https://shoutout.sh/releases/ShoutOut-<version>.md`
 - Verify the public download URL from a clean browser session.
+- Verify Sparkle update checking from an older installed build before announcing broadly.

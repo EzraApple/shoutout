@@ -1,3 +1,5 @@
+import Foundation
+
 public struct AudioSignalAnalysis: Equatable, Sendable {
     private static let activeSampleThreshold: Float = 0.001
     private static let speechPeakThreshold: Float = 0.003
@@ -13,6 +15,17 @@ public struct AudioSignalAnalysis: Equatable, Sendable {
         peak >= Self.speechPeakThreshold
             && rms >= Self.speechRMSThreshold
             && activeRatio >= Self.speechActiveRatioThreshold
+    }
+
+    public func hasSustainedSpeechLikeAudio(sampleRate: Double) -> Bool {
+        guard sampleRate > 0, hasSpeechLikeAudio else { return false }
+
+        let duration = Double(sampleCount) / sampleRate
+        let activeDuration = duration * Double(activeRatio)
+        return duration >= 0.25
+            && activeDuration >= 0.12
+            && rms >= 0.0012
+            && activeRatio >= 0.015
     }
 
     public static func analyze(samples: [Float]) -> AudioSignalAnalysis {
@@ -43,5 +56,43 @@ public struct AudioSignalAnalysis: Equatable, Sendable {
             peak: peak,
             activeRatio: Float(Double(activeSampleCount) / Double(samples.count))
         )
+    }
+
+    public static func trimmingTrailingSilence(
+        from samples: [Float],
+        sampleRate: Double,
+        minimumTrailingSilence: TimeInterval = 0.7,
+        preservedTail: TimeInterval = 0.2,
+        windowDuration: TimeInterval = 0.1
+    ) -> [Float] {
+        guard !samples.isEmpty, sampleRate > 0 else { return samples }
+
+        let windowSize = max(Int(sampleRate * windowDuration), 1)
+        let minimumTrimSamples = max(Int(sampleRate * minimumTrailingSilence), 1)
+        let preservedTailSamples = max(Int(sampleRate * preservedTail), 0)
+
+        var windowEnd = samples.count
+        var lastSpeechLikeWindowEnd: Int?
+
+        while windowEnd > 0 {
+            let windowStart = max(0, windowEnd - windowSize)
+            let analysis = analyze(samples: Array(samples[windowStart..<windowEnd]))
+            if analysis.hasSpeechLikeAudio {
+                lastSpeechLikeWindowEnd = windowEnd
+                break
+            }
+            windowEnd = windowStart
+        }
+
+        guard let lastSpeechLikeWindowEnd else {
+            return []
+        }
+
+        let keepCount = min(samples.count, lastSpeechLikeWindowEnd + preservedTailSamples)
+        guard samples.count - keepCount >= minimumTrimSamples else {
+            return samples
+        }
+
+        return Array(samples[..<keepCount])
     }
 }

@@ -241,7 +241,7 @@ struct OnboardingView: View {
                         .tracking(-0.3)
                         .foregroundStyle(.white)
 
-                    Text("Required for the Fn shortcut and pasting text into other apps")
+                    Text("Required for the global shortcut and pasting text into other apps")
                         .font(.system(size: 13))
                         .foregroundStyle(Color.white.opacity(0.4))
                         .multilineTextAlignment(.center)
@@ -302,7 +302,7 @@ struct OnboardingView: View {
                         .tracking(-0.3)
                         .foregroundStyle(.white)
 
-                    Text("Required to detect the Fn key while other apps are focused")
+                    Text("Required to detect your shortcut while other apps are focused")
                         .font(.system(size: 13))
                         .foregroundStyle(Color.white.opacity(0.4))
                         .multilineTextAlignment(.center)
@@ -446,7 +446,7 @@ struct OnboardingView: View {
                         .tracking(-0.3)
                         .foregroundStyle(.white)
 
-                    Text("Hold Fn to dictate, release to paste")
+                    Text("Hold your shortcut to dictate, release to paste")
                         .font(.system(size: 13))
                         .foregroundStyle(Color.white.opacity(0.4))
                 }
