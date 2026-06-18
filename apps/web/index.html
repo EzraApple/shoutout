@@ -1,46 +1,267 @@
 <!doctype html>
 <html lang="en">
   <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>ShoutOut</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta
       name="description"
-      content="ShoutOut is a local-first macOS dictation app. Coming soon."
+      content="ShoutOut is a free, local-first macOS dictation app. Hold Fn, speak, release, and paste into the app you were already using."
     >
-    <link rel="stylesheet" href="./styles.css">
+    <meta name="theme-color" content="#edf6fb">
+    <link rel="icon" type="image/png" href="/assets/site-icon-v2.png">
+    <title>ShoutOut - Local-first macOS dictation</title>
   </head>
   <body>
-    <main class="page">
-      <section class="hero" aria-labelledby="title">
-        <img
-          class="icon"
-          src="./assets/shoutout-icon.png"
-          alt="ShoutOut app icon"
-          width="132"
-          height="132"
-        >
-        <p class="eyebrow">macOS dictation</p>
-        <h1 id="title">ShoutOut</h1>
-        <p class="lede">
-          Hold Fn, speak, release, and ShoutOut pastes local-first dictation into the app you were already using.
-        </p>
-        <a class="button disabled" aria-disabled="true">Coming soon</a>
-      </section>
-      <section class="details" aria-label="Release status">
-        <div>
-          <h2>Release Status</h2>
-          <p>
-            The app is being prepared for Developer ID signing, notarization, and a public release.
-          </p>
-        </div>
-        <div>
-          <h2>First Run</h2>
-          <p>
-            ShoutOut will guide users through Microphone, Speech Recognition, Accessibility, and Input Monitoring permissions.
-          </p>
-        </div>
-      </section>
-    </main>
+    <div id="app">
+      <header class="site-header" aria-label="ShoutOut navigation">
+        <a class="brand" href="#top" aria-label="ShoutOut home">ShoutOut</a>
+        <nav class="nav-links" aria-label="Primary">
+          <a href="#flow">Flow</a>
+          <a href="#surfaces">Surfaces</a>
+          <a href="#permissions">Setup</a>
+          <a href="#download">Status</a>
+        </nav>
+      </header>
+
+      <main id="top">
+        <section class="hero-shell" aria-labelledby="hero-title">
+          <div class="hero-copy">
+            <p class="eyebrow">Free Mac dictation</p>
+            <h1 id="hero-title">Dictate into any Mac app without breaking focus.</h1>
+            <p class="lede">
+              Hold Fn, speak, release. ShoutOut listens locally and pastes into the field
+              you were already using. No account, no subscription.
+            </p>
+            <div class="command-row" aria-label="Release actions">
+              <a
+                class="command-button primary disabled"
+                href="#download"
+                aria-disabled="true"
+                data-track-event="release_interest"
+                data-track-label="hero"
+              >
+                <span class="desktop-cta-label">Coming soon</span>
+                <span class="mobile-cta-label">Coming soon</span>
+              </a>
+              <a class="command-button" href="#permissions">Setup guide</a>
+            </div>
+          </div>
+
+          <div class="desktop-diagram" aria-label="ShoutOut focused app diagram">
+            <div class="diagram-note note-one">Focused app stays focused</div>
+            <div class="diagram-note note-two">Boom appears only while recording</div>
+
+            <div class="focus-window">
+              <div class="window-titlebar">
+                <span></span>
+                <span></span>
+                <span></span>
+                <strong>Messages</strong>
+              </div>
+              <div class="message-thread">
+                <div class="bubble incoming">can you send the note?</div>
+                <div class="bubble outgoing">
+                  <span class="type-cursor" aria-hidden="true"></span>
+                  drafting with ShoutOut...
+                </div>
+              </div>
+            </div>
+
+            <div class="recording-widget">
+              <div
+                class="mascot-sprite recording-sprite"
+                role="img"
+                aria-label="Blue pixel-art ShoutOut crab mascot holding a boom microphone"
+              ></div>
+              <div class="meter" aria-hidden="true">
+                <span></span>
+                <span></span>
+                <span></span>
+                <span></span>
+              </div>
+              <p>Recording</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="signal-rail" aria-label="ShoutOut crab walking path">
+          <div class="rail-track">
+            <div class="rail-crab" aria-hidden="true">
+              <div class="mascot-sprite idle-sprite rail-crab-sprite"></div>
+            </div>
+          </div>
+        </section>
+
+        <section id="flow" class="section flow-section" aria-labelledby="flow-title">
+          <div class="section-copy">
+            <p class="eyebrow">How it works</p>
+            <h2 id="flow-title">Talk anywhere your cursor already is.</h2>
+            <p>
+              Hold a key, say the thing, and let ShoutOut put the text back into the app
+              you were already using.
+            </p>
+          </div>
+
+          <div class="flow-diagram" aria-label="Dictation flow">
+            <article class="flow-node fn-node">
+              <span class="node-kicker">Input</span>
+              <h3>Hold Fn</h3>
+              <p>Global capture starts without moving the cursor.</p>
+            </article>
+            <article class="flow-node">
+              <span class="node-kicker">Audio</span>
+              <h3>Speak</h3>
+              <p>Free Apple Speech works out of the box. Pick the transcription backend you want in settings.</p>
+            </article>
+            <article class="flow-node">
+              <span class="node-kicker">Text</span>
+              <h3>Transcribe</h3>
+              <p>Clean text is prepared in the background.</p>
+            </article>
+            <article class="flow-node target-node">
+              <span class="node-kicker">Output</span>
+              <h3>Paste back</h3>
+              <p>The focused field receives the result.</p>
+            </article>
+          </div>
+        </section>
+
+        <section id="surfaces" class="section surfaces-section" aria-labelledby="surfaces-title">
+          <div class="section-copy">
+            <p class="eyebrow">Works where you type</p>
+            <h2 id="surfaces-title">Messages, notes, editors, chats. Same shortcut everywhere.</h2>
+            <p>
+              No separate writing box. No app switching. ShoutOut stays out of the way until
+              you need your voice.
+            </p>
+          </div>
+
+          <div class="surface-board" aria-label="Example destination apps">
+            <article class="surface-window imessage-window">
+              <div class="surface-bar">iMessage</div>
+              <div class="bubble incoming">running late?</div>
+              <div class="bubble outgoing">On my way now.</div>
+            </article>
+            <article class="surface-window editor-window">
+              <div class="surface-bar">Harness</div>
+              <div class="agent-chat" data-agent-chat aria-label="Harness agent chat example">
+                <div class="agent-message assistant-message">
+                  <span class="agent-avatar">ai</span>
+                  <p>Found the diff. Updating release notes and checking the build.</p>
+                </div>
+                <div class="agent-message user-message">
+                  <span class="agent-avatar">me</span>
+                  <p>summarize the changes and ship it</p>
+                </div>
+                <form class="agent-input" data-agent-input aria-label="Send a Harness chat message">
+                  <span class="type-cursor" aria-hidden="true"></span>
+                  <input
+                    type="text"
+                    name="message"
+                    autocomplete="off"
+                    spellcheck="false"
+                    aria-label="Message"
+                    placeholder="ask for follow-up changes"
+                  >
+                </form>
+              </div>
+            </article>
+            <article class="surface-window notes-window">
+              <div class="surface-bar">Notes</div>
+              <p>Follow up: packaging, permissions, first-run model download.</p>
+            </article>
+          </div>
+        </section>
+
+        <section id="permissions" class="section setup-section" aria-labelledby="permissions-title">
+          <div class="section-copy">
+            <p class="eyebrow">First run</p>
+            <h2 id="permissions-title">Permissions should feel like a checklist, not a trap.</h2>
+            <p>
+              macOS keeps these user-controlled. ShoutOut should explain each one, route
+              you to the right pane, and recover cleanly if a step is missing.
+            </p>
+          </div>
+
+          <div class="settings-panel" aria-label="Required macOS permissions">
+            <button class="setting-row" type="button" data-checklist-key="microphone" aria-pressed="false">
+              <span class="setting-icon mic-icon"></span>
+              <strong>Microphone</strong>
+              <p>Capture your voice locally.</p>
+            </button>
+            <button class="setting-row" type="button" data-checklist-key="speech-recognition" aria-pressed="false">
+              <span class="setting-icon speech-icon"></span>
+              <strong>Speech Recognition</strong>
+              <p>Use the built-in Apple speech path.</p>
+            </button>
+            <button class="setting-row" type="button" data-checklist-key="accessibility" aria-pressed="false">
+              <span class="setting-icon access-icon"></span>
+              <strong>Accessibility</strong>
+              <p>Insert text into the focused app.</p>
+            </button>
+            <button class="setting-row" type="button" data-checklist-key="input-monitoring" aria-pressed="false">
+              <span class="setting-icon input-icon"></span>
+              <strong>Input Monitoring</strong>
+              <p>Listen for the Fn hold gesture.</p>
+            </button>
+          </div>
+        </section>
+
+        <section id="download" class="section download-section" aria-labelledby="download-title">
+          <div class="release-copy">
+            <p class="eyebrow">Coming soon</p>
+            <h2 id="download-title">ShoutOut for macOS is almost ready.</h2>
+            <p>
+              The public Mac release is paused while the app is being finalized.
+              No accounts, no subscription, and no confusing early download.
+            </p>
+          </div>
+
+          <div class="dmg-panel" aria-label="macOS release status">
+            <div class="dmg-icon">
+              <div class="mascot-sprite idle-sprite" aria-hidden="true"></div>
+            </div>
+            <div>
+              <strong>Public release</strong>
+              <p>Download will open once the release is ready.</p>
+            </div>
+            <a
+              class="command-button primary disabled"
+              aria-disabled="true"
+              data-track-event="release_interest"
+              data-track-label="download-panel"
+            >
+              <span class="desktop-cta-label">Coming soon</span>
+              <span class="mobile-cta-label">Coming soon</span>
+            </a>
+          </div>
+        </section>
+      </main>
+
+      <footer class="site-footer">
+        <p>Free Mac utility by Ezra Apple.</p>
+        <nav class="footer-links" aria-label="Creator links">
+          <a
+            href="https://github.com/EzraApple/shoutout"
+            target="_blank"
+            rel="noreferrer"
+            data-track-event="outbound_click"
+            data-track-label="github"
+          >
+            GitHub
+          </a>
+          <a
+            href="https://x.com/ezra_sf"
+            target="_blank"
+            rel="noreferrer"
+            data-track-event="outbound_click"
+            data-track-label="twitter"
+          >
+            X / Twitter
+          </a>
+        </nav>
+      </footer>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

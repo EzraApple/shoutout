@@ -52,8 +52,10 @@ release-dmg:
 
 web-check:
 	test -f apps/web/index.html
-	test -f apps/web/styles.css
-	test -f apps/web/assets/shoutout-icon.png
+	test -f apps/web/package.json
+	test -f apps/web/src/styles.css
+	test -f apps/web/src/main.ts
+	test -f apps/web/public/assets/site-icon-v2.png
 
 clean:
 	rm -rf "$(MACOS_DIR)/.build" "$(MACOS_DIR)/dist"

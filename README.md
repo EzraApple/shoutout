@@ -125,7 +125,7 @@ The repo is organized as a small monorepo:
 
 ```text
 apps/macos/  ShoutOut Swift package and app bundle scripts
-apps/web/    placeholder download site
+apps/web/    Vite marketing site for shoutout.sh
 docs/        implementation notes and release checklists
 scripts/     repo-level install and test helpers
 ```
