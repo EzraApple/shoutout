@@ -10,3 +10,4 @@ apps/macos/.swiftpm/
 apps/macos/xcuserdata/
 apps/macos/DerivedData/
 *.xcodeproj
+.vercel
