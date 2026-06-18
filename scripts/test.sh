@@ -156,7 +156,7 @@ assert_contains "Build script auto-selects current CLT" "$MACOS_DIR/scripts/buil
 assert_contains "Release script creates DMG" "$MACOS_DIR/scripts/release.sh" "create-dmg.sh"
 assert_contains "DMG script supports notarization profile" "$MACOS_DIR/scripts/create-dmg.sh" "NOTARY_PROFILE"
 assert_contains "DMG script uses built-in hdiutil" "$MACOS_DIR/scripts/create-dmg.sh" "hdiutil create"
-assert_contains "Web placeholder exists" "$REPO_ROOT/apps/web/index.html" "Download coming soon"
+assert_contains "Web placeholder exists" "$REPO_ROOT/apps/web/index.html" "Coming soon"
 assert_contains "Test script auto-selects current CLT" "$REPO_ROOT/scripts/test.sh" "Command Line Tools for Apple Dictation support"
 assert_contains "Transcription imports core" "$MACOS_DIR/Sources/Services/TranscriptionService.swift" "import ShoutOutCore"
 assert_contains "Transcription returns result shape" "$MACOS_DIR/Sources/Services/TranscriptionService.swift" "DictationResult"
