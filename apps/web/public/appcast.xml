@@ -11,7 +11,7 @@
             <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
             <sparkle:releaseNotesLink>https://xhahmepifrbmvgrg.public.blob.vercel-storage.com/releases/ShoutOut-0.1.0.md</sparkle:releaseNotesLink>
-            <enclosure url="https://xhahmepifrbmvgrg.public.blob.vercel-storage.com/releases/ShoutOut-0.1.0.dmg" length="28206423" type="application/octet-stream" sparkle:edSignature="fXQ+eLHriAg51qyra0pIn/+AHPER5LNF1+2LG0544cB7lJTs/CdtLern3mYTmtxRiU0QNdsHO/L6zyzUP3WtAA=="/>
+            <enclosure url="https://xhahmepifrbmvgrg.public.blob.vercel-storage.com/releases/ShoutOut-0.1.0.dmg" length="24947586" type="application/octet-stream" sparkle:edSignature="DVe560D2St2z9ifHI7k8A8HKvWrv6uvolwhiCoqeEyJVrTZw5vXw7a2djTCOBTfaX3lcuX/tA7lnlhhYzbfgDQ=="/>
         </item>
     </channel>
 </rss>

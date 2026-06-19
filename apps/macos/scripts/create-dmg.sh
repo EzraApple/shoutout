@@ -35,12 +35,76 @@ APP_NAME="ShoutOut"
 DIST_DIR="$PROJECT_DIR/dist"
 APP_BUNDLE="$DIST_DIR/$APP_NAME.app"
 DMG_FINAL="$DIST_DIR/ShoutOut-$VERSION.dmg"
+DMG_RW="$DIST_DIR/ShoutOut-$VERSION-rw.dmg"
 DMG_STAGING="$DIST_DIR/dmg-staging"
+DMG_BACKGROUND="$DMG_STAGING/.background/background.png"
+MOUNT_DIR=""
 
 cleanup() {
+    if [[ -n "$MOUNT_DIR" && -d "$MOUNT_DIR" ]]; then
+        hdiutil detach "$MOUNT_DIR" -quiet >/dev/null 2>&1 || hdiutil detach "$MOUNT_DIR" -force -quiet >/dev/null 2>&1 || true
+    fi
     rm -rf "$DMG_STAGING"
+    rm -f "$DMG_RW"
 }
 trap cleanup EXIT
+
+style_dmg_window() {
+    osascript <<APPLESCRIPT &
+with timeout of 15 seconds
+    tell application "Finder"
+        tell disk "$APP_NAME"
+            open
+            set current view of container window to icon view
+            set toolbar visible of container window to false
+            set statusbar visible of container window to false
+            set bounds of container window to {100, 100, 780, 520}
+            set theViewOptions to icon view options of container window
+            set arrangement of theViewOptions to not arranged
+            set icon size of theViewOptions to 96
+            set label position of theViewOptions to bottom
+            set background picture of theViewOptions to file ".background:background.png"
+            set position of item "$APP_NAME.app" of container window to {162, 250}
+            set position of item "Applications" of container window to {518, 250}
+            delay 0.5
+            close container window
+        end tell
+    end tell
+end timeout
+APPLESCRIPT
+
+    local finder_pid=$!
+    (
+        sleep 20
+        if kill -0 "$finder_pid" >/dev/null 2>&1; then
+            kill "$finder_pid" >/dev/null 2>&1 || true
+        fi
+    ) &
+    local watchdog_pid=$!
+
+    if wait "$finder_pid"; then
+        kill "$watchdog_pid" >/dev/null 2>&1 || true
+        wait "$watchdog_pid" >/dev/null 2>&1 || true
+        return 0
+    fi
+
+    local status=$?
+    kill "$watchdog_pid" >/dev/null 2>&1 || true
+    wait "$watchdog_pid" >/dev/null 2>&1 || true
+
+    if [[ -f "$MOUNT_DIR/.DS_Store" ]]; then
+        echo -e "${YELLOW}Finder styling timed out after writing .DS_Store; continuing.${NC}"
+        return 0
+    fi
+
+    echo -e "${RED}Error: Finder window styling failed before writing .DS_Store.${NC}"
+    return "$status"
+}
+
+detach_dmg() {
+    hdiutil detach "$MOUNT_DIR" -quiet || hdiutil detach "$MOUNT_DIR" -force -quiet
+    MOUNT_DIR=""
+}
 
 echo -e "${BLUE}Creating DMG installer for $APP_NAME v$VERSION...${NC}"
 
@@ -53,6 +117,7 @@ fi
 
 # Clean previous DMG artifacts
 rm -f "$DMG_FINAL"
+rm -f "$DMG_RW"
 rm -rf "$DMG_STAGING"
 mkdir -p "$DMG_STAGING"
 
@@ -60,14 +125,45 @@ mkdir -p "$DMG_STAGING"
 echo -e "${BLUE}Preparing DMG staging directory...${NC}"
 ditto "$APP_BUNDLE" "$DMG_STAGING/$APP_NAME.app"
 ln -s /Applications "$DMG_STAGING/Applications"
+mkdir -p "$DMG_STAGING/.background"
+"$SCRIPT_DIR/render-dmg-background.swift" \
+    "$DMG_BACKGROUND" \
+    "$PROJECT_DIR/Resources/CrabSprites/idle-1.png"
 
-echo -e "${BLUE}Creating compressed DMG image...${NC}"
+echo -e "${BLUE}Creating writable DMG image...${NC}"
 hdiutil create \
     -volname "$APP_NAME" \
     -srcfolder "$DMG_STAGING" \
     -ov \
+    -format UDRW \
+    "$DMG_RW"
+
+echo -e "${BLUE}Styling DMG Finder window...${NC}"
+MOUNT_OUTPUT=$(hdiutil attach "$DMG_RW" -readwrite -noverify -noautoopen)
+MOUNT_DIR=$(echo "$MOUNT_OUTPUT" | awk -F '\t' '/\/Volumes\// {print $NF; exit}')
+if [[ -z "$MOUNT_DIR" || ! -d "$MOUNT_DIR" ]]; then
+    echo -e "${RED}Error: Could not mount writable DMG for styling.${NC}"
+    echo "$MOUNT_OUTPUT"
+    exit 1
+fi
+
+SetFile -a V "$MOUNT_DIR/.background" >/dev/null 2>&1 || true
+style_dmg_window
+
+if [[ ! -f "$MOUNT_DIR/.background/background.png" || ! -f "$MOUNT_DIR/.DS_Store" ]]; then
+    echo -e "${RED}Error: Styled DMG is missing background assets or Finder layout metadata.${NC}"
+    exit 1
+fi
+
+sync
+detach_dmg
+
+echo -e "${BLUE}Creating compressed DMG image...${NC}"
+hdiutil convert "$DMG_RW" \
     -format UDZO \
-    "$DMG_FINAL"
+    -imagekey zlib-level=9 \
+    -ov \
+    -o "$DMG_FINAL"
 
 echo -e "${GREEN}DMG created: $DMG_FINAL${NC}"
 hdiutil verify "$DMG_FINAL"
