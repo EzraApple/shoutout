@@ -106,6 +106,16 @@ detach_dmg() {
     MOUNT_DIR=""
 }
 
+detach_existing_app_volumes() {
+    local volume
+    while IFS= read -r volume; do
+        hdiutil detach "$volume" -quiet >/dev/null 2>&1 || hdiutil detach "$volume" -force -quiet >/dev/null 2>&1 || true
+    done < <(
+        hdiutil info \
+            | awk -F '\t' -v app="$APP_NAME" '$NF == "/Volumes/" app || $NF ~ "^/Volumes/" app " [0-9]+$" { print $NF }'
+    )
+}
+
 echo -e "${BLUE}Creating DMG installer for $APP_NAME v$VERSION...${NC}"
 
 # Check if app bundle exists
@@ -139,6 +149,7 @@ hdiutil create \
     "$DMG_RW"
 
 echo -e "${BLUE}Styling DMG Finder window...${NC}"
+detach_existing_app_volumes
 MOUNT_OUTPUT=$(hdiutil attach "$DMG_RW" -readwrite -noverify -noautoopen)
 MOUNT_DIR=$(echo "$MOUNT_OUTPUT" | awk -F '\t' '/\/Volumes\// {print $NF; exit}')
 if [[ -z "$MOUNT_DIR" || ! -d "$MOUNT_DIR" ]]; then
@@ -149,6 +160,13 @@ fi
 
 SetFile -a V "$MOUNT_DIR/.background" >/dev/null 2>&1 || true
 style_dmg_window
+
+for _ in {1..10}; do
+    if [[ -f "$MOUNT_DIR/.DS_Store" ]]; then
+        break
+    fi
+    sleep 0.5
+done
 
 if [[ ! -f "$MOUNT_DIR/.background/background.png" || ! -f "$MOUNT_DIR/.DS_Store" ]]; then
     echo -e "${RED}Error: Styled DMG is missing background assets or Finder layout metadata.${NC}"
