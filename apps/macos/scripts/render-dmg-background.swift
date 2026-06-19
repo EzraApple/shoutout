@@ -40,29 +40,6 @@ func color(_ hex: UInt32) -> NSColor {
     )
 }
 
-func drawText(
-    _ text: String,
-    in rect: NSRect,
-    size: CGFloat,
-    weight: NSFont.Weight = .regular,
-    color textColor: NSColor = color(0x061833),
-    alignment: NSTextAlignment = .center
-) {
-    let paragraph = NSMutableParagraphStyle()
-    paragraph.alignment = alignment
-    paragraph.lineBreakMode = .byWordWrapping
-
-    let font = NSFont.monospacedSystemFont(ofSize: size, weight: weight)
-    let attributes: [NSAttributedString.Key: Any] = [
-        .font: font,
-        .foregroundColor: textColor,
-        .paragraphStyle: paragraph,
-        .kern: 0
-    ]
-
-    NSAttributedString(string: text, attributes: attributes).draw(in: rect)
-}
-
 func fill(_ rect: NSRect, _ fillColor: NSColor) {
     fillColor.setFill()
     NSBezierPath(rect: rect).fill()
@@ -91,25 +68,13 @@ for y in stride(from: 0, through: Int(canvasSize.height), by: 34) {
 grid.lineWidth = 1
 grid.stroke()
 
-let titlePlate = NSRect(x: 42, y: 314, width: 596, height: 64)
-fill(titlePlate.offsetBy(dx: 7, dy: -7), color(0xff6b67))
-fill(titlePlate, color(0xa8ddff))
-stroke(titlePlate, color(0x061833), width: 4)
-drawText("ShoutOut", in: NSRect(x: 0, y: 328, width: 680, height: 38), size: 33, weight: .bold)
-drawText("drag to install", in: NSRect(x: 0, y: 292, width: 680, height: 22), size: 15, weight: .semibold, color: color(0x32445f))
-
-let appPanel = NSRect(x: 72, y: 82, width: 180, height: 166)
-let applicationsPanel = NSRect(x: 428, y: 82, width: 180, height: 166)
+let appPanel = NSRect(x: 74, y: 82, width: 176, height: 166)
+let applicationsPanel = NSRect(x: 430, y: 82, width: 176, height: 166)
 for panel in [appPanel, applicationsPanel] {
     fill(panel.offsetBy(dx: 7, dy: -7), color(0x061833))
     fill(panel, color(0xf7fbff))
     stroke(panel, color(0x061833), width: 4)
 }
-
-drawText("1", in: NSRect(x: 94, y: 205, width: 28, height: 28), size: 20, weight: .bold, color: color(0xff6b67))
-drawText("2", in: NSRect(x: 450, y: 205, width: 28, height: 28), size: 20, weight: .bold, color: color(0xff6b67))
-drawText("ShoutOut.app", in: NSRect(x: 88, y: 102, width: 148, height: 22), size: 14, weight: .semibold, color: color(0x32445f))
-drawText("Applications", in: NSRect(x: 444, y: 102, width: 148, height: 22), size: 14, weight: .semibold, color: color(0x32445f))
 
 let arrow = NSBezierPath()
 arrow.move(to: NSPoint(x: 284, y: 168))
@@ -130,14 +95,10 @@ color(0x061833).setStroke()
 arrowHead.lineWidth = 4
 arrowHead.stroke()
 
-drawText("drop it here", in: NSRect(x: 278, y: 190, width: 124, height: 20), size: 13, weight: .semibold, color: color(0x32445f))
-
 if let mascot = NSImage(contentsOf: mascotURL) {
-    let mascotRect = NSRect(x: 288, y: 208, width: 104, height: 75)
+    let mascotRect = NSRect(x: 288, y: 278, width: 104, height: 75)
     mascot.draw(in: mascotRect, from: .zero, operation: .sourceOver, fraction: 1)
 }
-
-drawText("free local mac dictation", in: NSRect(x: 0, y: 34, width: 680, height: 22), size: 14, weight: .semibold, color: color(0x32445f))
 
 NSGraphicsContext.restoreGraphicsState()
 
