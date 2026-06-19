@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 // MARK: - Onboarding View
@@ -7,13 +8,12 @@ struct OnboardingView: View {
 
     @EnvironmentObject var transcription: TranscriptionService
     @EnvironmentObject var permissions: PermissionManager
-    @State private var step = 0
+    @AppStorage(Defaults.onboardingStep) private var step = 0
 
     private let totalSteps = 7
 
     var body: some View {
         ZStack {
-            // Dark background with subtle light pool (matches trylens)
             OnboardingBackground()
 
             VStack(spacing: 0) {
@@ -59,7 +59,12 @@ struct OnboardingView: View {
                 }
             }
         }
-        .frame(width: 460, height: 480)
+        .frame(width: 560, height: 540)
+        .onAppear {
+            if step < 0 || step >= totalSteps {
+                step = 0
+            }
+        }
     }
 
     // MARK: - Step 0: Welcome
@@ -73,13 +78,12 @@ struct OnboardingView: View {
 
                 VStack(spacing: 8) {
                     Text("Welcome to ShoutOut")
-                        .font(.system(size: 22, weight: .semibold))
-                        .tracking(-0.3)
-                        .foregroundStyle(.white)
+                        .font(.system(size: 34, weight: .heavy, design: .rounded))
+                        .foregroundStyle(OnboardingTheme.ink)
 
                     Text("Local dictation for macOS — let's get you set up")
-                        .font(.system(size: 13))
-                        .foregroundStyle(Color.white.opacity(0.4))
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(OnboardingTheme.muted)
                 }
             }
 
@@ -101,27 +105,16 @@ struct OnboardingView: View {
             Spacer()
 
             VStack(spacing: 24) {
-                Image(systemName: "mic")
-                    .font(.system(size: 28, weight: .light))
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [.pink, .orange.opacity(0.8)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .frame(width: 56, height: 56)
-                    .glassed(in: Circle())
+                OnboardingStepIcon(systemName: "mic", background: OnboardingTheme.coral)
 
                 VStack(spacing: 8) {
                     Text("Microphone")
-                        .font(.system(size: 20, weight: .semibold))
-                        .tracking(-0.3)
-                        .foregroundStyle(.white)
+                        .font(.system(size: 26, weight: .heavy, design: .rounded))
+                        .foregroundStyle(OnboardingTheme.ink)
 
                     Text("ShoutOut needs your microphone to hear your voice for dictation")
-                        .font(.system(size: 13))
-                        .foregroundStyle(Color.white.opacity(0.4))
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(OnboardingTheme.muted)
                         .multilineTextAlignment(.center)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -143,8 +136,8 @@ struct OnboardingView: View {
 
                     Button(action: { withAnimation { step = 2 } }) {
                         Text("Skip for now")
-                            .font(.system(size: 13))
-                            .foregroundStyle(Color.white.opacity(0.3))
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(OnboardingTheme.muted)
                     }
                     .buttonStyle(.plain)
                 }
@@ -162,27 +155,16 @@ struct OnboardingView: View {
             Spacer()
 
             VStack(spacing: 24) {
-                Image(systemName: "waveform")
-                    .font(.system(size: 28, weight: .light))
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [.cyan, .indigo.opacity(0.8)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .frame(width: 56, height: 56)
-                    .glassed(in: Circle())
+                OnboardingStepIcon(systemName: "waveform", background: OnboardingTheme.panelMint)
 
                 VStack(spacing: 8) {
                     Text("Speech Recognition")
-                        .font(.system(size: 20, weight: .semibold))
-                        .tracking(-0.3)
-                        .foregroundStyle(.white)
+                        .font(.system(size: 26, weight: .heavy, design: .rounded))
+                        .foregroundStyle(OnboardingTheme.ink)
 
                     Text("Required for Apple's local transcription engines")
-                        .font(.system(size: 13))
-                        .foregroundStyle(Color.white.opacity(0.4))
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(OnboardingTheme.muted)
                         .multilineTextAlignment(.center)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -204,8 +186,8 @@ struct OnboardingView: View {
 
                     Button(action: { withAnimation { step = 3 } }) {
                         Text("Skip for now")
-                            .font(.system(size: 13))
-                            .foregroundStyle(Color.white.opacity(0.3))
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(OnboardingTheme.muted)
                     }
                     .buttonStyle(.plain)
                 }
@@ -223,27 +205,19 @@ struct OnboardingView: View {
             Spacer()
 
             VStack(spacing: 24) {
-                Image(systemName: "hand.raised.fingers.spread")
-                    .font(.system(size: 28, weight: .light))
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [.purple, .blue.opacity(0.8)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .frame(width: 56, height: 56)
-                    .glassed(in: Circle())
+                OnboardingStepIcon(
+                    systemName: "hand.raised.fingers.spread",
+                    background: OnboardingTheme.panelLilac
+                )
 
                 VStack(spacing: 8) {
                     Text("Accessibility")
-                        .font(.system(size: 20, weight: .semibold))
-                        .tracking(-0.3)
-                        .foregroundStyle(.white)
+                        .font(.system(size: 26, weight: .heavy, design: .rounded))
+                        .foregroundStyle(OnboardingTheme.ink)
 
                     Text("Required for the global shortcut and pasting text into other apps")
-                        .font(.system(size: 13))
-                        .foregroundStyle(Color.white.opacity(0.4))
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(OnboardingTheme.muted)
                         .multilineTextAlignment(.center)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -259,14 +233,14 @@ struct OnboardingView: View {
                         withAnimation { step = 4 }
                     }
                 } else {
-                    OnboardingPillButton("Open System Settings") {
+                    OnboardingPillButton("Grant Permission") {
                         permissions.requestAccessibility()
                     }
 
                     Button(action: { withAnimation { step = 4 } }) {
                         Text("Skip for now")
-                            .font(.system(size: 13))
-                            .foregroundStyle(Color.white.opacity(0.3))
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(OnboardingTheme.muted)
                     }
                     .buttonStyle(.plain)
                 }
@@ -284,27 +258,16 @@ struct OnboardingView: View {
             Spacer()
 
             VStack(spacing: 24) {
-                Image(systemName: "keyboard")
-                    .font(.system(size: 28, weight: .light))
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [.teal, .blue.opacity(0.8)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .frame(width: 56, height: 56)
-                    .glassed(in: Circle())
+                OnboardingStepIcon(systemName: "keyboard", background: OnboardingTheme.panelBlue)
 
                 VStack(spacing: 8) {
                     Text("Input Monitoring")
-                        .font(.system(size: 20, weight: .semibold))
-                        .tracking(-0.3)
-                        .foregroundStyle(.white)
+                        .font(.system(size: 26, weight: .heavy, design: .rounded))
+                        .foregroundStyle(OnboardingTheme.ink)
 
                     Text("Required to detect your shortcut while other apps are focused")
-                        .font(.system(size: 13))
-                        .foregroundStyle(Color.white.opacity(0.4))
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(OnboardingTheme.muted)
                         .multilineTextAlignment(.center)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -320,14 +283,14 @@ struct OnboardingView: View {
                         withAnimation { step = 5 }
                     }
                 } else {
-                    OnboardingPillButton("Open System Settings") {
+                    OnboardingPillButton("Grant Permission") {
                         permissions.requestInputMonitoring()
                     }
 
                     Button(action: { withAnimation { step = 5 } }) {
                         Text("Skip for now")
-                            .font(.system(size: 13))
-                            .foregroundStyle(Color.white.opacity(0.3))
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(OnboardingTheme.muted)
                     }
                     .buttonStyle(.plain)
                 }
@@ -345,23 +308,12 @@ struct OnboardingView: View {
             Spacer()
 
             VStack(spacing: 24) {
-                Image(systemName: "cpu")
-                    .font(.system(size: 28, weight: .light))
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [.cyan, .blue.opacity(0.8)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .frame(width: 56, height: 56)
-                    .glassed(in: Circle())
+                OnboardingStepIcon(systemName: "cpu", background: OnboardingTheme.panelMint)
 
                 VStack(spacing: 8) {
                     Text("Dictation Setup")
-                        .font(.system(size: 20, weight: .semibold))
-                        .tracking(-0.3)
-                        .foregroundStyle(.white)
+                        .font(.system(size: 26, weight: .heavy, design: .rounded))
+                        .foregroundStyle(OnboardingTheme.ink)
 
                     modelStatusView
                 }
@@ -396,38 +348,38 @@ struct OnboardingView: View {
         case .ready:
             VStack(spacing: 12) {
                 Text("\(transcription.selectedPreset.title) mode is ready")
-                    .font(.system(size: 13))
-                    .foregroundStyle(Color.white.opacity(0.4))
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(OnboardingTheme.muted)
 
                 OnboardingPermissionBadge(granted: true)
             }
         case .loading:
             VStack(spacing: 12) {
                 Text("Preparing dictation...")
-                    .font(.system(size: 13))
-                    .foregroundStyle(Color.white.opacity(0.4))
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(OnboardingTheme.muted)
                 ModelProgressBar(progress: 1)
                     .frame(width: 220)
             }
         case .downloading(let progress):
             VStack(spacing: 12) {
                 Text("Downloading local dictation model \(Int(progress * 100))%")
-                    .font(.system(size: 13))
-                    .foregroundStyle(Color.white.opacity(0.4))
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(OnboardingTheme.muted)
                 ModelProgressBar(progress: progress)
                     .frame(width: 220)
             }
         case .error(let msg):
             VStack(spacing: 8) {
                 Text(msg)
-                    .font(.system(size: 12))
-                    .foregroundStyle(.orange.opacity(0.8))
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(OnboardingTheme.warning)
                     .multilineTextAlignment(.center)
             }
         case .unloaded:
             Text("Preparing...")
-                .font(.system(size: 13))
-                .foregroundStyle(Color.white.opacity(0.4))
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(OnboardingTheme.muted)
         }
     }
 
@@ -442,16 +394,14 @@ struct OnboardingView: View {
 
                 VStack(spacing: 8) {
                     Text("You're all set")
-                        .font(.system(size: 22, weight: .semibold))
-                        .tracking(-0.3)
-                        .foregroundStyle(.white)
+                        .font(.system(size: 34, weight: .heavy, design: .rounded))
+                        .foregroundStyle(OnboardingTheme.ink)
 
                     Text("Hold your shortcut to dictate, release to paste")
-                        .font(.system(size: 13))
-                        .foregroundStyle(Color.white.opacity(0.4))
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(OnboardingTheme.muted)
                 }
 
-                // Summary
                 VStack(spacing: 2) {
                     OnboardingSummaryRow(
                         icon: "mic",
@@ -481,7 +431,7 @@ struct OnboardingView: View {
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)
-                .glassed(in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .onboardingPixelBox(background: OnboardingTheme.panel, border: OnboardingTheme.ink)
             }
 
             Spacer()
@@ -502,16 +452,16 @@ private struct OnboardingBackground: View {
     var body: some View {
         ZStack {
             LinearGradient(
-                colors: [Color(white: 0.10), Color(white: 0.04)],
-                startPoint: .top,
-                endPoint: .bottom
+                colors: [
+                    OnboardingTheme.background,
+                    Color(red: 0.90, green: 0.96, blue: 1.00),
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
             )
-            RadialGradient(
-                colors: [Color.white.opacity(0.05), Color.clear],
-                center: UnitPoint(x: 0.5, y: 0.3),
-                startRadius: 20,
-                endRadius: 220
-            )
+
+            GridPattern()
+                .stroke(OnboardingTheme.ink.opacity(0.08), lineWidth: 1)
         }
         .ignoresSafeArea()
     }
@@ -529,27 +479,15 @@ private struct OnboardingPillButton: View {
     var body: some View {
         Button(action: action) {
             Text(title)
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(.white)
+                .font(.system(size: 15, weight: .heavy, design: .rounded))
+                .foregroundStyle(OnboardingTheme.ink)
                 .frame(height: 44)
                 .frame(maxWidth: .infinity)
-                .background(
-                    Capsule(style: .continuous)
-                        .fill(Color.white.opacity(0.08))
-                        .overlay(
-                            Capsule(style: .continuous)
-                                .strokeBorder(
-                                    LinearGradient(
-                                        colors: [
-                                            Color.white.opacity(0.2),
-                                            Color.white.opacity(0.05),
-                                        ],
-                                        startPoint: .topLeading,
-                                        endPoint: .bottomTrailing
-                                    ),
-                                    lineWidth: 1
-                                )
-                        )
+                .onboardingPixelBox(
+                    background: OnboardingTheme.coral,
+                    border: OnboardingTheme.ink,
+                    shadow: OnboardingTheme.ink,
+                    shadowOffset: CGSize(width: 4, height: 4)
                 )
         }
         .buttonStyle(.plain)
@@ -560,17 +498,26 @@ private struct WelcomeIcon: View {
     @State private var appeared = false
 
     var body: some View {
-        Image(systemName: "waveform")
-            .font(.system(size: 32, weight: .light))
-            .foregroundStyle(
-                LinearGradient(
-                    colors: [.white.opacity(0.9), .white.opacity(0.5)],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-            )
-            .frame(width: 72, height: 72)
-            .glassed(in: Circle())
+        ZStack {
+            if let image = NSImage.onboardingCrabSprite(named: "idle-1") {
+                Image(nsImage: image)
+                    .interpolation(.none)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 82, height: 72)
+            } else {
+                Image(systemName: "waveform")
+                    .font(.system(size: 32, weight: .semibold))
+                    .foregroundStyle(OnboardingTheme.ink)
+            }
+        }
+        .frame(width: 112, height: 94)
+        .onboardingPixelBox(
+            background: OnboardingTheme.panelBlue,
+            border: OnboardingTheme.ink,
+            shadow: OnboardingTheme.coral,
+            shadowOffset: CGSize(width: 6, height: 6)
+        )
             .scaleEffect(appeared ? 1.0 : 0.3)
             .opacity(appeared ? 1.0 : 0.0)
             .onAppear {
@@ -587,9 +534,14 @@ private struct DoneCheckmark: View {
     var body: some View {
         Image(systemName: "checkmark")
             .font(.system(size: 26, weight: .semibold))
-            .foregroundStyle(.green)
+            .foregroundStyle(OnboardingTheme.ink)
             .frame(width: 64, height: 64)
-            .glassed(in: Circle())
+            .onboardingPixelBox(
+                background: OnboardingTheme.panelMint,
+                border: OnboardingTheme.ink,
+                shadow: OnboardingTheme.teal,
+                shadowOffset: CGSize(width: 5, height: 5)
+            )
             .scaleEffect(appeared ? 1.0 : 0.3)
             .opacity(appeared ? 1.0 : 0.0)
             .onAppear {
@@ -606,15 +558,18 @@ private struct OnboardingPermissionBadge: View {
     var body: some View {
         HStack(spacing: 6) {
             Circle()
-                .fill(granted ? Color.green : Color.orange)
+                .fill(granted ? OnboardingTheme.teal : OnboardingTheme.warning)
                 .frame(width: 8, height: 8)
             Text(granted ? "Granted" : "Not Granted")
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(granted ? Color.green : Color.orange)
+                .font(.system(size: 12, weight: .heavy, design: .rounded))
+                .foregroundStyle(OnboardingTheme.ink)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 7)
-        .glassed(in: Capsule())
+        .onboardingPixelBox(
+            background: granted ? OnboardingTheme.panelMint : OnboardingTheme.panel,
+            border: OnboardingTheme.ink
+        )
         .animation(.easeOut(duration: 0.25), value: granted)
     }
 }
@@ -626,9 +581,10 @@ private struct OnboardingPageIndicator: View {
     var body: some View {
         HStack(spacing: 6) {
             ForEach(0..<total, id: \.self) { index in
-                Circle()
-                    .fill(index == current ? Color.white.opacity(0.8) : Color.white.opacity(0.2))
-                    .frame(width: index == current ? 7 : 5, height: index == current ? 7 : 5)
+                Rectangle()
+                    .fill(index == current ? OnboardingTheme.coral : OnboardingTheme.panel)
+                    .frame(width: index == current ? 18 : 8, height: 8)
+                    .overlay(Rectangle().stroke(OnboardingTheme.ink, lineWidth: 1))
                     .animation(.easeOut(duration: 0.2), value: current)
             }
         }
@@ -644,30 +600,113 @@ private struct OnboardingSummaryRow: View {
         HStack(spacing: 10) {
             Image(systemName: icon)
                 .font(.system(size: 12))
-                .foregroundStyle(Color.white.opacity(0.5))
+                .foregroundStyle(OnboardingTheme.muted)
                 .frame(width: 20)
 
             Text(title)
-                .font(.system(size: 13))
-                .foregroundStyle(Color.white.opacity(0.7))
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(OnboardingTheme.ink)
 
             Spacer()
 
             Image(systemName: granted ? "checkmark.circle.fill" : "xmark.circle")
                 .font(.system(size: 14))
-                .foregroundStyle(granted ? .green : .orange)
+                .foregroundStyle(granted ? OnboardingTheme.teal : OnboardingTheme.warning)
         }
         .padding(.vertical, 6)
     }
 }
 
-// MARK: - Glass Helper
+private struct OnboardingStepIcon: View {
+    let systemName: String
+    let background: Color
 
-extension View {
-    @ViewBuilder
-    func glassed<S: InsettableShape>(in shape: S) -> some View {
+    var body: some View {
+        Image(systemName: systemName)
+            .font(.system(size: 28, weight: .semibold))
+            .foregroundStyle(OnboardingTheme.ink)
+            .frame(width: 64, height: 64)
+            .onboardingPixelBox(
+                background: background,
+                border: OnboardingTheme.ink,
+                shadow: OnboardingTheme.ink,
+                shadowOffset: CGSize(width: 4, height: 4)
+            )
+    }
+}
+
+private enum OnboardingTheme {
+    static let ink = Color(red: 0.03, green: 0.09, blue: 0.18)
+    static let muted = Color(red: 0.25, green: 0.33, blue: 0.46)
+    static let background = Color(red: 0.78, green: 0.87, blue: 0.97)
+    static let panel = Color(red: 0.97, green: 0.99, blue: 1.00)
+    static let panelBlue = Color(red: 0.66, green: 0.84, blue: 1.00)
+    static let panelMint = Color(red: 0.56, green: 0.85, blue: 0.86)
+    static let panelLilac = Color(red: 0.75, green: 0.82, blue: 1.00)
+    static let coral = Color(red: 1.00, green: 0.44, blue: 0.41)
+    static let teal = Color(red: 0.08, green: 0.59, blue: 0.68)
+    static let warning = Color(red: 0.74, green: 0.35, blue: 0.02)
+}
+
+private struct GridPattern: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        let spacing: CGFloat = 42
+
+        var x = rect.minX
+        while x <= rect.maxX {
+            path.move(to: CGPoint(x: x, y: rect.minY))
+            path.addLine(to: CGPoint(x: x, y: rect.maxY))
+            x += spacing
+        }
+
+        var y = rect.minY
+        while y <= rect.maxY {
+            path.move(to: CGPoint(x: rect.minX, y: y))
+            path.addLine(to: CGPoint(x: rect.maxX, y: y))
+            y += spacing
+        }
+
+        return path
+    }
+}
+
+private extension NSImage {
+    static func onboardingCrabSprite(named name: String) -> NSImage? {
+        guard let url = Bundle.main.url(
+            forResource: name,
+            withExtension: "png",
+            subdirectory: "CrabSpriteVariants/ocean"
+        ) ?? Bundle.main.url(
+            forResource: name,
+            withExtension: "png",
+            subdirectory: "CrabSprites"
+        ) else {
+            return nil
+        }
+
+        return NSImage(contentsOf: url)
+    }
+}
+
+private extension View {
+    func onboardingPixelBox(
+        background: Color,
+        border: Color = OnboardingTheme.ink,
+        shadow: Color = .clear,
+        shadowOffset: CGSize = .zero
+    ) -> some View {
         self
-            .background(shape.fill(Color.white.opacity(0.05)))
-            .overlay(shape.strokeBorder(Color.white.opacity(0.1), lineWidth: 1))
+            .background {
+                Rectangle()
+                    .fill(shadow)
+                    .offset(shadowOffset)
+                Rectangle()
+                    .fill(background)
+            }
+            .overlay {
+                Rectangle()
+                    .stroke(border, lineWidth: 2)
+            }
     }
 }

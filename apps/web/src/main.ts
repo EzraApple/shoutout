@@ -1,7 +1,21 @@
 import "@fontsource-variable/space-grotesk";
 import "@fontsource/pixelify-sans/500.css";
 import "@fontsource/pixelify-sans/600.css";
+import posthog from "posthog-js";
 import "./styles.css";
+
+const posthogProjectKey = import.meta.env.VITE_POSTHOG_KEY?.trim();
+const posthogHost = import.meta.env.VITE_POSTHOG_HOST?.trim() || "https://us.i.posthog.com";
+
+if (posthogProjectKey) {
+  posthog.init(posthogProjectKey, {
+    api_host: posthogHost,
+    autocapture: false,
+    capture_pageview: true,
+    disable_session_recording: true,
+    person_profiles: "identified_only",
+  });
+}
 
 const now = () => window.performance?.now?.() ?? Date.now();
 const requestFrame = (callback: FrameRequestCallback) =>
@@ -390,6 +404,10 @@ type TrackableWindow = Window & {
 const trackEvent = (eventName: string, props: Record<string, string>) => {
   const trackableWindow = window as TrackableWindow;
 
+  if (posthogProjectKey) {
+    posthog.capture(eventName, props);
+  }
+
   trackableWindow.plausible?.(eventName, { props });
   trackableWindow.dataLayer?.push({ event: eventName, ...props });
 
@@ -398,11 +416,18 @@ const trackEvent = (eventName: string, props: Record<string, string>) => {
   }
 };
 
+if (["localhost", "127.0.0.1", "::1"].includes(window.location.hostname)) {
+  document.querySelectorAll<HTMLAnchorElement>("[data-local-download-href]").forEach((anchor) => {
+    anchor.href = anchor.dataset.localDownloadHref ?? anchor.href;
+  });
+}
+
 document.querySelectorAll<HTMLElement>("[data-track-event]").forEach((element) => {
   element.addEventListener("click", () => {
     trackEvent(element.dataset.trackEvent ?? "interaction", {
       label: element.dataset.trackLabel ?? element.textContent?.trim() ?? "unknown",
       href: element instanceof HTMLAnchorElement ? element.href : "",
+      release_version: element.dataset.trackReleaseVersion ?? "",
     });
   });
 });

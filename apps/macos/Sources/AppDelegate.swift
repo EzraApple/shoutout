@@ -9,6 +9,8 @@ enum Defaults {
     static let dimSystemAudio = "dimSystemAudio"
     static let overlayStyle = "overlayStyle"
     static let crabColorVariant = "crabColorVariant"
+    static let hasCompletedOnboarding = "hasCompletedOnboarding"
+    static let onboardingStep = "onboardingStep"
     static let requestPermissionsOnLaunch = "requestPermissionsOnLaunch"
     static let transcriptionBackend = "transcriptionBackend"
     static let appendTrailingSpace = "appendTrailingSpace"
@@ -266,6 +268,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var indicatorDismissTask: Task<Void, Never>?
     private var modelStateCancellable: AnyCancellable?
     private var updaterController: SPUStandardUpdaterController?
+    private var updaterHasStarted = false
     private var shortcutUnavailableMessage: String?
     private var lastLoggedRecordingLevelAt: Date?
     private var displayedClassicRecordingLevel: Float = 0
@@ -292,9 +295,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         ])
 
         let overlayPreviewState = requestedOverlayPreviewState()
+        let shouldShowOnboarding = overlayPreviewState == nil
+            && !UserDefaults.standard.bool(forKey: Defaults.hasCompletedOnboarding)
 
         setupMainMenu()
-        setupUpdater()
+        setupUpdater(startImmediately: !shouldShowOnboarding)
         setupMenuBar()
         applyApplicationIconVariant()
         observeModelState()
@@ -337,10 +342,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             reason: "Global hotkey monitoring"
         )
 
-        // Check onboarding
-        if overlayPreviewState == nil
-            && !UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
-        {
+        if shouldShowOnboarding {
             showOnboarding()
         }
 
@@ -355,6 +357,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         if overlayPreviewState == nil,
+            !shouldShowOnboarding,
             UserDefaults.standard.bool(forKey: Defaults.requestPermissionsOnLaunch)
         {
             Task { @MainActor in
@@ -447,6 +450,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func continuePermissionSetupIfRequested() {
         guard UserDefaults.standard.bool(forKey: Defaults.requestPermissionsOnLaunch) else {
+            return
+        }
+        guard !isOnboardingInProgress else {
+            RuntimeLog.write("permissions diagnostic request-on-launch paused during onboarding")
             return
         }
         guard !permissions.missingPermissionNames.isEmpty else {
@@ -1455,18 +1462,34 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.windowsMenu = windowMenu
     }
 
-    private func setupUpdater() {
+    private func setupUpdater(startImmediately: Bool) {
         guard AppUpdaterConfiguration.isConfigured else {
             RuntimeLog.write("updates disabled status=\(AppUpdaterConfiguration.statusText)")
             return
         }
 
         updaterController = SPUStandardUpdaterController(
-            startingUpdater: true,
+            startingUpdater: false,
             updaterDelegate: nil,
             userDriverDelegate: nil
         )
-        RuntimeLog.write("updates enabled feed=\(AppUpdaterConfiguration.feedURLString)")
+        RuntimeLog.write("updates configured feed=\(AppUpdaterConfiguration.feedURLString)")
+        if startImmediately {
+            startUpdaterIfNeeded(reason: "launch")
+        } else {
+            RuntimeLog.write("updates deferred during onboarding")
+        }
+    }
+
+    private var isOnboardingInProgress: Bool {
+        !UserDefaults.standard.bool(forKey: Defaults.hasCompletedOnboarding)
+    }
+
+    private func startUpdaterIfNeeded(reason: String) {
+        guard let updaterController, !updaterHasStarted else { return }
+        updaterHasStarted = true
+        RuntimeLog.write("updates start reason=\(reason)")
+        updaterController.startUpdater()
     }
 
     // MARK: - Menu Bar
@@ -1624,6 +1647,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func checkForUpdatesAction(_ sender: Any?) {
+        guard !isOnboardingInProgress else {
+            RuntimeLog.write("updates manual check skipped during onboarding")
+            return
+        }
         guard let updaterController else {
             RuntimeLog.write("updates check unavailable status=\(AppUpdaterConfiguration.statusText)")
             let alert = NSAlert()
@@ -1636,6 +1663,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         RuntimeLog.write("updates manual check")
+        startUpdaterIfNeeded(reason: "manualCheck")
         updaterController.checkForUpdates(sender)
     }
 
@@ -1710,7 +1738,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func closeOnboarding() {
-        UserDefaults.standard.set(true, forKey: "hasCompletedOnboarding")
+        UserDefaults.standard.set(true, forKey: Defaults.hasCompletedOnboarding)
+        UserDefaults.standard.removeObject(forKey: Defaults.onboardingStep)
         onboardingWindow?.orderOut(nil)
         onboardingWindow?.close()
         onboardingWindow = nil
@@ -1718,6 +1747,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             NSApp.setActivationPolicy(.accessory)
         }
         setupHotkey()
+        startUpdaterIfNeeded(reason: "onboardingComplete")
     }
 
     func applyDockVisibilityPreference() {

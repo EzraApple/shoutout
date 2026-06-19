@@ -1159,7 +1159,30 @@ p {
 .agent-input:focus-within {
   border-color: var(--panel-mint);
   background: rgb(7 22 45 / 42%);
+}
+
+.editor-window:hover .agent-input {
   transform: translateY(-2px);
+}
+
+.editor-window:focus-within,
+.editor-window:focus-within:hover {
+  box-shadow: 5px 5px 0 var(--ink);
+  transform: none;
+}
+
+.editor-window:focus-within .surface-bar,
+.editor-window:focus-within:hover .surface-bar,
+.editor-window:focus-within .agent-message,
+.editor-window:focus-within:hover .agent-message,
+.editor-window:focus-within .agent-input,
+.editor-window:focus-within:hover .agent-input {
+  transform: none;
+}
+
+.editor-window:focus-within .surface-bar,
+.editor-window:focus-within:hover .surface-bar {
+  background: transparent;
 }
 
 .notes-window {

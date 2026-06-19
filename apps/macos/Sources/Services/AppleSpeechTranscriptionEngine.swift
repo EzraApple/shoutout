@@ -79,23 +79,12 @@ final class AppleSpeechTranscriptionEngine: TranscriptionEngine {
     }
 
     static func requestSpeechAuthorization() async throws {
-        let currentStatus = SFSpeechRecognizer.authorizationStatus()
+        let currentStatus = SpeechAuthorization.currentStatus()
         if currentStatus == .authorized {
             return
         }
 
-        let status: SFSpeechRecognizerAuthorizationStatus
-        if currentStatus == .notDetermined {
-            status = await withCheckedContinuation { continuation in
-                SFSpeechRecognizer.requestAuthorization { authorizationStatus in
-                    Task { @MainActor in
-                        continuation.resume(returning: authorizationStatus)
-                    }
-                }
-            }
-        } else {
-            status = currentStatus
-        }
+        let status = await SpeechAuthorization.requestStatus()
 
         guard status == .authorized else {
             throw TranscriptionError.speechRecognitionNotAuthorized(status.description)

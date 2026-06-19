@@ -72,7 +72,7 @@ class PermissionManager: ObservableObject {
             hasAccessibility: AXIsProcessTrusted(),
             hasInputMonitoring: CGPreflightListenEventAccess(),
             hasMicrophone: AVCaptureDevice.authorizationStatus(for: .audio) == .authorized,
-            hasSpeechRecognition: SFSpeechRecognizer.authorizationStatus() == .authorized
+            hasSpeechRecognition: SpeechAuthorization.currentStatus() == .authorized
         )
 
         hasAccessibility = snapshot.hasAccessibility
@@ -94,7 +94,6 @@ class PermissionManager: ObservableObject {
             "AXTrustedCheckOptionPrompt": true
         ] as CFDictionary
         AXIsProcessTrustedWithOptions(options)
-        openPrivacyPane(.accessibility)
         beginPollingForPermissionChanges()
     }
 
@@ -112,20 +111,7 @@ class PermissionManager: ObservableObject {
 
     func requestSpeechRecognition() async -> Bool {
         RuntimeLog.write("permissions request speechRecognition")
-        let currentStatus = SFSpeechRecognizer.authorizationStatus()
-        let status: SFSpeechRecognizerAuthorizationStatus
-        if currentStatus == .notDetermined {
-            status = await withCheckedContinuation { continuation in
-                SFSpeechRecognizer.requestAuthorization { authorizationStatus in
-                    Task { @MainActor in
-                        continuation.resume(returning: authorizationStatus)
-                    }
-                }
-            }
-        } else {
-            status = currentStatus
-        }
-
+        let status = await SpeechAuthorization.requestStatus()
         let granted = status == .authorized
         hasSpeechRecognition = granted
         RuntimeLog.write(
@@ -142,38 +128,51 @@ class PermissionManager: ObservableObject {
         RuntimeLog.write("permissions request inputMonitoring")
         hasInputMonitoring = CGRequestListenEventAccess()
         RuntimeLog.write("permissions inputMonitoring result granted=\(hasInputMonitoring)")
-        if !hasInputMonitoring {
-            openPrivacyPane(.inputMonitoring)
-        }
         beginPollingForPermissionChanges()
     }
 
     func openFirstMissingPermissionPane() {
         if !hasAccessibility {
-            requestAccessibility()
+            openAccessibilitySettings()
             return
         }
 
         if !hasInputMonitoring {
-            requestInputMonitoring()
+            openInputMonitoringSettings()
             return
         }
 
         if !hasMicrophone {
-            Task {
-                _ = await requestMicrophone()
-            }
+            openMicrophoneSettings()
             return
         }
 
         if speechRecognitionIsRequired && !hasSpeechRecognition {
-            Task {
-                _ = await requestSpeechRecognition()
-            }
+            openSpeechRecognitionSettings()
             return
         }
 
         refresh()
+    }
+
+    func openAccessibilitySettings() {
+        openPrivacyPane(.accessibility)
+        beginPollingForPermissionChanges()
+    }
+
+    func openInputMonitoringSettings() {
+        openPrivacyPane(.inputMonitoring)
+        beginPollingForPermissionChanges()
+    }
+
+    func openMicrophoneSettings() {
+        openPrivacyPane(.microphone)
+        beginPollingForPermissionChanges()
+    }
+
+    func openSpeechRecognitionSettings() {
+        openPrivacyPane(.speechRecognition)
+        beginPollingForPermissionChanges()
     }
 
     private var speechRecognitionIsRequired: Bool {

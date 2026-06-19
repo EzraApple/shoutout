@@ -5,6 +5,23 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 ROOT_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 
+PRESERVED_ENV_VALUES=()
+for KEY in \
+    SPARKLE_ARCHIVES_DIR \
+    SPARKLE_DOWNLOAD_URL_PREFIX \
+    SPARKLE_RELEASE_NOTES_URL_PREFIX \
+    SPARKLE_PRODUCT_LINK \
+    SPARKLE_KEY_ACCOUNT \
+    SPARKLE_MAXIMUM_VERSIONS \
+    SPARKLE_PRIVATE_ED_KEY \
+    SPARKLE_WEB_PUBLIC_DIR \
+    SPARKLE_STAGE_WEB_PUBLIC \
+    SPARKLE_FEED_URL; do
+    if [[ -n "${!KEY+x}" ]]; then
+        PRESERVED_ENV_VALUES+=("$KEY=${!KEY}")
+    fi
+done
+
 for ENV_FILE in "$ROOT_DIR/.env" "$PROJECT_DIR/.env"; do
     if [[ -f "$ENV_FILE" ]]; then
         set -a
@@ -13,6 +30,10 @@ for ENV_FILE in "$ROOT_DIR/.env" "$PROJECT_DIR/.env"; do
         set +a
         break
     fi
+done
+
+for PAIR in "${PRESERVED_ENV_VALUES[@]}"; do
+    export "$PAIR"
 done
 
 GREEN='\033[0;32m'

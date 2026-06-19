@@ -45,6 +45,13 @@ SKIP_NOTARIZE=true make release-dmg
 ## Upload
 
 - Do not publish the current dry-run DMG. Finish the LM pass work first, then cut the real release.
+- Confirm the website project has these Vercel env vars set in Production and Preview:
+  - `VITE_POSTHOG_KEY`
+  - `VITE_POSTHOG_HOST`
+  - `POSTHOG_PROJECT_API_KEY`
+  - `POSTHOG_HOST`
+  - `SHOUTOUT_RELEASE_VERSION`
+  - `SHOUTOUT_DMG_URL`
 - Store notarization credentials once on the release machine:
 
 ```bash
@@ -65,9 +72,18 @@ make sparkle-appcast
 npm --prefix apps/web run build
 ```
 
+- Upload the DMG and release notes to the linked Vercel Blob store:
+
+```bash
+make blob-upload-dmg
+```
+
+- Copy the printed DMG Blob URL into `SHOUTOUT_DMG_URL` for Production and Preview. The `/download` route tracks `download started` in PostHog and redirects to `SHOUTOUT_DMG_URL` when set, otherwise it falls back to `/releases/ShoutOut-<version>.dmg`.
+- If Sparkle should download from Blob too, set `SPARKLE_DOWNLOAD_URL_PREFIX` to the Blob `releases/` URL before running `make sparkle-appcast`. Unless `SPARKLE_RELEASE_NOTES_URL_PREFIX` is set separately, the release notes link will use the same Blob prefix.
 - Verify these public paths after deploy:
   - `https://shoutout.sh/appcast.xml`
-  - `https://shoutout.sh/releases/ShoutOut-<version>.dmg`
+  - Blob URL from `SHOUTOUT_DMG_URL`
   - `https://shoutout.sh/releases/ShoutOut-<version>.md`
+- Verify PostHog receives `download clicked` and `download started`.
 - Verify the public download URL from a clean browser session.
 - Verify Sparkle update checking from an older installed build before announcing broadly.

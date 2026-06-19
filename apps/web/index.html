@@ -35,11 +35,12 @@
             </p>
             <div class="command-row" aria-label="Release actions">
               <a
-                class="command-button primary disabled"
-                href="#download"
-                aria-disabled="true"
-                data-track-event="download_intent"
+                class="command-button primary"
+                href="/download?source=hero"
+                data-local-download-href="/releases/ShoutOut-0.1.0.dmg"
+                data-track-event="download clicked"
                 data-track-label="hero"
+                data-track-release-version="0.1.0"
               >
                 <span class="desktop-cta-label">Download for Mac</span>
                 <span class="mobile-cta-label">Available on macOS</span>
@@ -282,10 +283,12 @@
               <p>Free macOS app. No account required.</p>
             </div>
             <a
-              class="command-button primary disabled"
-              aria-disabled="true"
-              data-track-event="download_intent"
+              class="command-button primary"
+              href="/download?source=download-panel"
+              data-local-download-href="/releases/ShoutOut-0.1.0.dmg"
+              data-track-event="download clicked"
               data-track-label="download-panel"
+              data-track-release-version="0.1.0"
             >
               <span class="desktop-cta-label">Download for macOS</span>
               <span class="mobile-cta-label">Available on macOS</span>
@@ -301,7 +304,7 @@
             href="https://github.com/EzraApple/shoutout"
             target="_blank"
             rel="noreferrer"
-            data-track-event="outbound_click"
+            data-track-event="outbound clicked"
             data-track-label="github"
           >
             GitHub
@@ -310,7 +313,7 @@
             href="https://x.com/ezra_sf"
             target="_blank"
             rel="noreferrer"
-            data-track-event="outbound_click"
+            data-track-event="outbound clicked"
             data-track-label="twitter"
           >
             X / Twitter
