@@ -157,6 +157,6 @@ Local release dry-runs default to the current Mac architecture. Use `UNIVERSAL=t
 
 Until Apple Developer membership, the Developer ID certificate, and notarization credentials are active, local builds should keep using `make restart-local`. The release QA checklist lives in [docs/release/dmg-readiness-checklist.md](docs/release/dmg-readiness-checklist.md).
 
-## Attribution
+## License
 
-ShoutOut is based on the MIT-licensed Inputalk macOS dictation app by the Inputalk contributors. The original license is retained in `LICENSE`.
+ShoutOut is released under the MIT license. See `LICENSE`.

@@ -55,7 +55,7 @@ struct LanguagePassSmoke {
             name: "self correction keeps final choice",
             input: "i want to meet on tuesday wait no monday",
             expectedFragments: ["monday"],
-            rejectedFragments: ["tuesday", "wait no"],
+            rejectedFragments: ["tuesday", "wait no", "wait, no"],
             expectation: .safeRewriteOrFallback
         ),
         SmokeCase(

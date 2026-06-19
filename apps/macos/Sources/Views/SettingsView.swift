@@ -513,7 +513,7 @@ struct SettingsView: View {
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
-                Text("Local voice-to-text with swappable on-device engines. Based on MIT-licensed Inputalk.")
+                Text("Local voice-to-text with swappable on-device engines.")
                     .font(.caption)
                     .foregroundStyle(.tertiary)
             } header: {

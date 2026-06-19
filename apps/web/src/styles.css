@@ -752,75 +752,51 @@ p {
   background: var(--coral);
 }
 
-.mac-key {
-  position: relative;
-  display: inline-flex;
-  flex-direction: column;
+.fn-node h3 {
+  display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 1px;
-  width: 54px;
-  height: 42px;
-  margin-left: 6px;
-  border: 2px solid #13243b;
-  border-bottom-width: 5px;
-  border-radius: 8px;
-  padding: 3px 8px 5px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.92) 0%, rgba(230, 238, 247, 0.96) 48%, rgba(198, 214, 230, 0.98) 100%);
-  box-shadow:
-    inset 0 2px 0 rgba(255, 255, 255, 0.95),
-    inset 0 -1px 0 rgba(46, 65, 91, 0.32),
-    3px 3px 0 var(--ink);
-  font-family: "Space Grotesk Variable", ui-sans-serif, system-ui, sans-serif;
-  vertical-align: -0.32em;
-  color: #15273e;
+  gap: 10px;
+  min-height: 64px;
 }
 
-.mac-key::before {
-  content: "";
-  position: absolute;
-  top: 4px;
-  right: 7px;
-  left: 7px;
-  height: 1px;
-  background: rgba(255, 255, 255, 0.88);
+.mac-key {
+  position: relative;
+  display: inline-block;
+  width: 64px;
+  height: 58px;
+  flex: 0 0 auto;
+  margin-left: 0;
+  border: 2px solid #05080d;
+  border-bottom-width: 4px;
+  border-radius: 8px;
+  background: #f8f8f2;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.98),
+    inset 0 -3px 0 #d7d7cf,
+    3px 3px 0 #05080d;
+  font-family: "Space Grotesk Variable", ui-sans-serif, system-ui, sans-serif;
+  vertical-align: 0;
+  color: #05080d;
+  transform: translateY(1px);
 }
 
 .globe-mark {
-  position: relative;
-  width: 18px;
-  height: 18px;
-  display: inline-block;
-  border: 2px solid currentColor;
-  border-radius: 999px;
-}
-
-.globe-mark::before,
-.globe-mark::after {
-  content: "";
   position: absolute;
-  inset: 3px;
-  border-color: currentColor;
-  border-style: solid;
-  opacity: 0.82;
-}
-
-.globe-mark::before {
-  border-width: 0 2px;
-  border-radius: 999px;
-}
-
-.globe-mark::after {
-  top: 6px;
-  right: -2px;
-  left: -2px;
-  height: 0;
-  border-width: 2px 0 0;
+  bottom: 9px;
+  left: 9px;
+  width: 21px;
+  height: 21px;
+  background: url("../node_modules/lucide-static/icons/globe.svg") center / contain no-repeat;
+  color: #05080d;
 }
 
 .key-label {
-  font-size: 14px;
+  position: absolute;
+  top: 8px;
+  right: 9px;
+  display: block;
+  color: #05080d;
+  font-size: 15px;
   font-weight: 700;
   line-height: 1;
 }

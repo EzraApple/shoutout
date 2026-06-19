@@ -23,7 +23,7 @@
 	<key>LSMinimumSystemVersion</key>
 	<string>15.0</string>
 	<key>NSHumanReadableCopyright</key>
-	<string>Copyright 2026 ShoutOut. Portions copyright 2026 Inputalk contributors.</string>
+	<string>Copyright 2026 ShoutOut.</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
 	<key>SUFeedURL</key>

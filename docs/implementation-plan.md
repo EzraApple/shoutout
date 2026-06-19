@@ -15,11 +15,11 @@ Build a macOS-native, local-first dictation app with the Wispr Flow core loop: h
 
 ### 1. Rebrand And Install Path
 
-**Why:** The app should be a clean new repo named ShoutOut, not a copy of Inputalk's product surface.
+**Why:** The app should be a clean repo named ShoutOut with its own product surface.
 
 **Before:**
 ```swift
-let package = Package(name: "Inputalk")
+let package = Package(name: "OldName")
 ```
 
 **After:**

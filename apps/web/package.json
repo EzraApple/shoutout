@@ -18,6 +18,7 @@
   "dependencies": {
     "@fontsource-variable/space-grotesk": "^5.2.10",
     "@fontsource/pixelify-sans": "^5.2.7",
+    "lucide-static": "^1.21.0",
     "posthog-js": "^1.390.2"
   }
 }
