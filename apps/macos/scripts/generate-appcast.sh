@@ -88,7 +88,7 @@ if [[ ! -f "$NOTES_PATH" ]]; then
 # ShoutOut $VERSION
 
 - Local-first macOS dictation update.
-- Code-signed DMG release.
+- Signed and notarized DMG release.
 EOF
 fi
 
