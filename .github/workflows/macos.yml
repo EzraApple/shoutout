@@ -17,6 +17,13 @@ jobs:
           xcode-select -p
           swift --version
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Install Python test dependencies
+        run: python3 -m pip install Pillow
+
       - name: Static checks
         run: SKIP_SWIFTPM=true ./scripts/test.sh
 
