@@ -71,6 +71,24 @@ final class LanguagePassValidatorTests: XCTestCase {
         )
     }
 
+    func testDeterministicCleanupAppliesCasualStyle() {
+        let cleaned = LanguagePassDeterministicCleanup.clean(
+            "Can you send this over when you get a chance?",
+            style: .casual
+        )
+
+        XCTAssertEqual(cleaned, "can you send this over when you get a chance")
+    }
+
+    func testDeterministicCleanupRemovesSimpleFillerAndAdjacentRepeats() {
+        let cleaned = LanguagePassDeterministicCleanup.clean(
+            "um yeah yeah that works can you send it over",
+            style: .casual
+        )
+
+        XCTAssertEqual(cleaned, "yeah that works can you send it over")
+    }
+
     func testAcceptsDeterministicActuallyFalseStartCleanup() {
         let validation = LanguagePassValidator.validate(
             output: "Does this PR also make it actually register manage tabs and the suggestion tool with this thing?",

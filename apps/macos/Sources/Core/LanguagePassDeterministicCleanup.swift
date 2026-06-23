@@ -1,7 +1,10 @@
 import Foundation
 
 public enum LanguagePassDeterministicCleanup {
-    public static func clean(_ text: String) -> String {
+    public static func clean(
+        _ text: String,
+        style: LanguagePassStyle = .defaultStyle
+    ) -> String {
         var result = text
 
         let replacements = [
@@ -13,6 +16,26 @@ public enum LanguagePassDeterministicCleanup {
                 of: pattern,
                 with: replacement,
                 options: [.regularExpression, .caseInsensitive]
+            )
+        }
+
+        result = result.replacingOccurrences(
+            of: #"\b(?:um|uh|er)\b,?\s*"#,
+            with: "",
+            options: [.regularExpression, .caseInsensitive]
+        )
+        result = result.replacingOccurrences(
+            of: #"\b([\p{L}\p{N}]+(?:'[\p{L}\p{N}]+)?)\b(?:\s+\1\b)+"#,
+            with: "$1",
+            options: [.regularExpression, .caseInsensitive]
+        )
+
+        if style == .casual {
+            result = result.lowercased()
+            result = result.replacingOccurrences(
+                of: #"[ \t]*[.!?]+$"#,
+                with: "",
+                options: .regularExpression
             )
         }
 

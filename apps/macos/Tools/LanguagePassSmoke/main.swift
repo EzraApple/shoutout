@@ -16,6 +16,7 @@ struct SmokeCase {
     var style: LanguagePassStyle
     var expectedFragments: [String]
     var rejectedFragments: [String]
+    var expectedOutput: String?
     var expectation: Expectation
 
     init(
@@ -24,6 +25,7 @@ struct SmokeCase {
         style: LanguagePassStyle = .defaultStyle,
         expectedFragments: [String],
         rejectedFragments: [String],
+        expectedOutput: String? = nil,
         expectation: Expectation
     ) {
         self.name = name
@@ -31,6 +33,7 @@ struct SmokeCase {
         self.style = style
         self.expectedFragments = expectedFragments
         self.rejectedFragments = rejectedFragments
+        self.expectedOutput = expectedOutput
         self.expectation = expectation
     }
 }
@@ -95,6 +98,23 @@ struct LanguagePassSmoke {
             expectation: .requiredRewrite
         ),
         SmokeCase(
+            name: "actually false start removes abandoned article",
+            input: "Does this PR also make it a... actually register manage tabs and the suggestion tool with this thing?",
+            expectedFragments: ["make it actually register", "suggestion tool"],
+            rejectedFragments: ["a... actually", "a actually"],
+            expectedOutput: "Does this PR also make it actually register manage tabs and the suggestion tool with this thing?",
+            expectation: .requiredRewrite
+        ),
+        SmokeCase(
+            name: "casual style actively de-polishes transcription",
+            input: "Can you send this over when you get a chance?",
+            style: .casual,
+            expectedFragments: ["send this over", "get a chance"],
+            rejectedFragments: [".", "?"],
+            expectedOutput: "can you send this over when you get a chance",
+            expectation: .requiredRewrite
+        ),
+        SmokeCase(
             name: "formal style keeps original words",
             input: "i can join monday probably around three",
             style: .formal,
@@ -138,14 +158,24 @@ struct LanguagePassSmoke {
             container: container
         )
         let wallMs = elapsedMilliseconds(since: startedAt)
-        let validation = LanguagePassValidator.validate(output: rawOutput, baseText: smokeCase.input)
+        let rawCandidate = LanguagePassValidator.extractCandidate(from: rawOutput)
+        let normalizedCandidate = LanguagePassDeterministicCleanup.clean(
+            rawCandidate,
+            style: smokeCase.style
+        )
+        let validation = LanguagePassValidator.validate(
+            candidate: normalizedCandidate,
+            baseText: smokeCase.input
+        )
         let finalText = validation.acceptedText ?? smokeCase.input
         let finalLower = finalText.lowercased()
-        let rawCandidate = LanguagePassValidator.extractCandidate(from: rawOutput)
 
         print("\n[\(smokeCase.name)] \(wallMs)ms style=\(smokeCase.style.rawValue)")
         print("input: \(smokeCase.input)")
         print("raw: \(rawCandidate)")
+        if normalizedCandidate != rawCandidate {
+            print("normalized: \(normalizedCandidate)")
+        }
         print("final: \(finalText)")
         print("accepted: \(validation.acceptedText != nil) fallback: \(validation.fallbackReason ?? "none")")
 
@@ -155,6 +185,10 @@ struct LanguagePassSmoke {
 
         if smokeCase.expectation == .safeRewriteOrFallback, validation.acceptedText == nil {
             return nil
+        }
+
+        if let expectedOutput = smokeCase.expectedOutput, finalText != expectedOutput {
+            return "\(smokeCase.name): expected '\(expectedOutput)', got '\(finalText)'"
         }
 
         for fragment in smokeCase.expectedFragments {

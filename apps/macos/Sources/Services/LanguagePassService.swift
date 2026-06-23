@@ -247,21 +247,16 @@ final class LanguagePassService: ObservableObject {
             }
             let wallMs = Self.elapsedMilliseconds(since: startedAt)
             let candidateText = LanguagePassValidator.extractCandidate(from: output)
-            let validation = LanguagePassValidator.validate(candidate: candidateText, baseText: baseText)
+            let normalizedCandidateText = LanguagePassDeterministicCleanup.clean(
+                candidateText,
+                style: style
+            )
+            let deterministicCleanupApplied = normalizedCandidateText != candidateText
+            let validation = LanguagePassValidator.validate(
+                candidate: normalizedCandidateText,
+                baseText: baseText
+            )
             guard let acceptedText = validation.acceptedText else {
-                if let deterministicResult = deterministicCleanupResult(
-                    baseText: baseText,
-                    candidateText: candidateText,
-                    wallMs: wallMs,
-                    modelID: modelID
-                ) {
-                    recordSummary(deterministicResult)
-                    RuntimeLog.write(
-                        "languagePass accepted model=\(modelID) style=\(style.rawValue) wallMs=\(wallMs) deterministicCleanup=true inputChars=\(baseText.count) outputChars=\(deterministicResult.finalText.count)"
-                    )
-                    return deterministicResult
-                }
-
                 let result = LanguagePassRunResult.passthrough(
                     baseText,
                     enabled: true,
@@ -285,11 +280,11 @@ final class LanguagePassService: ObservableObject {
                 wallMs: wallMs,
                 modelID: modelID,
                 fallbackReason: nil,
-                deterministicCleanupApplied: false
+                deterministicCleanupApplied: deterministicCleanupApplied
             )
             recordSummary(result)
             RuntimeLog.write(
-                "languagePass accepted model=\(modelID) style=\(style.rawValue) wallMs=\(wallMs) deterministicCleanup=false inputChars=\(baseText.count) outputChars=\(acceptedText.count)"
+                "languagePass accepted model=\(modelID) style=\(style.rawValue) wallMs=\(wallMs) deterministicCleanup=\(deterministicCleanupApplied) inputChars=\(baseText.count) outputChars=\(acceptedText.count)"
             )
             return result
         } catch {
@@ -390,32 +385,6 @@ final class LanguagePassService: ObservableObject {
                 "candidate=\"\(Self.logSnippet(result.candidateText ?? ""))\"",
                 "final=\"\(Self.logSnippet(result.finalText))\"",
             ].joined(separator: " ")
-        )
-    }
-
-    private func deterministicCleanupResult(
-        baseText: String,
-        candidateText: String?,
-        wallMs: Int,
-        modelID: String
-    ) -> LanguagePassRunResult? {
-        let cleanedText = LanguagePassDeterministicCleanup.clean(baseText)
-        guard cleanedText != baseText else { return nil }
-
-        let validation = LanguagePassValidator.validate(candidate: cleanedText, baseText: baseText)
-        guard let acceptedText = validation.acceptedText else { return nil }
-
-        return LanguagePassRunResult(
-            finalText: acceptedText,
-            inputText: baseText,
-            candidateText: candidateText,
-            enabled: true,
-            accepted: true,
-            changed: acceptedText != baseText,
-            wallMs: wallMs,
-            modelID: modelID,
-            fallbackReason: nil,
-            deterministicCleanupApplied: true
         )
     }
 

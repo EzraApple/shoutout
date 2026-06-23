@@ -64,7 +64,7 @@ public enum LanguagePassStyle: String, CaseIterable, Identifiable, Sendable {
         case .standard:
             return "Add light punctuation and sentence casing when obvious."
         case .casual:
-            return "Keep the output lowercase. Do not add punctuation unless it is already part of the input."
+            return "Keep the output lowercase with almost no punctuation. Remove ordinary sentence-ending periods, question marks, and exclamation points unless the speaker explicitly dictated them."
         case .formal:
             return "Add clear sentence casing and punctuation when obvious."
         }
@@ -97,6 +97,7 @@ public enum LanguagePassPrompt {
         This is not a chat. Rewrite the dictated words; do not answer the speaker.
         Preserve the speaker's meaning, perspective, and task details. Do not summarize. Do not add facts.
         Clean obvious speech artifacts: filler words, repeated starts, stutters, and self-corrections.
+        Remove abandoned articles before corrections, such as "a... actually" or "an... actually"; keep "actually".
         Remove filler words like "um", "uh", "er", and "you know"; do not preserve them as punctuated words.
         Keep the final choice when the speaker corrects themself.
         Do not remove casual wording like "wait, no, actually" when it is the sentence the speaker meant to say.
@@ -130,6 +131,10 @@ public enum LanguagePassPrompt {
         LanguagePassExample(
             input: "wait no actually make it the smaller one",
             output: "Wait, no, actually make it the smaller one."
+        ),
+        LanguagePassExample(
+            input: "Does this PR also make it a... actually register manage tabs and the suggestion tool with this thing?",
+            output: "Does this PR also make it actually register manage tabs and the suggestion tool with this thing?"
         ),
         LanguagePassExample(
             input: "i i think we should ship the smaller version",
@@ -177,6 +182,10 @@ public enum LanguagePassPrompt {
         LanguagePassExample(
             input: "wait no actually make it the smaller one",
             output: "wait no actually make it the smaller one"
+        ),
+        LanguagePassExample(
+            input: "Can you send this over when you get a chance?",
+            output: "can you send this over when you get a chance"
         ),
     ]
 
