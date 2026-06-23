@@ -212,7 +212,7 @@ struct SettingsView: View {
 
                         if transcription.selectedBackend.requiresManagedModel {
                             Picker(selection: $transcription.selectedModel) {
-                                ForEach(TranscriptionModelOption.all) { option in
+                                ForEach(TranscriptionModelOption.advancedOptions) { option in
                                     Text(option.title).tag(option.id)
                                 }
                             } label: {
@@ -223,6 +223,10 @@ struct SettingsView: View {
                             }
 
                             Text(TranscriptionModelOption.option(for: transcription.selectedModel).detail)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                            Text(TranscriptionModelOption.advancedComparisonText)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                                 .fixedSize(horizontal: false, vertical: true)

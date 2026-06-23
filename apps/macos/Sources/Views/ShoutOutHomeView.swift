@@ -556,7 +556,7 @@ struct ShoutOutHomeView: View {
                     ) {
                         HomeStringMenu(
                             selection: $transcription.selectedModel,
-                            choices: TranscriptionModelOption.all.map {
+                            choices: TranscriptionModelOption.advancedOptions.map {
                                 HomeStringChoice(value: $0.id, title: $0.title, subtitle: $0.detail)
                             },
                             width: 250
