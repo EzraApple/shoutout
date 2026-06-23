@@ -1,0 +1,11 @@
+.git
+.vercel
+
+apps/macos/.build
+apps/macos/dist
+apps/web/dist
+apps/web/node_modules
+apps/web/public/releases/*.dmg
+
+node_modules
+scripts/__pycache__
