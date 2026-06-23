@@ -210,6 +210,7 @@ assert_contains "Web landing page has Open Graph title" "$REPO_ROOT/apps/web/ind
 assert_contains "Web landing page has Open Graph description" "$REPO_ROOT/apps/web/index.html" 'property="og:description"'
 assert_contains "Web landing page has Open Graph image" "$REPO_ROOT/apps/web/index.html" 'property="og:image" content="https://shoutout.sh/assets/pixel-hero.png"'
 assert_contains "Web landing page has large Twitter preview card" "$REPO_ROOT/apps/web/index.html" 'name="twitter:card" content="summary_large_image"'
+assert_contains "Web download function is self-contained for Vercel project root" "$REPO_ROOT/apps/web/api/download.js" "DEFAULT_RELEASE_VERSION"
 assert_contains "Test script auto-selects current CLT" "$REPO_ROOT/scripts/test.sh" "Command Line Tools for Apple Dictation support"
 assert_contains "Transcription imports core" "$MACOS_DIR/Sources/Services/TranscriptionService.swift" "import ShoutOutCore"
 assert_contains "Transcription returns result shape" "$MACOS_DIR/Sources/Services/TranscriptionService.swift" "DictationResult"
