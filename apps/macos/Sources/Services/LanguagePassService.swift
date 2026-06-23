@@ -37,7 +37,6 @@ struct LanguagePassRunResult: Sendable {
     var wallMs: Int?
     var modelID: String?
     var fallbackReason: String?
-    var deterministicCleanupApplied: Bool
 
     static func passthrough(
         _ text: String,
@@ -57,8 +56,7 @@ struct LanguagePassRunResult: Sendable {
             changed: false,
             wallMs: wallMs,
             modelID: modelID,
-            fallbackReason: fallbackReason,
-            deterministicCleanupApplied: false
+            fallbackReason: fallbackReason
         )
     }
 }
@@ -247,15 +245,7 @@ final class LanguagePassService: ObservableObject {
             }
             let wallMs = Self.elapsedMilliseconds(since: startedAt)
             let candidateText = LanguagePassValidator.extractCandidate(from: output)
-            let normalizedCandidateText = LanguagePassDeterministicCleanup.clean(
-                candidateText,
-                style: style
-            )
-            let deterministicCleanupApplied = normalizedCandidateText != candidateText
-            let validation = LanguagePassValidator.validate(
-                candidate: normalizedCandidateText,
-                baseText: baseText
-            )
+            let validation = LanguagePassValidator.validate(candidate: candidateText, baseText: baseText)
             guard let acceptedText = validation.acceptedText else {
                 let result = LanguagePassRunResult.passthrough(
                     baseText,
@@ -279,12 +269,11 @@ final class LanguagePassService: ObservableObject {
                 changed: acceptedText != baseText,
                 wallMs: wallMs,
                 modelID: modelID,
-                fallbackReason: nil,
-                deterministicCleanupApplied: deterministicCleanupApplied
+                fallbackReason: nil
             )
             recordSummary(result)
             RuntimeLog.write(
-                "languagePass accepted model=\(modelID) style=\(style.rawValue) wallMs=\(wallMs) deterministicCleanup=\(deterministicCleanupApplied) inputChars=\(baseText.count) outputChars=\(acceptedText.count)"
+                "languagePass accepted model=\(modelID) style=\(style.rawValue) wallMs=\(wallMs) inputChars=\(baseText.count) outputChars=\(acceptedText.count)"
             )
             return result
         } catch {
@@ -380,7 +369,6 @@ final class LanguagePassService: ObservableObject {
                 "model=\(result.modelID ?? "none")",
                 "style=\(selectedStyle.rawValue)",
                 "fallback=\(result.fallbackReason ?? "none")",
-                "deterministicCleanup=\(result.deterministicCleanupApplied)",
                 "input=\"\(Self.logSnippet(result.inputText ?? ""))\"",
                 "candidate=\"\(Self.logSnippet(result.candidateText ?? ""))\"",
                 "final=\"\(Self.logSnippet(result.finalText))\"",

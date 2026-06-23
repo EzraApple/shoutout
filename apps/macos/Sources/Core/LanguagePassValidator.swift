@@ -64,7 +64,7 @@ public enum LanguagePassStyle: String, CaseIterable, Identifiable, Sendable {
         case .standard:
             return "Add light punctuation and sentence casing when obvious."
         case .casual:
-            return "Keep the output lowercase with almost no punctuation. Remove ordinary sentence-ending periods, question marks, and exclamation points unless the speaker explicitly dictated them."
+            return "Use lowercase and almost no punctuation. Remove ordinary sentence-ending periods, question marks, and exclamation points even when they appear in the input."
         case .formal:
             return "Add clear sentence casing and punctuation when obvious."
         }
@@ -103,7 +103,7 @@ public enum LanguagePassPrompt {
         Do not remove casual wording like "wait, no, actually" when it is the sentence the speaker meant to say.
         \(style.formattingInstruction)
         \(style.instruction)
-        If the input is already good, return the same text.
+        Return the same text only if it is already clean and already matches the selected style.
         """
     }
 
@@ -112,7 +112,12 @@ public enum LanguagePassPrompt {
     }
 
     public static func examples(for style: LanguagePassStyle) -> [LanguagePassExample] {
-        baseExamples + style.examples
+        switch style {
+        case .casual:
+            return style.examples
+        case .standard, .formal:
+            return baseExamples + style.examples
+        }
     }
 
     private static let baseExamples: [LanguagePassExample] = [
@@ -131,10 +136,6 @@ public enum LanguagePassPrompt {
         LanguagePassExample(
             input: "wait no actually make it the smaller one",
             output: "Wait, no, actually make it the smaller one."
-        ),
-        LanguagePassExample(
-            input: "Does this PR also make it a... actually register manage tabs and the suggestion tool with this thing?",
-            output: "Does this PR also make it actually register manage tabs and the suggestion tool with this thing?"
         ),
         LanguagePassExample(
             input: "i i think we should ship the smaller version",
@@ -172,6 +173,10 @@ public enum LanguagePassPrompt {
             input: "the first version was better but the second one had better colors",
             output: "The first version was better, but the second one had better colors."
         ),
+        LanguagePassExample(
+            input: "Does this PR also make it a... actually register manage tabs and the suggestion tool with this thing?",
+            output: "Does this PR also make it actually register manage tabs and the suggestion tool with this thing?"
+        ),
     ]
 
     fileprivate static let casualExamples: [LanguagePassExample] = [
@@ -205,11 +210,32 @@ public enum LanguagePassPrompt {
     public static func userPrompt(for input: String, style: LanguagePassStyle = .defaultStyle) -> String {
         switch style {
         case .casual:
-            return input
-        case .standard, .formal:
             return """
-            Input: \(input)
-            Output:
+            Casual cleanup required. Copying polished capitalization or ending punctuation is invalid.
+            Transcript: \(input)
+            Casual output:
+            """
+        case .standard:
+            return """
+            Rewrite this dictation transcript.
+            Rules:
+            - remove filler words, accidental repeats, and false starts
+            - if the transcript says "a... actually" or "an... actually", delete the abandoned article and keep "actually"
+            - return only the cleaned text
+            Transcript:
+            \(input)
+            Cleaned:
+            """
+        case .formal:
+            return """
+            Rewrite this dictation transcript in formal style.
+            Rules:
+            - add clear sentence casing and punctuation when obvious
+            - keep the speaker's original words
+            - return only the cleaned text
+            Transcript:
+            \(input)
+            Cleaned:
             """
         }
     }

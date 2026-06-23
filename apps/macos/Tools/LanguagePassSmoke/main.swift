@@ -159,23 +159,13 @@ struct LanguagePassSmoke {
         )
         let wallMs = elapsedMilliseconds(since: startedAt)
         let rawCandidate = LanguagePassValidator.extractCandidate(from: rawOutput)
-        let normalizedCandidate = LanguagePassDeterministicCleanup.clean(
-            rawCandidate,
-            style: smokeCase.style
-        )
-        let validation = LanguagePassValidator.validate(
-            candidate: normalizedCandidate,
-            baseText: smokeCase.input
-        )
+        let validation = LanguagePassValidator.validate(candidate: rawCandidate, baseText: smokeCase.input)
         let finalText = validation.acceptedText ?? smokeCase.input
         let finalLower = finalText.lowercased()
 
         print("\n[\(smokeCase.name)] \(wallMs)ms style=\(smokeCase.style.rawValue)")
         print("input: \(smokeCase.input)")
         print("raw: \(rawCandidate)")
-        if normalizedCandidate != rawCandidate {
-            print("normalized: \(normalizedCandidate)")
-        }
         print("final: \(finalText)")
         print("accepted: \(validation.acceptedText != nil) fallback: \(validation.fallbackReason ?? "none")")
 
