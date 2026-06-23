@@ -60,6 +60,30 @@ final class LanguagePassValidatorTests: XCTestCase {
         XCTAssertEqual(validation.fallbackReason, "unchanged")
     }
 
+    func testDeterministicCleanupRemovesArticleBeforeActuallyFalseStart() {
+        let input = "Does this PR also make it a... actually register manage tabs and the suggestion tool with this thing?"
+
+        let cleaned = LanguagePassDeterministicCleanup.clean(input)
+
+        XCTAssertEqual(
+            cleaned,
+            "Does this PR also make it actually register manage tabs and the suggestion tool with this thing?"
+        )
+    }
+
+    func testAcceptsDeterministicActuallyFalseStartCleanup() {
+        let validation = LanguagePassValidator.validate(
+            output: "Does this PR also make it actually register manage tabs and the suggestion tool with this thing?",
+            baseText: "Does this PR also make it a... actually register manage tabs and the suggestion tool with this thing?"
+        )
+
+        XCTAssertEqual(
+            validation.acceptedText,
+            "Does this PR also make it actually register manage tabs and the suggestion tool with this thing?"
+        )
+        XCTAssertNil(validation.fallbackReason)
+    }
+
     func testAcceptsCasualStyleCleanupWithoutCasingOrPunctuation() {
         let validation = LanguagePassValidator.validate(
             output: "yeah that works can you send it over",

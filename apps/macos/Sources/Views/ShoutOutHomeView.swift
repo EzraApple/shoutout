@@ -1692,8 +1692,19 @@ private struct PermissionChecklistRow: View {
 
 private struct TranscriptionHistoryRow: View {
     let entry: TranscriptionHistoryEntry
+    @State private var showCleanupDetails: Bool
     @State private var didCopy = false
     @State private var copyFeedbackToken = UUID()
+
+    init(entry: TranscriptionHistoryEntry) {
+        self.entry = entry
+        let cleanupOutput = entry.languagePassOutput ?? entry.text
+        _showCleanupDetails = State(
+            initialValue: entry.hasLanguagePassDetails
+                && entry.languagePassInput != nil
+                && entry.languagePassInput.map { $0 != cleanupOutput } == true
+        )
+    }
 
     var body: some View {
         HomePanel {
@@ -1711,6 +1722,10 @@ private struct TranscriptionHistoryRow: View {
                 }
 
                 HistoryTranscriptTextWell(text: entry.text)
+
+                if entry.hasLanguagePassDetails {
+                    cleanupDetails
+                }
 
                 HStack(spacing: 10) {
                     Button {
@@ -1742,6 +1757,58 @@ private struct TranscriptionHistoryRow: View {
         }
     }
 
+    private var cleanupDetails: some View {
+        DisclosureGroup(isExpanded: $showCleanupDetails) {
+            VStack(alignment: .leading, spacing: 8) {
+                if let input = entry.languagePassInput {
+                    cleanupTextRow(title: "Before", text: input)
+                }
+
+                if let candidate = entry.languagePassCandidate,
+                    candidate != cleanupOutput
+                {
+                    cleanupTextRow(title: "Model", text: candidate)
+                }
+
+                cleanupTextRow(title: "After", text: cleanupOutput)
+            }
+            .padding(.top, 8)
+        } label: {
+            HStack(spacing: 8) {
+                Label("Language cleanup", systemImage: "sparkles")
+                    .font(.system(.caption, design: .monospaced).weight(.heavy))
+                Text(cleanupStatusText)
+                    .font(.system(.caption, design: .monospaced).weight(.semibold))
+                    .foregroundStyle(ShoutOutHomeTheme.muted)
+                Spacer(minLength: 0)
+            }
+        }
+        .tint(ShoutOutHomeTheme.teal)
+    }
+
+    private func cleanupTextRow(title: String, text: String) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(title)
+                .font(.system(.caption2, design: .monospaced).weight(.heavy))
+                .foregroundStyle(ShoutOutHomeTheme.muted)
+            HistoryTranscriptTextWell(text: text, maxHeight: 96)
+        }
+    }
+
+    private var cleanupOutput: String {
+        entry.languagePassOutput ?? entry.text
+    }
+
+    private var cleanupStatusText: String {
+        if let accepted = entry.languagePassAccepted {
+            if accepted {
+                return entry.languagePassInput.map { $0 == cleanupOutput } == true ? "accepted" : "cleaned"
+            }
+            return entry.languagePassFallbackReason ?? "fallback"
+        }
+        return entry.languagePassFallbackReason ?? "recorded"
+    }
+
     private func copyText() {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(entry.text, forType: .string)
@@ -1770,6 +1837,7 @@ private struct TranscriptionHistoryRow: View {
 
 private struct HistoryTranscriptTextWell: View {
     let text: String
+    var maxHeight: CGFloat = 168
 
     var body: some View {
         ScrollView {
@@ -1781,7 +1849,7 @@ private struct HistoryTranscriptTextWell: View {
                 .frame(maxWidth: .infinity, alignment: .topLeading)
                 .padding(10)
         }
-        .frame(maxWidth: .infinity, minHeight: 44, maxHeight: 168, alignment: .topLeading)
+        .frame(maxWidth: .infinity, minHeight: 44, maxHeight: maxHeight, alignment: .topLeading)
         .background(ShoutOutHomeTheme.panelBlue.opacity(0.32))
         .overlay(ShoutOutHomeTheme.pixelBorder)
         .scrollIndicators(.visible)

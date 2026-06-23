@@ -26,6 +26,39 @@ final class TranscriptionHistoryStoreTests: XCTestCase {
         XCTAssertEqual(reloadedStore.recentEntries.first?.model, "large")
     }
 
+    func testRecordsAndPersistsLanguagePassDetails() throws {
+        let fileURL = temporaryFileURL()
+        let store = TranscriptionHistoryStore(fileURL: fileURL)
+
+        try store.record(
+            text: "Does this PR also make it actually register manage tabs?",
+            duration: 2.4,
+            date: Date(timeIntervalSince1970: 10),
+            model: "large",
+            languagePassInput: "Does this PR also make it a... actually register manage tabs?",
+            languagePassCandidate: "Does this PR also make it a... actually register manage tabs?",
+            languagePassOutput: "Does this PR also make it actually register manage tabs?",
+            languagePassAccepted: true,
+            languagePassFallbackReason: nil
+        )
+
+        let entry = try XCTUnwrap(TranscriptionHistoryStore(fileURL: fileURL).recentEntries.first)
+        XCTAssertEqual(
+            entry.languagePassInput,
+            "Does this PR also make it a... actually register manage tabs?"
+        )
+        XCTAssertEqual(
+            entry.languagePassCandidate,
+            "Does this PR also make it a... actually register manage tabs?"
+        )
+        XCTAssertEqual(
+            entry.languagePassOutput,
+            "Does this PR also make it actually register manage tabs?"
+        )
+        XCTAssertEqual(entry.languagePassAccepted, true)
+        XCTAssertTrue(entry.hasLanguagePassDetails)
+    }
+
     func testIgnoresBlankTranscriptText() throws {
         let store = TranscriptionHistoryStore(fileURL: temporaryFileURL())
 

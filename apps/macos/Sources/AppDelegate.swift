@@ -805,7 +805,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 try? transcriptionHistory.record(
                     text: finalText,
                     duration: recordingDuration,
-                    model: transcription.timing.modelIdentifier
+                    model: transcription.timing.modelIdentifier,
+                    languagePassInput: languagePassResult.inputText,
+                    languagePassCandidate: languagePassResult.candidateText,
+                    languagePassOutput: languagePassResult.finalText,
+                    languagePassAccepted: languagePassResult.accepted,
+                    languagePassFallbackReason: languagePassResult.fallbackReason
                 )
                 TextInserter.insertText(
                     finalText,

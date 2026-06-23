@@ -8,6 +8,11 @@ public struct TranscriptionHistoryEntry: Codable, Equatable, Identifiable, Senda
     public var wordCount: Int
     public var duration: TimeInterval
     public var model: String
+    public var languagePassInput: String?
+    public var languagePassCandidate: String?
+    public var languagePassOutput: String?
+    public var languagePassAccepted: Bool?
+    public var languagePassFallbackReason: String?
 
     public init(
         id: UUID = UUID(),
@@ -15,7 +20,12 @@ public struct TranscriptionHistoryEntry: Codable, Equatable, Identifiable, Senda
         text: String,
         wordCount: Int,
         duration: TimeInterval,
-        model: String
+        model: String,
+        languagePassInput: String? = nil,
+        languagePassCandidate: String? = nil,
+        languagePassOutput: String? = nil,
+        languagePassAccepted: Bool? = nil,
+        languagePassFallbackReason: String? = nil
     ) {
         self.id = id
         self.date = date
@@ -23,6 +33,19 @@ public struct TranscriptionHistoryEntry: Codable, Equatable, Identifiable, Senda
         self.wordCount = wordCount
         self.duration = duration
         self.model = model
+        self.languagePassInput = languagePassInput
+        self.languagePassCandidate = languagePassCandidate
+        self.languagePassOutput = languagePassOutput
+        self.languagePassAccepted = languagePassAccepted
+        self.languagePassFallbackReason = languagePassFallbackReason
+    }
+
+    public var hasLanguagePassDetails: Bool {
+        languagePassInput != nil
+            || languagePassCandidate != nil
+            || languagePassOutput != nil
+            || languagePassAccepted != nil
+            || languagePassFallbackReason != nil
     }
 }
 
@@ -66,7 +89,12 @@ public final class TranscriptionHistoryStore: ObservableObject {
         text: String,
         duration: TimeInterval,
         date: Date = Date(),
-        model: String
+        model: String,
+        languagePassInput: String? = nil,
+        languagePassCandidate: String? = nil,
+        languagePassOutput: String? = nil,
+        languagePassAccepted: Bool? = nil,
+        languagePassFallbackReason: String? = nil
     ) throws {
         let normalizedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalizedText.isEmpty else {
@@ -79,7 +107,12 @@ public final class TranscriptionHistoryStore: ObservableObject {
                 text: normalizedText,
                 wordCount: Self.countWords(in: normalizedText),
                 duration: max(duration, 0),
-                model: model
+                model: model,
+                languagePassInput: Self.normalizedOptionalText(languagePassInput),
+                languagePassCandidate: Self.normalizedOptionalText(languagePassCandidate),
+                languagePassOutput: Self.normalizedOptionalText(languagePassOutput),
+                languagePassAccepted: languagePassAccepted,
+                languagePassFallbackReason: Self.normalizedOptionalText(languagePassFallbackReason)
             ),
             at: 0
         )
@@ -121,5 +154,10 @@ public final class TranscriptionHistoryStore: ObservableObject {
         }
         let range = NSRange(text.startIndex..<text.endIndex, in: text)
         return regex.numberOfMatches(in: text, range: range)
+    }
+
+    private static func normalizedOptionalText(_ text: String?) -> String? {
+        let normalized = text?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return normalized?.isEmpty == false ? normalized : nil
     }
 }
