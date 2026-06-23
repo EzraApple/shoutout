@@ -194,7 +194,7 @@ class HotkeyManager {
 /// ```
 /// idle -> shortcutDown:
 ///   start audio capture immediately
-///   start holdTimer (200ms)
+///   start holdTimer (120ms)
 ///   -> if held past timer -> holdRecording -> shortcutUp -> stop + transcribe -> idle
 ///   -> if released quickly -> discard capture, waitingForDoubleTap (400ms window)
 ///       -> shortcutDown within window -> handsFreeRecording starts immediately
@@ -223,9 +223,9 @@ private class ShortcutKeyState: @unchecked Sendable {
     var previousShortcutDown: Bool = false
 
     /// How long Fn must be held before hold-to-talk activates
-    let holdThreshold: TimeInterval = 0.2
+    let holdThreshold: TimeInterval = 0.12
     /// Window to detect second tap of double-tap
-    let doubleTapWindow: TimeInterval = 0.65
+    let doubleTapWindow: TimeInterval = 0.4
 
     init(trigger: HotkeyTrigger) {
         self.trigger = trigger
