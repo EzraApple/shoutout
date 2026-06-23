@@ -795,8 +795,8 @@ struct ShoutOutHomeView: View {
         permissions.refresh()
         Task {
             await transcription.loadModel()
-            await languagePass.prepareIfNeeded()
         }
+        languagePass.warmUpIfEnabled()
     }
 
     private var languagePassEnabledBinding: Binding<Bool> {
@@ -827,7 +827,7 @@ struct ShoutOutHomeView: View {
         case .error:
             return "Needs attention"
         case .unloaded:
-            return "Not loaded"
+            return "Warming up"
         }
     }
 

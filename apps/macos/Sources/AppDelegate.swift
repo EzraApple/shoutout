@@ -351,9 +351,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             Task {
                 await transcriptionService.loadModel()
             }
-            Task {
-                await languagePassService.prepareIfNeeded()
-            }
+            languagePassService.warmUpIfEnabled(delayNanoseconds: 1_000_000_000)
         }
 
         if overlayPreviewState == nil,

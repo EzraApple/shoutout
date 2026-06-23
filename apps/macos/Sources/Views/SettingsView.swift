@@ -608,8 +608,8 @@ struct SettingsView: View {
         permissions.refresh()
         Task {
             await transcription.loadModel()
-            await languagePass.prepareIfNeeded()
         }
+        languagePass.warmUpIfEnabled()
     }
 
     private var languagePassStatusColor: Color {
@@ -638,7 +638,7 @@ struct SettingsView: View {
         case .error(let message):
             return message
         case .unloaded:
-            return "Not loaded"
+            return "Warming up"
         }
     }
 

@@ -1,5 +1,6 @@
 import Foundation
 import Hub
+import MLX
 import MLXLLM
 import MLXLMCommon
 import ShoutOutCore
@@ -89,7 +90,9 @@ final class LanguagePassService: ObservableObject {
             UserDefaults.standard.set(isEnabled, forKey: Defaults.languagePassEnabled)
             RuntimeLog.write("languagePass enabled=\(isEnabled)")
             if isEnabled {
-                Task { await prepareIfNeeded() }
+                warmUpIfEnabled()
+            } else {
+                unload()
             }
         }
     }
@@ -107,6 +110,8 @@ final class LanguagePassService: ObservableObject {
     private var loadTask: Task<ModelContainer, Error>?
     private var loadGeneration = 0
     private let generationTimeoutNanoseconds: UInt64 = 1_200_000_000
+    private static let mlxCacheLimitBytes = 0
+    private static var didConfigureMLXMemory = false
 
     static let modelsDirectory: URL = {
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
@@ -138,10 +143,13 @@ final class LanguagePassService: ObservableObject {
         self.selectedStyle = LanguagePassStyle(
             storedValue: UserDefaults.standard.string(forKey: Defaults.languagePassStyle)
         )
+
+        Self.configureMLXMemoryIfNeeded()
     }
 
     func prepareIfNeeded() async {
         guard isEnabled else { return }
+        Self.configureMLXMemoryIfNeeded()
         if modelState == .ready, modelContainer != nil { return }
 
         guard let runtimeURL = Self.mlxMetalRuntimeURL() else {
@@ -192,14 +200,29 @@ final class LanguagePassService: ObservableObject {
             guard loadGeneration == generation, selectedModelID == modelID else { return }
             modelContainer = container
             modelState = .ready
-            RuntimeLog.write("languagePass load ready model=\(modelID)")
+            Self.clearMLXCache(reason: "load_ready")
+            RuntimeLog.write(
+                "languagePass load ready model=\(modelID) \(Self.mlxMemoryDescription())"
+            )
         } catch {
             guard loadGeneration == generation, selectedModelID == modelID else { return }
             modelContainer = nil
             modelState = .error(error.localizedDescription)
+            Self.clearMLXCache(reason: "load_failed")
             RuntimeLog.write("languagePass load failed model=\(modelID) error=\(error)")
         }
         loadTask = nil
+    }
+
+    func warmUpIfEnabled(delayNanoseconds: UInt64 = 0) {
+        guard isEnabled else { return }
+        Self.configureMLXMemoryIfNeeded()
+        Task { [weak self] in
+            if delayNanoseconds > 0 {
+                try? await Task.sleep(nanoseconds: delayNanoseconds)
+            }
+            await self?.prepareIfNeeded()
+        }
     }
 
     func process(rawText _: String, baseText: String) async -> LanguagePassRunResult {
@@ -226,8 +249,11 @@ final class LanguagePassService: ObservableObject {
             )
         }
 
+        if modelState != .ready || modelContainer == nil {
+            await prepareIfNeeded()
+        }
+
         guard modelState == .ready, let container = modelContainer else {
-            Task { await prepareIfNeeded() }
             let result = LanguagePassRunResult.passthrough(
                 baseText,
                 enabled: true,
@@ -239,11 +265,18 @@ final class LanguagePassService: ObservableObject {
             return result
         }
 
+        Self.clearMLXCache(reason: "process_start")
+        let memoryBefore = Self.mlxMemoryDescription()
+        defer {
+            Self.clearMLXCache(reason: "process_end")
+        }
+
         do {
             let output = try await runWithTimeout(seconds: generationTimeoutNanoseconds) {
                 try await Self.generateCleanup(container: container, baseText: baseText, style: style)
             }
             let wallMs = Self.elapsedMilliseconds(since: startedAt)
+            let memoryAfter = Self.mlxMemoryDescription()
             let candidateText = LanguagePassValidator.extractCandidate(from: output)
             let validation = LanguagePassValidator.validate(candidate: candidateText, baseText: baseText)
             guard let acceptedText = validation.acceptedText else {
@@ -257,6 +290,9 @@ final class LanguagePassService: ObservableObject {
                     candidateText: candidateText
                 )
                 recordSummary(result)
+                RuntimeLog.write(
+                    "languagePass rejected model=\(modelID) style=\(style.rawValue) wallMs=\(wallMs) memoryBefore={\(memoryBefore)} memoryAfter={\(memoryAfter)}"
+                )
                 return result
             }
 
@@ -273,11 +309,12 @@ final class LanguagePassService: ObservableObject {
             )
             recordSummary(result)
             RuntimeLog.write(
-                "languagePass accepted model=\(modelID) style=\(style.rawValue) wallMs=\(wallMs) inputChars=\(baseText.count) outputChars=\(acceptedText.count)"
+                "languagePass accepted model=\(modelID) style=\(style.rawValue) wallMs=\(wallMs) inputChars=\(baseText.count) outputChars=\(acceptedText.count) memoryBefore={\(memoryBefore)} memoryAfter={\(memoryAfter)}"
             )
             return result
         } catch {
             let wallMs = Self.elapsedMilliseconds(since: startedAt)
+            let memoryAfter = Self.mlxMemoryDescription()
             let fallbackReason = Task.isCancelled ? "cancelled" : "generation_failed"
             let result = LanguagePassRunResult.passthrough(
                 baseText,
@@ -288,7 +325,7 @@ final class LanguagePassService: ObservableObject {
                 inputText: baseText
             )
             recordSummary(result)
-            RuntimeLog.write("languagePass fallback model=\(modelID) wallMs=\(wallMs) error=\(error)")
+            RuntimeLog.write("languagePass fallback model=\(modelID) wallMs=\(wallMs) error=\(error) memoryBefore={\(memoryBefore)} memoryAfter={\(memoryAfter)}")
             return result
         }
     }
@@ -299,6 +336,7 @@ final class LanguagePassService: ObservableObject {
         loadTask = nil
         modelContainer = nil
         modelState = .unloaded
+        Self.clearMLXCache(reason: "unload")
     }
 
     nonisolated private static func generateCleanup(
@@ -391,6 +429,28 @@ final class LanguagePassService: ObservableObject {
 
     private static func elapsedMilliseconds(since date: Date) -> Int {
         Int(Date().timeIntervalSince(date) * 1000)
+    }
+
+    private static func configureMLXMemoryIfNeeded() {
+        guard !didConfigureMLXMemory else { return }
+        didConfigureMLXMemory = true
+        Memory.cacheLimit = mlxCacheLimitBytes
+        Memory.peakMemory = 0
+        Memory.clearCache()
+        RuntimeLog.write(
+            "languagePass mlxMemory configured cacheLimit=\(mlxCacheLimitBytes) \(mlxMemoryDescription())"
+        )
+    }
+
+    private static func clearMLXCache(reason: String) {
+        Stream().synchronize()
+        Memory.clearCache()
+        RuntimeLog.write("languagePass mlxMemory clear reason=\(reason) \(mlxMemoryDescription())")
+    }
+
+    private static func mlxMemoryDescription() -> String {
+        let snapshot = Memory.snapshot()
+        return "active=\(snapshot.activeMemory) cache=\(snapshot.cacheMemory) peak=\(snapshot.peakMemory) cacheLimit=\(Memory.cacheLimit)"
     }
 
     private static func mlxMetalRuntimeURL() -> URL? {
