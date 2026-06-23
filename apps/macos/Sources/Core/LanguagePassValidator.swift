@@ -53,7 +53,7 @@ public enum LanguagePassStyle: String, CaseIterable, Identifiable, Sendable {
         case .standard:
             return "Balanced punctuation and sentence casing."
         case .casual:
-            return "Lowercase text with almost no added punctuation."
+            return "Lowercase text with no added punctuation."
         case .formal:
             return "Clear sentence casing and punctuation for polished text."
         }
@@ -64,7 +64,7 @@ public enum LanguagePassStyle: String, CaseIterable, Identifiable, Sendable {
         case .standard:
             return "Add light punctuation and sentence casing when obvious."
         case .casual:
-            return "Use lowercase and almost no punctuation. Remove ordinary sentence-ending periods, question marks, and exclamation points even when they appear in the input."
+            return "Use lowercase. Do not add punctuation or sentence capitalization. Remove ordinary sentence-ending periods, question marks, and exclamation points even when they appear in the input."
         case .formal:
             return "Add clear sentence casing and punctuation when obvious."
         }
@@ -75,9 +75,9 @@ public enum LanguagePassStyle: String, CaseIterable, Identifiable, Sendable {
         case .standard:
             return "Use a normal style: sentence casing, natural punctuation, and no extra polish."
         case .casual:
-            return "Use a casual style: keep casual wording, avoid corporate polish, and stay close to the raw transcript."
+            return "Use a super casual style: keep casual wording, avoid corporate polish, stay lowercase, and stay close to the raw transcript."
         case .formal:
-            return "Use a formal style: use clear sentence casing and punctuation, but do not change the speaker's word choice."
+            return "Use a formal style: use clear sentence casing and punctuation, but keep the speaker's meaningful word choice."
         }
     }
 
@@ -99,6 +99,8 @@ public enum LanguagePassPrompt {
         Clean obvious speech artifacts: filler words, repeated starts, stutters, and self-corrections.
         Remove abandoned articles before corrections, such as "a... actually" or "an... actually"; keep "actually".
         Remove filler words like "um", "uh", "er", and "you know"; do not preserve them as punctuated words.
+        Remove discourse fillers only when they do not carry meaning, such as unnecessary "like", "basically", "literally", "kind of", and "sort of".
+        Preserve meaningful "like" in phrases such as "I like this", "apps like Slack", and "looks like".
         Keep the final choice when the speaker corrects themself.
         Do not remove casual wording like "wait, no, actually" when it is the sentence the speaker meant to say.
         \(style.formattingInstruction)
@@ -132,6 +134,14 @@ public enum LanguagePassPrompt {
         LanguagePassExample(
             input: "can you review this when you have time",
             output: "Can you review this when you have time?"
+        ),
+        LanguagePassExample(
+            input: "i think this is like ready to ship",
+            output: "I think this is ready to ship."
+        ),
+        LanguagePassExample(
+            input: "i like this direction",
+            output: "I like this direction."
         ),
         LanguagePassExample(
             input: "wait no actually make it the smaller one",
@@ -192,6 +202,14 @@ public enum LanguagePassPrompt {
             input: "Can you send this over when you get a chance?",
             output: "can you send this over when you get a chance"
         ),
+        LanguagePassExample(
+            input: "I think this is, like, ready to ship.",
+            output: "i think this is ready to ship"
+        ),
+        LanguagePassExample(
+            input: "I like this direction.",
+            output: "i like this direction"
+        ),
     ]
 
     fileprivate static let formalExamples: [LanguagePassExample] = [
@@ -220,6 +238,8 @@ public enum LanguagePassPrompt {
             Rewrite this dictation transcript.
             Rules:
             - remove filler words, accidental repeats, and false starts
+            - remove unnecessary discourse fillers like "like", "basically", "literally", "kind of", and "sort of"
+            - preserve meaningful "like" in phrases like "I like this", "apps like Slack", and "looks like"
             - if the transcript says "a... actually" or "an... actually", delete the abandoned article and keep "actually"
             - return only the cleaned text
             Transcript:
@@ -231,7 +251,9 @@ public enum LanguagePassPrompt {
             Rewrite this dictation transcript in formal style.
             Rules:
             - add clear sentence casing and punctuation when obvious
-            - keep the speaker's original words
+            - remove unnecessary discourse fillers like "like", "basically", "literally", "kind of", and "sort of"
+            - preserve meaningful "like" in phrases like "I like this", "apps like Slack", and "looks like"
+            - keep the speaker's original meaningful words
             - return only the cleaned text
             Transcript:
             \(input)
@@ -338,6 +360,10 @@ public enum LanguagePassValidator {
 
         guard !introducesNewNumbers(candidate: candidate, base: base) else {
             return .init(acceptedText: nil, fallbackReason: "new_numbers")
+        }
+
+        guard !dropsMeaningfulLike(candidate: candidate, base: base) else {
+            return .init(acceptedText: nil, fallbackReason: "dropped_content")
         }
 
         guard hasEnoughSourceOverlap(candidate: candidate, base: base) else {
@@ -542,6 +568,44 @@ public enum LanguagePassValidator {
         return !candidateNumbers.subtracting(baseNumbers).isEmpty
     }
 
+    private static func dropsMeaningfulLike(candidate: String, base: String) -> Bool {
+        let baseTokens = wordTokens(base)
+        guard baseTokens.contains("like"), !wordTokens(candidate).contains("like") else {
+            return false
+        }
+
+        for index in baseTokens.indices where baseTokens[index] == "like" {
+            if !isLikelyFillerLike(at: index, in: baseTokens) {
+                return true
+            }
+        }
+
+        return false
+    }
+
+    private static func isLikelyFillerLike(at index: Int, in tokens: [String]) -> Bool {
+        let previous = index > 0 ? tokens[index - 1] : nil
+        let previousPrevious = index > 1 ? tokens[index - 2] : nil
+        let next = index < tokens.count - 1 ? tokens[index + 1] : nil
+
+        if previous == nil {
+            return true
+        }
+        if previous == "like" || next == "like" {
+            return true
+        }
+        if let previous, fillerLikePreviousTokens.contains(previous) {
+            return true
+        }
+        if previous == "you",
+            let previousPrevious,
+            fillerLikePreviousTokens.contains(previousPrevious)
+        {
+            return true
+        }
+        return false
+    }
+
     private static func hasEnoughSourceOverlap(candidate: String, base: String) -> Bool {
         let baseTokens = Set(meaningfulTokens(base))
         let candidateTokens = meaningfulTokens(candidate)
@@ -606,5 +670,11 @@ public enum LanguagePassValidator {
 
     private static let removableTokens: Set<String> = [
         "um", "uh", "er", "oops", "wait", "no", "sorry", "scratch", "actually", "maybe",
+        "like", "basically", "literally",
+    ]
+
+    private static let fillerLikePreviousTokens: Set<String> = [
+        "am", "are", "be", "been", "being", "i'm", "is", "it's", "that's", "they're",
+        "was", "we're", "were", "you're",
     ]
 }

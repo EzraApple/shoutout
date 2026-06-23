@@ -3,13 +3,16 @@ import Foundation
 public struct TextInsertionFormattingOptions: Equatable, Sendable {
     public var appendTrailingSpace: Bool
     public var useSmartSpacing: Bool
+    public var fitCapitalization: Bool
 
     public init(
         appendTrailingSpace: Bool = true,
-        useSmartSpacing: Bool = true
+        useSmartSpacing: Bool = true,
+        fitCapitalization: Bool = true
     ) {
         self.appendTrailingSpace = appendTrailingSpace
         self.useSmartSpacing = useSmartSpacing
+        self.fitCapitalization = fitCapitalization
     }
 
     public static let `default` = TextInsertionFormattingOptions()
@@ -158,7 +161,7 @@ public enum TextInsertionFormatter {
         }
 
         if options.useSmartSpacing, let context {
-            let fittedText = fitCapitalization(text, context: context)
+            let fittedText = options.fitCapitalization ? fitCapitalization(text, context: context) : text
             let prefix = shouldPrefixSpace(before: context.characterBefore, text: fittedText) ? " " : ""
             let suffix = shouldSuffixSpace(after: context.characterAfter, text: fittedText) ? " " : ""
             return TextInsertionFormattingResult(

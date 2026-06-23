@@ -62,6 +62,22 @@ final class TextInsertionFormatterTests: XCTestCase {
         XCTAssertEqual(result.text, "This works")
     }
 
+    func testCapitalizationFittingCanBeDisabledForCasualOutput() {
+        let context = TextInsertionContext(
+            text: "ship it.  next",
+            selectedUTF16Range: NSRange(location: 9, length: 0)
+        )
+
+        let result = TextInsertionFormatter.prepare(
+            "this works",
+            context: context,
+            options: TextInsertionFormattingOptions(fitCapitalization: false)
+        )
+
+        XCTAssertEqual(result.text, "this works")
+        XCTAssertEqual(result.strategy, "smart")
+    }
+
     func testNewLineStartsSentenceForCapitalization() {
         let context = TextInsertionContext(
             text: "notes:\n",

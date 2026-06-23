@@ -820,7 +820,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                         useSmartSpacing: UserDefaults.standard.object(
                             forKey: Defaults.smartSpacing
                         ) == nil
-                            || UserDefaults.standard.bool(forKey: Defaults.smartSpacing)
+                            || UserDefaults.standard.bool(forKey: Defaults.smartSpacing),
+                        fitCapitalization: languagePassService.selectedStyle != .casual
                     ),
                     target: metrics.insertionTarget
                 )

@@ -73,6 +73,66 @@ final class LanguagePassValidatorTests: XCTestCase {
         XCTAssertNil(validation.fallbackReason)
     }
 
+    func testAcceptsUnnecessaryLikeFillerCleanup() {
+        let validation = LanguagePassValidator.validate(
+            output: "I think this is ready to ship.",
+            baseText: "i think this is like ready to ship"
+        )
+
+        XCTAssertEqual(validation.acceptedText, "I think this is ready to ship.")
+        XCTAssertNil(validation.fallbackReason)
+    }
+
+    func testAcceptsOtherDiscourseFillerCleanup() {
+        let validation = LanguagePassValidator.validate(
+            output: "This is ready to ship.",
+            baseText: "this is basically literally ready to ship"
+        )
+
+        XCTAssertEqual(validation.acceptedText, "This is ready to ship.")
+        XCTAssertNil(validation.fallbackReason)
+    }
+
+    func testRejectsDroppingMeaningfulLike() {
+        let validation = LanguagePassValidator.validate(
+            output: "I this direction.",
+            baseText: "I like this direction."
+        )
+
+        XCTAssertNil(validation.acceptedText)
+        XCTAssertEqual(validation.fallbackReason, "dropped_content")
+    }
+
+    func testRejectsDroppingComparisonLike() {
+        let validation = LanguagePassValidator.validate(
+            output: "This looks it will work.",
+            baseText: "This looks like it will work."
+        )
+
+        XCTAssertNil(validation.acceptedText)
+        XCTAssertEqual(validation.fallbackReason, "dropped_content")
+    }
+
+    func testRejectsDroppingWouldLike() {
+        let validation = LanguagePassValidator.validate(
+            output: "I would to join.",
+            baseText: "I would like to join."
+        )
+
+        XCTAssertNil(validation.acceptedText)
+        XCTAssertEqual(validation.fallbackReason, "dropped_content")
+    }
+
+    func testRejectsDroppingJustLikeComparison() {
+        let validation = LanguagePassValidator.validate(
+            output: "Make it just this.",
+            baseText: "Make it just like this."
+        )
+
+        XCTAssertNil(validation.acceptedText)
+        XCTAssertEqual(validation.fallbackReason, "dropped_content")
+    }
+
     func testAcceptsCasualStyleCleanupWithoutCasingOrPunctuation() {
         let validation = LanguagePassValidator.validate(
             output: "yeah that works can you send it over",
@@ -96,6 +156,8 @@ final class LanguagePassValidatorTests: XCTestCase {
     func testStylePromptsDescribeFormattingOnly() {
         XCTAssertTrue(LanguagePassPrompt.systemInstructions(for: .casual).contains("lowercase"))
         XCTAssertTrue(LanguagePassPrompt.systemInstructions(for: .formal).contains("word choice"))
+        XCTAssertTrue(LanguagePassPrompt.systemInstructions(for: .standard).contains("unnecessary \"like\""))
+        XCTAssertTrue(LanguagePassPrompt.userPrompt(for: "test", style: .formal).contains("meaningful \"like\""))
     }
 
     func testUnchangedOutputIsNoOp() {

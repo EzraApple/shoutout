@@ -106,6 +106,22 @@ struct LanguagePassSmoke {
             expectation: .requiredRewrite
         ),
         SmokeCase(
+            name: "normal style removes unnecessary like filler",
+            input: "i think this is like ready to ship",
+            expectedFragments: ["I think this is ready to ship"],
+            rejectedFragments: [" like "],
+            expectedOutput: "I think this is ready to ship.",
+            expectation: .requiredRewrite
+        ),
+        SmokeCase(
+            name: "normal style preserves meaningful like",
+            input: "i like this direction",
+            expectedFragments: ["like this direction"],
+            rejectedFragments: [],
+            expectedOutput: "I like this direction.",
+            expectation: .requiredRewrite
+        ),
+        SmokeCase(
             name: "casual style actively de-polishes transcription",
             input: "Can you send this over when you get a chance?",
             style: .casual,
@@ -115,11 +131,29 @@ struct LanguagePassSmoke {
             expectation: .requiredRewrite
         ),
         SmokeCase(
+            name: "casual style removes unnecessary like without punctuation",
+            input: "I think this is, like, ready to ship.",
+            style: .casual,
+            expectedFragments: ["i think this is ready to ship"],
+            rejectedFragments: [" like ", ".", "?", "I "],
+            expectedOutput: "i think this is ready to ship",
+            expectation: .requiredRewrite
+        ),
+        SmokeCase(
             name: "formal style keeps original words",
             input: "i can join monday probably around three",
             style: .formal,
             expectedFragments: ["I can join Monday", "around three"],
             rejectedFragments: ["I will", "Please", "certainly"],
+            expectation: .requiredRewrite
+        ),
+        SmokeCase(
+            name: "formal style removes discourse fillers",
+            input: "this is basically literally ready for review",
+            style: .formal,
+            expectedFragments: ["This is ready for review"],
+            rejectedFragments: ["basically", "literally"],
+            expectedOutput: "This is ready for review.",
             expectation: .requiredRewrite
         ),
     ]
