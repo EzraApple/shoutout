@@ -10,6 +10,21 @@ final class LanguagePassValidatorTests: XCTestCase {
         XCTAssertEqual(candidate, "Can you send this over when you get a chance?")
     }
 
+    func testExtractsFirstCandidateLineBeforeModelRunOn() {
+        let output = """
+        Does this PR also make it actually register manage tabs and the suggestion tool with this thing?
+
+        wait no actually, actually, actually
+        """
+
+        let candidate = LanguagePassValidator.extractCandidate(from: output)
+
+        XCTAssertEqual(
+            candidate,
+            "Does this PR also make it actually register manage tabs and the suggestion tool with this thing?"
+        )
+    }
+
     func testAcceptsSafeFillerAndRepeatCleanup() {
         let validation = LanguagePassValidator.validate(
             output: "Can you send this over when you get a chance?",
@@ -157,7 +172,33 @@ final class LanguagePassValidatorTests: XCTestCase {
         XCTAssertTrue(LanguagePassPrompt.systemInstructions(for: .casual).contains("lowercase"))
         XCTAssertTrue(LanguagePassPrompt.systemInstructions(for: .formal).contains("word choice"))
         XCTAssertTrue(LanguagePassPrompt.systemInstructions(for: .standard).contains("unnecessary \"like\""))
-        XCTAssertTrue(LanguagePassPrompt.userPrompt(for: "test", style: .formal).contains("meaningful \"like\""))
+        XCTAssertTrue(LanguagePassPrompt.systemInstructions(for: .standard).contains("Unsafe rewrite patterns"))
+        XCTAssertTrue(LanguagePassPrompt.systemInstructions(for: .standard).contains("leading subject phrase"))
+        XCTAssertFalse(LanguagePassPrompt.systemInstructions(for: .casual).contains("Good:"))
+    }
+
+    func testPromptSelectsFocusedExamplesForInput() {
+        let examples = LanguagePassPrompt.examples(
+            for: .standard,
+            input: "Does this PR also make it a... actually register manage tabs and the suggestion tool with this thing?"
+        )
+
+        XCTAssertEqual(examples.count, 1)
+        XCTAssertEqual(
+            examples.first?.output,
+            "Does this PR also make it actually register manage tabs and the suggestion tool with this thing?"
+        )
+    }
+
+    func testCasualRetryPromptFlagsStyleViolations() {
+        let retryPrompt = LanguagePassPrompt.retryPrompt(
+            for: "Can you send this over when you get a chance?",
+            style: .casual,
+            previousOutput: "can you send this over when you get a chance?"
+        )
+
+        XCTAssertNotNil(retryPrompt)
+        XCTAssertTrue(retryPrompt?.contains("Output: can you send this over when you get a chance") == true)
     }
 
     func testUnchangedOutputIsNoOp() {
@@ -264,6 +305,16 @@ final class LanguagePassValidatorTests: XCTestCase {
         let validation = LanguagePassValidator.validate(
             output: "Turn on the beta option.",
             baseText: "open the settings panel and turn on the beta option"
+        )
+
+        XCTAssertNil(validation.acceptedText)
+        XCTAssertEqual(validation.fallbackReason, "dropped_content")
+    }
+
+    func testRejectsDroppingLeadingSubjectPhrase() {
+        let validation = LanguagePassValidator.validate(
+            output: "low-key huge can you fix that?",
+            baseText: "The diff is low-key huge, can you fix that?"
         )
 
         XCTAssertNil(validation.acceptedText)

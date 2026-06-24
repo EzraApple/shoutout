@@ -118,7 +118,8 @@ enum DiagnosticsExporter {
     private static func copyRuntimeLog(to stagingURL: URL) throws {
         let destinationURL = stagingURL.appendingPathComponent("runtime.log")
         if FileManager.default.fileExists(atPath: RuntimeLog.logURL.path) {
-            try FileManager.default.copyItem(at: RuntimeLog.logURL, to: destinationURL)
+            let data = try Data(contentsOf: RuntimeLog.logURL)
+            try sanitizedRuntimeLogData(data).write(to: destinationURL, options: .atomic)
             return
         }
 
@@ -126,6 +127,29 @@ enum DiagnosticsExporter {
             to: stagingURL.appendingPathComponent("runtime-log-missing.txt"),
             atomically: true,
             encoding: .utf8
+        )
+    }
+
+    private static func sanitizedRuntimeLogData(_ data: Data) -> Data {
+        guard let text = String(data: data, encoding: .utf8) else {
+            return data
+        }
+
+        let sanitizedText = sanitizeLegacyLanguagePassFields(in: text)
+        return sanitizedText.data(using: .utf8) ?? data
+    }
+
+    private static func sanitizeLegacyLanguagePassFields(in text: String) -> String {
+        let pattern = #"\b(input|candidate|final)="(?:\\.|[^"\\])*""#
+        guard let regex = try? NSRegularExpression(pattern: pattern) else {
+            return text
+        }
+
+        let range = NSRange(text.startIndex..<text.endIndex, in: text)
+        return regex.stringByReplacingMatches(
+            in: text,
+            range: range,
+            withTemplate: "$1=\"[redacted]\""
         )
     }
 

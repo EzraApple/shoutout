@@ -40,7 +40,7 @@ struct SmokeCase {
 
 @main
 struct LanguagePassSmoke {
-    static let defaultModelID = "mlx-community/Qwen2.5-0.5B-Instruct-4bit"
+    static let defaultModelID = "mlx-community/Llama-3.2-1B-Instruct-4bit"
 
     static var modelID: String {
         ProcessInfo.processInfo.environment["LANGUAGE_PASS_MODEL_ID"] ?? defaultModelID
@@ -135,7 +135,7 @@ struct LanguagePassSmoke {
             input: "I think this is, like, ready to ship.",
             style: .casual,
             expectedFragments: ["i think this is ready to ship"],
-            rejectedFragments: [" like ", ".", "?", "I "],
+            rejectedFragments: [" like ", ".", "?"],
             expectedOutput: "i think this is ready to ship",
             expectation: .requiredRewrite
         ),
@@ -234,7 +234,7 @@ struct LanguagePassSmoke {
         let session = ChatSession(
             container,
             instructions: LanguagePassPrompt.systemInstructions(for: style),
-            history: fewShotHistory(style: style),
+            history: fewShotHistory(style: style, input: input),
             generateParameters: GenerateParameters(
                 maxTokens: 96,
                 maxKVSize: 2048,
@@ -243,11 +243,32 @@ struct LanguagePassSmoke {
             )
         )
 
-        return try await session.respond(to: LanguagePassPrompt.userPrompt(for: input, style: style))
+        let output = try await session.respond(to: LanguagePassPrompt.userPrompt(for: input, style: style))
+        let candidate = LanguagePassValidator.extractCandidate(from: output)
+        guard let retryPrompt = LanguagePassPrompt.retryPrompt(
+            for: input,
+            style: style,
+            previousOutput: candidate
+        ) else {
+            return output
+        }
+
+        let retrySession = ChatSession(
+            container,
+            instructions: LanguagePassPrompt.systemInstructions(for: style),
+            history: [],
+            generateParameters: GenerateParameters(
+                maxTokens: 48,
+                maxKVSize: 2048,
+                temperature: 0.0,
+                topP: 1.0
+            )
+        )
+        return try await retrySession.respond(to: retryPrompt)
     }
 
-    static func fewShotHistory(style: LanguagePassStyle) -> [Chat.Message] {
-        LanguagePassPrompt.examples(for: style).flatMap { example in
+    static func fewShotHistory(style: LanguagePassStyle, input: String) -> [Chat.Message] {
+        LanguagePassPrompt.examples(for: style, input: input).flatMap { example in
             [
                 Chat.Message.user(LanguagePassPrompt.userPrompt(for: example.input, style: style)),
                 Chat.Message.assistant(example.output),

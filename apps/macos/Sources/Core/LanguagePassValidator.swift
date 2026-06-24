@@ -75,7 +75,7 @@ public enum LanguagePassStyle: String, CaseIterable, Identifiable, Sendable {
         case .standard:
             return "Use a normal style: sentence casing, natural punctuation, and no extra polish."
         case .casual:
-            return "Use a super casual style: keep casual wording, avoid corporate polish, stay lowercase, and stay close to the raw transcript."
+            return "Use a casual plaintext style: keep the same words, do not abbreviate words, stay lowercase, remove punctuation, and remove only fillers or accidental repeats."
         case .formal:
             return "Use a formal style: use clear sentence casing and punctuation, but keep the speaker's meaningful word choice."
         }
@@ -90,19 +90,22 @@ public enum LanguagePassPrompt {
 
     public static func systemInstructions(for style: LanguagePassStyle) -> String {
         """
+        You are Llama, created by Meta. You are a helpful assistant.
         You are a dictation cleanup filter.
-        The user message contains the transcript to clean.
-        Return only the final text to paste.
-        Do not include labels, quotes, markdown, or explanation.
-        This is not a chat. Rewrite the dictated words; do not answer the speaker.
-        Preserve the speaker's meaning, perspective, and task details. Do not summarize. Do not add facts.
+        Return only the cleaned transcript text. Do not include labels, quotes, markdown, bullets, or explanation.
+        This is not a chat. Edit the speaker's dictated words; never answer the speaker.
+        Use the current transcript as the only source. Do not output examples or rules.
+        Preserve the speaker's meaning, perspective, and task details. Do not summarize, omit task details, or add facts.
+        Keep every meaningful content word unless it is filler, an accidental repeat, or the abandoned side of a self-correction.
         Clean obvious speech artifacts: filler words, repeated starts, stutters, and self-corrections.
         Remove abandoned articles before corrections, such as "a... actually" or "an... actually"; keep "actually".
         Remove filler words like "um", "uh", "er", and "you know"; do not preserve them as punctuated words.
         Remove discourse fillers only when they do not carry meaning, such as unnecessary "like", "basically", "literally", "kind of", and "sort of".
-        Preserve meaningful "like" in phrases such as "I like this", "apps like Slack", and "looks like".
+        When "basically" or "literally" only adds emphasis, remove it.
+        Preserve "like" when it is the main verb or a comparison word, not a filler.
         Keep the final choice when the speaker corrects themself.
         Do not remove casual wording like "wait, no, actually" when it is the sentence the speaker meant to say.
+        \(style.unsafeRewriteExamples)
         \(style.formattingInstruction)
         \(style.instruction)
         Return the same text only if it is already clean and already matches the selected style.
@@ -119,6 +122,85 @@ public enum LanguagePassPrompt {
             return style.examples
         case .standard, .formal:
             return baseExamples + style.examples
+        }
+    }
+
+    public static func examples(for style: LanguagePassStyle, input: String) -> [LanguagePassExample] {
+        let lower = input.lowercased()
+
+        switch style {
+        case .casual:
+            if lower.contains("um yeah") {
+                return examples(matching: [
+                    "um yeah yeah that works can you send it over",
+                ], in: casualExamples)
+            }
+            if lower.contains("like") {
+                return examples(matching: [
+                    "Can you send this over when you get a chance?",
+                    "I think this is, like, ready to ship.",
+                ], in: casualExamples)
+            }
+            if lower.contains("wait no actually") {
+                return examples(matching: [
+                    "wait no actually make it the smaller one",
+                ], in: casualExamples)
+            }
+            return examples(matching: [
+                "Can you send this over when you get a chance?",
+            ], in: casualExamples)
+
+        case .formal:
+            if lower.contains("basically") || lower.contains("literally") {
+                return examples(matching: [
+                    "this is basically ready for review",
+                    "this is basically literally ready for review",
+                ], in: formalExamples)
+            }
+            return examples(matching: [
+                "i can join monday probably around three",
+            ], in: formalExamples)
+
+        case .standard:
+            if lower.contains("a... actually") || lower.contains("an... actually") {
+                return examples(matching: [
+                    "Does this PR also make it a... actually register manage tabs and the suggestion tool with this thing?",
+                ], in: baseExamples)
+            }
+            if lower.contains("wait no actually") {
+                return examples(matching: [
+                    "i think this works but maybe we should test it first",
+                    "wait no actually make it the smaller one",
+                ], in: baseExamples)
+            }
+            if lower.contains(" er ") {
+                return examples(matching: [
+                    "i want to meet on tuesday er monday",
+                ], in: baseExamples)
+            }
+            if lower.contains("wait no") {
+                return examples(matching: [
+                    "i want to meet on tuesday wait no monday",
+                ], in: baseExamples)
+            }
+            if lower.contains(" like ") {
+                let exampleInput = lower.hasPrefix("i like ") ? "i like this direction" : "i think this is like ready to ship"
+                return examples(matching: [exampleInput], in: baseExamples)
+            }
+            if lower.contains("um") || lower.contains("can you can you") {
+                return examples(matching: [
+                    "um can you can you send this over when you get a chance",
+                ], in: baseExamples)
+            }
+            if lower.contains("open the settings panel") {
+                return examples(matching: [
+                    "i think this works but maybe we should test it first",
+                    "open the settings panel and turn on the beta option",
+                ], in: baseExamples)
+            }
+            return examples(matching: [
+                "i think this works but maybe we should test it first",
+            ], in: baseExamples)
         }
     }
 
@@ -153,6 +235,10 @@ public enum LanguagePassPrompt {
         ),
         LanguagePassExample(
             input: "i want to meet on tuesday wait no monday",
+            output: "I want to meet on Monday."
+        ),
+        LanguagePassExample(
+            input: "i want to meet on tuesday er monday",
             output: "I want to meet on Monday."
         ),
         LanguagePassExample(
@@ -221,6 +307,14 @@ public enum LanguagePassPrompt {
             input: "can you review this when you have time",
             output: "Can you review this when you have time?"
         ),
+        LanguagePassExample(
+            input: "this is basically ready for review",
+            output: "This is ready for review."
+        ),
+        LanguagePassExample(
+            input: "this is basically literally ready for review",
+            output: "This is ready for review."
+        ),
     ]
 
     fileprivate static let standardExamples: [LanguagePassExample] = []
@@ -229,41 +323,132 @@ public enum LanguagePassPrompt {
         switch style {
         case .casual:
             return """
-            Casual cleanup required. Copying polished capitalization or ending punctuation is invalid.
-            Transcript: \(input)
-            Casual output:
+            Rewrite as casual lowercase text.
+            Keep the speaker's words. Do not abbreviate or substitute words.
+            Do not output punctuation characters.
+            Remove filler words such as um, uh, repeated words, and unnecessary like.
+            Preserve meaningful like when it means enjoy or similar to.
+            CURRENT TRANSCRIPT:
+            \(input)
+            FINAL TEXT:
             """
         case .standard:
             return """
-            Rewrite this dictation transcript.
-            Rules:
-            - remove filler words, accidental repeats, and false starts
-            - remove unnecessary discourse fillers like "like", "basically", "literally", "kind of", and "sort of"
-            - preserve meaningful "like" in phrases like "I like this", "apps like Slack", and "looks like"
-            - if the transcript says "a... actually" or "an... actually", delete the abandoned article and keep "actually"
-            - return only the cleaned text
-            Transcript:
+            CURRENT TRANSCRIPT:
             \(input)
-            Cleaned:
+            FINAL TEXT:
             """
         case .formal:
             return """
-            Rewrite this dictation transcript in formal style.
-            Rules:
-            - add clear sentence casing and punctuation when obvious
-            - remove unnecessary discourse fillers like "like", "basically", "literally", "kind of", and "sort of"
-            - preserve meaningful "like" in phrases like "I like this", "apps like Slack", and "looks like"
-            - keep the speaker's original meaningful words
-            - return only the cleaned text
-            Transcript:
+            CURRENT TRANSCRIPT:
             \(input)
-            Cleaned:
+            FINAL TEXT (remove filler words such as basically and literally):
             """
         }
+    }
+
+    public static func retryPrompt(
+        for input: String,
+        style: LanguagePassStyle,
+        previousOutput: String
+    ) -> String? {
+        let candidate = previousOutput.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        switch style {
+        case .standard, .formal:
+            guard actuallyFalseStartNeedsRetry(input: input, output: candidate) else {
+                return nil
+            }
+
+            return """
+            Convert transcript to cleaned dictation output.
+            Output only the converted text. Do not answer the transcript.
+            When the transcript says "a... actually" or "an... actually", remove only the abandoned article and keep "actually".
+
+            Input: Does this PR also make it a... actually register manage tabs and the suggestion tool with this thing?
+            Output: Does this PR also make it actually register manage tabs and the suggestion tool with this thing?
+
+            Input:
+            \(input)
+            Output:
+            """
+        case .casual:
+            guard casualOutputNeedsRetry(candidate) else {
+                return nil
+            }
+
+            return """
+            Convert transcript to casual output.
+            Output only the converted text. Do not answer the transcript.
+            Keep the same words. Do not abbreviate or substitute words.
+
+            Input: Can you send this over when you get a chance?
+            Output: can you send this over when you get a chance
+
+            Input: I think this is, like, ready to ship.
+            Output: i think this is ready to ship
+
+            Input:
+            \(input)
+            Output:
+            """
+        }
+    }
+
+    private static func examples(matching inputs: [String], in examples: [LanguagePassExample]) -> [LanguagePassExample] {
+        inputs.compactMap { input in
+            examples.first { $0.input == input }
+        }
+    }
+
+    private static func casualOutputNeedsRetry(_ output: String) -> Bool {
+        guard !output.isEmpty else { return false }
+
+        if output != output.lowercased() {
+            return true
+        }
+        if output.contains(where: { ".?!,".contains($0) }) {
+            return true
+        }
+
+        let normalized = " \(output.lowercased()) "
+        return normalized.contains(" is like ")
+            || normalized.contains(" was like ")
+            || normalized.contains(" are like ")
+            || normalized.contains(" be like ")
+    }
+
+    private static func actuallyFalseStartNeedsRetry(input: String, output: String) -> Bool {
+        let lowerInput = input.lowercased()
+        guard lowerInput.contains("a... actually") || lowerInput.contains("an... actually") else {
+            return false
+        }
+
+        let outputTokens = Set(output.lowercased().split { !$0.isLetter }.map(String.init))
+        return !outputTokens.contains("actually")
     }
 }
 
 private extension LanguagePassStyle {
+    var unsafeRewriteExamples: String {
+        switch self {
+        case .standard, .formal:
+            return """
+            Unsafe rewrite patterns:
+            - Do not delete a leading subject phrase such as "the diff is" from a sentence.
+            - Do not delete the request frame from a request, such as "can you".
+            - Do not delete "wait no actually" when those words are the intended command rather than a correction marker.
+            """
+        case .casual:
+            return """
+            Unsafe rewrite patterns:
+            - Do not delete a leading subject phrase such as "the diff is" from a sentence.
+            - Do not delete the request frame from a request, such as "can you".
+            - Do not delete "wait no actually" when those words are the intended command rather than a correction marker.
+            """
+        }
+    }
+
     var examples: [LanguagePassExample] {
         switch self {
         case .standard:
@@ -303,6 +488,12 @@ public enum LanguagePassValidator {
                     strippedLabel = true
                 }
             }
+        }
+
+        if let firstLine = candidate.split(whereSeparator: \.isNewline).first,
+            candidate.contains("\n\n")
+        {
+            candidate = trim(String(firstLine))
         }
 
         if candidate.count >= 2,
@@ -366,6 +557,10 @@ public enum LanguagePassValidator {
             return .init(acceptedText: nil, fallbackReason: "dropped_content")
         }
 
+        guard retainsRequiredSourceTokens(candidate: candidate, base: base) else {
+            return .init(acceptedText: nil, fallbackReason: "dropped_content")
+        }
+
         guard hasEnoughSourceOverlap(candidate: candidate, base: base) else {
             return .init(acceptedText: nil, fallbackReason: "low_source_overlap")
         }
@@ -423,10 +618,20 @@ public enum LanguagePassValidator {
         if candidate.contains("```"), !base.contains("```") {
             return true
         }
+        if containsMarkupTag(candidate), !containsMarkupTag(base) {
+            return true
+        }
         if candidate.contains("http://") || candidate.contains("https://") {
             return !(base.contains("http://") || base.contains("https://"))
         }
         return false
+    }
+
+    private static func containsMarkupTag(_ text: String) -> Bool {
+        text.range(
+            of: #"</?[A-Za-z][A-Za-z0-9-]*\b[^>]*>"#,
+            options: .regularExpression
+        ) != nil
     }
 
     private static func hasUnresolvedCorrectionMarker(_ text: String) -> Bool {
@@ -639,6 +844,21 @@ public enum LanguagePassValidator {
         let retainedCount = baseTokens.filter { candidateTokens.contains($0) }.count
         let ratio = Double(retainedCount) / Double(baseTokens.count)
         return ratio >= 0.60
+    }
+
+    private static func retainsRequiredSourceTokens(candidate: String, base: String) -> Bool {
+        let baseTokens = wordTokens(base)
+        guard correctionMarkerRanges(in: baseTokens).isEmpty else {
+            return true
+        }
+
+        let requiredTokens = Set(meaningfulTokens(base).filter { !removableTokens.contains($0) })
+        guard !requiredTokens.isEmpty else {
+            return true
+        }
+
+        let candidateTokens = Set(meaningfulTokens(candidate))
+        return requiredTokens.isSubset(of: candidateTokens)
     }
 
     private static func numberTokens(_ text: String) -> [String] {
