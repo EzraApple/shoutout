@@ -12,13 +12,14 @@ struct LanguagePassModelOption: Identifiable, Hashable, Sendable {
     let detail: String
 
     fileprivate static let legacyDefaultID = "mlx-community/SmolLM2-135M-Instruct-8bit"
-    static let defaultID = "mlx-community/Qwen2.5-0.5B-Instruct-4bit"
+    fileprivate static let previousDefaultID = "mlx-community/Qwen2.5-0.5B-Instruct-4bit"
+    static let defaultID = "mlx-community/Llama-3.2-1B-Instruct-4bit"
 
     static let all: [LanguagePassModelOption] = [
         LanguagePassModelOption(
-            id: defaultID,
-            title: "Qwen2.5 0.5B",
-            detail: "Fast local cleanup model for punctuation, repeats, and obvious corrections."
+            id: "mlx-community/Llama-3.2-1B-Instruct-4bit",
+            title: "Llama 3.2 1B",
+            detail: "More reliable cleanup for casual style and filler removal, with moderate local memory use."
         )
     ]
 
@@ -112,6 +113,11 @@ final class LanguagePassService: ObservableObject {
     private let generationTimeoutNanoseconds: UInt64 = 1_200_000_000
     private static let mlxCacheLimitBytes = 0
     private static var didConfigureMLXMemory = false
+    private static let modelCleanupVersion = 1
+    private static let retiredModelIDs = [
+        LanguagePassModelOption.legacyDefaultID,
+        LanguagePassModelOption.previousDefaultID,
+    ]
 
     static let modelsDirectory: URL = {
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
@@ -127,7 +133,9 @@ final class LanguagePassService: ObservableObject {
 
     init() {
         let storedModel = UserDefaults.standard.string(forKey: Defaults.languagePassModel)
-        if storedModel == LanguagePassModelOption.legacyDefaultID {
+        if storedModel == LanguagePassModelOption.legacyDefaultID
+            || storedModel == LanguagePassModelOption.previousDefaultID
+        {
             self.selectedModelID = LanguagePassModelOption.defaultID
             UserDefaults.standard.set(LanguagePassModelOption.defaultID, forKey: Defaults.languagePassModel)
         } else {
@@ -144,7 +152,49 @@ final class LanguagePassService: ObservableObject {
             storedValue: UserDefaults.standard.string(forKey: Defaults.languagePassStyle)
         )
 
+        cleanupRetiredModelsIfNeeded()
         Self.configureMLXMemoryIfNeeded()
+    }
+
+    private func cleanupRetiredModelsIfNeeded() {
+        let defaults = UserDefaults.standard
+        guard defaults.integer(forKey: Defaults.languagePassModelCleanupVersion) < Self.modelCleanupVersion else {
+            return
+        }
+
+        var completed = true
+        for modelID in Self.retiredModelIDs where modelID != selectedModelID {
+            completed = deleteCachedModelIfPresent(modelID: modelID) && completed
+        }
+
+        if completed {
+            defaults.set(Self.modelCleanupVersion, forKey: Defaults.languagePassModelCleanupVersion)
+        }
+    }
+
+    private func deleteCachedModelIfPresent(modelID: String) -> Bool {
+        let url = Self.cachedModelDirectory(for: modelID)
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory),
+            isDirectory.boolValue
+        else {
+            return true
+        }
+
+        do {
+            try FileManager.default.removeItem(at: url)
+            RuntimeLog.write("languagePass cleanup removed retiredModel=\(modelID) path=\(url.path)")
+            return true
+        } catch {
+            RuntimeLog.write("languagePass cleanup failed retiredModel=\(modelID) path=\(url.path) error=\(error)")
+            return false
+        }
+    }
+
+    private static func cachedModelDirectory(for modelID: String) -> URL {
+        modelID.split(separator: "/").reduce(modelsDirectory.appendingPathComponent("models")) { url, component in
+            url.appendingPathComponent(String(component))
+        }
     }
 
     func prepareIfNeeded() async {
@@ -347,7 +397,7 @@ final class LanguagePassService: ObservableObject {
         let session = ChatSession(
             container,
             instructions: LanguagePassPrompt.systemInstructions(for: style),
-            history: Self.fewShotHistory(style: style),
+            history: Self.fewShotHistory(style: style, input: baseText),
             generateParameters: GenerateParameters(
                 maxTokens: 96,
                 maxKVSize: 2048,
@@ -355,11 +405,32 @@ final class LanguagePassService: ObservableObject {
                 topP: 1.0
             )
         )
-        return try await session.respond(to: LanguagePassPrompt.userPrompt(for: baseText, style: style))
+        let output = try await session.respond(to: LanguagePassPrompt.userPrompt(for: baseText, style: style))
+        let candidate = LanguagePassValidator.extractCandidate(from: output)
+        guard let retryPrompt = LanguagePassPrompt.retryPrompt(
+            for: baseText,
+            style: style,
+            previousOutput: candidate
+        ) else {
+            return output
+        }
+
+        let retrySession = ChatSession(
+            container,
+            instructions: LanguagePassPrompt.systemInstructions(for: style),
+            history: [],
+            generateParameters: GenerateParameters(
+                maxTokens: 48,
+                maxKVSize: 2048,
+                temperature: 0.0,
+                topP: 1.0
+            )
+        )
+        return try await retrySession.respond(to: retryPrompt)
     }
 
-    nonisolated private static func fewShotHistory(style: LanguagePassStyle) -> [Chat.Message] {
-        LanguagePassPrompt.examples(for: style).flatMap { example in
+    nonisolated private static func fewShotHistory(style: LanguagePassStyle, input: String) -> [Chat.Message] {
+        LanguagePassPrompt.examples(for: style, input: input).flatMap { example in
             [
                 Chat.Message.user(LanguagePassPrompt.userPrompt(for: example.input, style: style)),
                 Chat.Message.assistant(example.output),
@@ -389,6 +460,9 @@ final class LanguagePassService: ObservableObject {
     }
 
     private func recordSummary(_ result: LanguagePassRunResult) {
+        let inputMetrics = Self.textMetrics(result.inputText ?? "")
+        let candidateMetrics = result.candidateText.map(Self.textMetrics)
+        let finalMetrics = Self.textMetrics(result.finalText)
         lastRunSummary = LanguagePassRunSummary(
             date: Date(),
             accepted: result.accepted,
@@ -407,24 +481,22 @@ final class LanguagePassService: ObservableObject {
                 "model=\(result.modelID ?? "none")",
                 "style=\(selectedStyle.rawValue)",
                 "fallback=\(result.fallbackReason ?? "none")",
-                "input=\"\(Self.logSnippet(result.inputText ?? ""))\"",
-                "candidate=\"\(Self.logSnippet(result.candidateText ?? ""))\"",
-                "final=\"\(Self.logSnippet(result.finalText))\"",
+                "inputChars=\(inputMetrics.characters)",
+                "inputWords=\(inputMetrics.words)",
+                "candidatePresent=\(result.candidateText != nil)",
+                "candidateChars=\(candidateMetrics?.characters ?? 0)",
+                "candidateWords=\(candidateMetrics?.words ?? 0)",
+                "finalChars=\(finalMetrics.characters)",
+                "finalWords=\(finalMetrics.words)",
             ].joined(separator: " ")
         )
     }
 
-    private static func logSnippet(_ text: String) -> String {
-        guard !text.isEmpty else { return "none" }
-        let escaped = text
-            .replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "\"", with: "\\\"")
-            .replacingOccurrences(of: "\n", with: "\\n")
-            .replacingOccurrences(of: "\r", with: "\\r")
-        if escaped.count <= 220 {
-            return escaped
-        }
-        return "\(escaped.prefix(220))..."
+    private static func textMetrics(_ text: String) -> (characters: Int, words: Int) {
+        (
+            characters: text.count,
+            words: text.split { $0.isWhitespace || $0.isNewline }.count
+        )
     }
 
     private static func elapsedMilliseconds(since date: Date) -> Int {

@@ -19,6 +19,7 @@ enum Defaults {
     static let boringMode = "boringMode"
     static let languagePassEnabled = "languagePassEnabled"
     static let languagePassModel = "languagePassModel"
+    static let languagePassModelCleanupVersion = "languagePassModelCleanupVersion"
     static let languagePassStyle = "languagePassStyle"
 }
 

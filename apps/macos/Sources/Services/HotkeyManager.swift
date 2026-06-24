@@ -1,5 +1,6 @@
 import AppKit
 import Carbon.HIToolbox
+import ShoutOutCore
 
 // MARK: - Hotkey Manager
 
@@ -176,9 +177,7 @@ class HotkeyManager {
 
     func cancelRecording() {
         if let state = stateRef as? ShortcutKeyState {
-            state.holdTimer?.cancel()
-            state.doubleTapTimer?.cancel()
-            state.phase = .idle
+            applyShortcutTimingEffects(state.timing.cancel(), state: state)
         }
     }
 
@@ -188,31 +187,9 @@ class HotkeyManager {
     }
 }
 
-// MARK: - State Machine
-
-/// Shortcut detection phases:
-/// ```
-/// idle -> shortcutDown:
-///   start audio capture immediately
-///   start holdTimer (120ms)
-///   -> if held past timer -> holdRecording -> shortcutUp -> stop + transcribe -> idle
-///   -> if released quickly -> discard capture, waitingForDoubleTap (400ms window)
-///       -> shortcutDown within window -> handsFreeRecording starts immediately
-///       -> shortcutDown again -> stop + transcribe -> idle
-///       -> timeout -> idle (single tap, ignored)
-/// ```
-private enum ShortcutPhase {
-    case idle
-    case shortcutDownPending    // Shortcut pressed, waiting to see if it's a hold or first tap
-    case waitingForDoubleTap    // First quick tap done, waiting for second tap
-    case holdRecording          // Holding shortcut, recording in progress
-    case handsFreeRecording     // Double-tapped, recording until next shortcut press
-}
-
 private class ShortcutKeyState: @unchecked Sendable {
     let trigger: HotkeyTrigger
-    var phase: ShortcutPhase = .idle
-    var shortcutDownTime: CFAbsoluteTime = 0
+    var timing = ShortcutTimingStateMachine()
     var holdTimer: DispatchWorkItem?
     var doubleTapTimer: DispatchWorkItem?
     weak var manager: HotkeyManager?
@@ -221,11 +198,6 @@ private class ShortcutKeyState: @unchecked Sendable {
     /// Without this, modifier key-up events (Shift, Cmd, etc.) get swallowed because
     /// their flags are empty after release, causing "stuck keys" in remote desktop apps.
     var previousShortcutDown: Bool = false
-
-    /// How long Fn must be held before hold-to-talk activates
-    let holdThreshold: TimeInterval = 0.12
-    /// Window to detect second tap of double-tap
-    let doubleTapWindow: TimeInterval = 0.4
 
     init(trigger: HotkeyTrigger) {
         self.trigger = trigger
@@ -333,8 +305,13 @@ private func fnEventCallback(
         }
     }
 
+    let eventTimestamp = CFAbsoluteTimeGetCurrent()
     DispatchQueue.main.async {
-        handleShortcutStateChange(state: state, shortcutPressed: shortcutIsDown)
+        handleShortcutStateChange(
+            state: state,
+            shortcutPressed: shortcutIsDown,
+            eventTimestamp: eventTimestamp
+        )
     }
 
     // Suppress shortcut events so the chosen trigger does not leak into the app.
@@ -342,70 +319,71 @@ private func fnEventCallback(
 }
 
 @MainActor
-private func handleShortcutStateChange(state: ShortcutKeyState, shortcutPressed: Bool) {
-    switch state.phase {
+private func handleShortcutStateChange(
+    state: ShortcutKeyState,
+    shortcutPressed: Bool,
+    eventTimestamp: TimeInterval
+) {
+    let effects = shortcutPressed
+        ? state.timing.shortcutDown(at: eventTimestamp)
+        : state.timing.shortcutUp(at: eventTimestamp)
+    applyShortcutTimingEffects(effects, state: state)
+}
 
-    case .idle:
-        if shortcutPressed {
-            state.phase = .shortcutDownPending
-            state.shortcutDownTime = CFAbsoluteTimeGetCurrent()
-            state.manager?.onRecordArmed?()
-
-            // Start hold timer
+@MainActor
+private func applyShortcutTimingEffects(
+    _ effects: [ShortcutTimingStateMachine.Effect],
+    state: ShortcutKeyState
+) {
+    for effect in effects {
+        switch effect {
+        case .startHoldTimer:
             state.holdTimer?.cancel()
             let holdWork = DispatchWorkItem { [weak state] in
-                guard let state, state.phase == .shortcutDownPending else { return }
-                // Held long enough -> hold-to-talk
-                state.phase = .holdRecording
-                state.manager?.onRecordStart?()
+                guard let state else { return }
+                applyShortcutTimingEffects(state.timing.holdTimerFired(), state: state)
             }
             state.holdTimer = holdWork
             DispatchQueue.main.asyncAfter(
-                deadline: .now() + state.holdThreshold, execute: holdWork)
-        }
+                deadline: .now() + state.timing.holdThreshold,
+                execute: holdWork
+            )
 
-    case .shortcutDownPending:
-        if !shortcutPressed {
-            // Released quickly -> could be first tap of double-tap
+        case .cancelHoldTimer:
             state.holdTimer?.cancel()
             state.holdTimer = nil
-            state.phase = .waitingForDoubleTap
-            state.manager?.onRecordCancelled?()
 
-            // Start double-tap window timer
+        case .startDoubleTapTimer:
             state.doubleTapTimer?.cancel()
-            let dtWork = DispatchWorkItem { [weak state] in
-                guard let state, state.phase == .waitingForDoubleTap else { return }
-                // Timeout: was just a single tap -> do nothing
-                state.phase = .idle
-                state.manager?.onRecordCancelled?()
+            let doubleTapWork = DispatchWorkItem { [weak state] in
+                guard let state else { return }
+                applyShortcutTimingEffects(state.timing.doubleTapTimerFired(), state: state)
             }
-            state.doubleTapTimer = dtWork
+            state.doubleTapTimer = doubleTapWork
             DispatchQueue.main.asyncAfter(
-                deadline: .now() + state.doubleTapWindow, execute: dtWork)
-        }
+                deadline: .now() + state.timing.doubleTapWindow,
+                execute: doubleTapWork
+            )
 
-    case .waitingForDoubleTap:
-        if shortcutPressed {
-            // Second tap starts hands-free recording.
+        case .cancelDoubleTapTimer:
             state.doubleTapTimer?.cancel()
             state.doubleTapTimer = nil
-            state.phase = .handsFreeRecording
+
+        case .armRecording:
+            // start audio capture immediately on key-down so speech is not clipped.
+            state.manager?.onRecordArmed?()
+
+        case .cancelPendingRecording:
+            state.manager?.onRecordCancelled?()
+
+        case .commitRecording:
             state.manager?.onRecordStart?()
-        }
 
-    case .holdRecording:
-        if !shortcutPressed {
-            // Released -> stop recording + transcribe
-            state.phase = .idle
+        case .stopRecording:
             state.manager?.onRecordStop?()
-        }
 
-    case .handsFreeRecording:
-        if shortcutPressed {
-            // Next shortcut press stops recording + transcribes.
-            state.phase = .idle
-            state.manager?.onRecordStop?()
+        case .delayedHoldCommitted(let milliseconds):
+            RuntimeLog.write("hotkey hold release committed heldMs=\(milliseconds)")
         }
     }
 }
