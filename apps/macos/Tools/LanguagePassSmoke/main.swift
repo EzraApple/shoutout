@@ -83,6 +83,51 @@ struct LanguagePassSmoke {
             expectation: .requiredRewrite
         ),
         SmokeCase(
+            name: "short command does not become review request",
+            input: "Drop the random comments please.",
+            expectedFragments: ["Drop the random comments"],
+            rejectedFragments: ["review", "feedback"],
+            expectedOutput: "Drop the random comments.",
+            expectation: .requiredRewrite
+        ),
+        SmokeCase(
+            name: "sub agent command stays command",
+            input: "please have a sub agent do the localhost thing",
+            expectedFragments: ["Please have a sub-agent", "localhost thing"],
+            rejectedFragments: ["code", "def ", "Can you review"],
+            expectedOutput: "Please have a sub-agent do the localhost thing.",
+            expectation: .requiredRewrite
+        ),
+        SmokeCase(
+            name: "imperative page request keeps command mood",
+            input: "Make me two pages, one owl themed and one octopus themed. Have two sub agents do it.",
+            expectedFragments: ["Make me two pages", "Have two sub-agents do it"],
+            rejectedFragments: ["I can", "will do", "Two sub-agents will"],
+            expectedOutput: "Make me two pages, one owl-themed and one octopus-themed. Have two sub-agents do it.",
+            expectation: .requiredRewrite
+        ),
+        SmokeCase(
+            name: "agent instruction chain stays instruction",
+            input: "Okay, but if I merge this in main, I can just tell that agent to look at this to help fix this issue.",
+            expectedFragments: ["agent to look", "help fix this issue"],
+            rejectedFragments: ["agent can look", "the agent can"],
+            expectation: .requiredRewrite
+        ),
+        SmokeCase(
+            name: "technical terms allow useful quotes only",
+            input: "You shouldn't want to comment asking if we could replace synthetic with like agent facing text as like a name. That's a that's a DB column right?",
+            expectedFragments: ["synthetic", "agent", "DB column"],
+            rejectedFragments: ["\"like\"", "\"like a name\""],
+            expectation: .requiredRewrite
+        ),
+        SmokeCase(
+            name: "long meta request preserves source scope",
+            input: "Find from my transcript many more examples of cases where the language model took too aggressive of a pass and kind of mess things up up and actually do like a local smoke test to actually make sure it works correctly and also test it with a few examples that will require both cleanup and tonal shifting",
+            expectedFragments: ["from my transcript", "local smoke test", "tonal shifting"],
+            rejectedFragments: ["Find many more examples", "just test"],
+            expectation: .requiredRewrite
+        ),
+        SmokeCase(
             name: "casual wait-no wording stays intact",
             input: "wait no actually make it the smaller one",
             expectedFragments: ["wait", "actually", "smaller one"],
@@ -95,6 +140,15 @@ struct LanguagePassSmoke {
             style: .casual,
             expectedFragments: ["yeah", "that works", "send it over"],
             rejectedFragments: ["um", ".", "?", "please", "certainly", "i can"],
+            expectation: .requiredRewrite
+        ),
+        SmokeCase(
+            name: "casual style cleans filler and shifts tone",
+            input: "Could you, like, review this when you have time?",
+            style: .casual,
+            expectedFragments: ["could you review this when you have time"],
+            rejectedFragments: ["like", ".", "?"],
+            expectedOutput: "could you review this when you have time",
             expectation: .requiredRewrite
         ),
         SmokeCase(
@@ -145,6 +199,15 @@ struct LanguagePassSmoke {
             style: .formal,
             expectedFragments: ["I can join Monday", "around three"],
             rejectedFragments: ["I will", "Please", "certainly"],
+            expectation: .requiredRewrite
+        ),
+        SmokeCase(
+            name: "formal style cleans filler and shifts tone",
+            input: "um can you like check the logs and tell me what's broken",
+            style: .formal,
+            expectedFragments: ["Can you check the logs", "what's broken"],
+            rejectedFragments: ["um", " like "],
+            expectedOutput: "Can you check the logs and tell me what's broken?",
             expectation: .requiredRewrite
         ),
         SmokeCase(

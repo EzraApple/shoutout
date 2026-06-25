@@ -108,6 +108,26 @@ final class LanguagePassValidatorTests: XCTestCase {
         XCTAssertNil(validation.fallbackReason)
     }
 
+    func testAcceptsFillerLikeAfterRequestFrame() {
+        let validation = LanguagePassValidator.validate(
+            output: "Could you review this when you have time?",
+            baseText: "Could you, like, review this when you have time?"
+        )
+
+        XCTAssertEqual(validation.acceptedText, "Could you review this when you have time?")
+        XCTAssertNil(validation.fallbackReason)
+    }
+
+    func testAcceptsDroppingPolitenessMarker() {
+        let validation = LanguagePassValidator.validate(
+            output: "Drop the random comments.",
+            baseText: "Drop the random comments please."
+        )
+
+        XCTAssertEqual(validation.acceptedText, "Drop the random comments.")
+        XCTAssertNil(validation.fallbackReason)
+    }
+
     func testRejectsDroppingMeaningfulLike() {
         let validation = LanguagePassValidator.validate(
             output: "I this direction.",
@@ -299,6 +319,82 @@ final class LanguagePassValidatorTests: XCTestCase {
 
         XCTAssertNil(validation.acceptedText)
         XCTAssertEqual(validation.fallbackReason, "perspective_shift")
+    }
+
+    func testAcceptsImperativeRequestCleanupWithoutChangingIntent() {
+        let validation = LanguagePassValidator.validate(
+            output: "Make me two pages, one owl-themed and one octopus-themed. Have two sub-agents do it.",
+            baseText: "Make me two pages, one owl themed and one octopus themed. Have two sub agents do it."
+        )
+
+        XCTAssertEqual(
+            validation.acceptedText,
+            "Make me two pages, one owl-themed and one octopus-themed. Have two sub-agents do it."
+        )
+        XCTAssertNil(validation.fallbackReason)
+    }
+
+    func testRejectsAssistantOfferForImperativeRequest() {
+        let validation = LanguagePassValidator.validate(
+            output: "I can make two pages, one owl-themed and one octopus-themed. Two sub-agents will do it.",
+            baseText: "Make me two pages, one owl themed and one octopus themed. Have two sub agents do it."
+        )
+
+        XCTAssertNil(validation.acceptedText)
+        XCTAssertEqual(validation.fallbackReason, "perspective_shift")
+    }
+
+    func testRejectsNewCommitmentForImperativeRequest() {
+        let validation = LanguagePassValidator.validate(
+            output: "Make me two pages, one owl-themed and one octopus-themed. Two sub-agents will do it.",
+            baseText: "Make me two pages, one owl themed and one octopus themed. Have two sub agents do it."
+        )
+
+        XCTAssertNil(validation.acceptedText)
+        XCTAssertEqual(validation.fallbackReason, "perspective_shift")
+    }
+
+    func testRejectsExtraModalInsideInstructionChain() {
+        let validation = LanguagePassValidator.validate(
+            output: "Okay, but if I merge this in main, I can just tell that the agent can look at this to help fix this issue.",
+            baseText: "Okay, but if I merge this in main, I can just tell that agent to look at this to help fix this issue."
+        )
+
+        XCTAssertNil(validation.acceptedText)
+        XCTAssertEqual(validation.fallbackReason, "perspective_shift")
+    }
+
+    func testRejectsDroppedRequestRecipient() {
+        let validation = LanguagePassValidator.validate(
+            output: "Make two pages, one owl-themed and one octopus-themed. Have two sub-agents do it.",
+            baseText: "Make me two pages, one owl themed and one octopus themed. Have two sub agents do it."
+        )
+
+        XCTAssertNil(validation.acceptedText)
+        XCTAssertEqual(validation.fallbackReason, "dropped_content")
+    }
+
+    func testAcceptsQuotedTechnicalTerm() {
+        let validation = LanguagePassValidator.validate(
+            output: "Can we replace \"synthetic\" with agent-facing text?",
+            baseText: "Can we replace synthetic with agent facing text?"
+        )
+
+        XCTAssertEqual(
+            validation.acceptedText,
+            "Can we replace \"synthetic\" with agent-facing text?"
+        )
+        XCTAssertNil(validation.fallbackReason)
+    }
+
+    func testRejectsQuoteSpamAroundFillerAndPhrases() {
+        let validation = LanguagePassValidator.validate(
+            output: "You shouldn't want to comment asking if we could replace \"synthetic\" with \"like\" agent facing text as \"like a name\".",
+            baseText: "You shouldn't want to comment asking if we could replace synthetic with like agent facing text as like a name."
+        )
+
+        XCTAssertNil(validation.acceptedText)
+        XCTAssertEqual(validation.fallbackReason, "suspicious_structure")
     }
 
     func testRejectsDroppedTaskDetails() {

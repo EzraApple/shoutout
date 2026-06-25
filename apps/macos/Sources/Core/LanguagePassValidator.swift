@@ -96,6 +96,7 @@ public enum LanguagePassPrompt {
         This is not a chat. Edit the speaker's dictated words; never answer the speaker.
         Use the current transcript as the only source. Do not output examples or rules.
         Preserve the speaker's meaning, perspective, and task details. Do not summarize, omit task details, or add facts.
+        Preserve command and request mood. Do not turn instructions into offers, promises, or future-tense status statements.
         Keep every meaningful content word unless it is filler, an accidental repeat, or the abandoned side of a self-correction.
         Clean obvious speech artifacts: filler words, repeated starts, stutters, and self-corrections.
         Remove abandoned articles before corrections, such as "a... actually" or "an... actually"; keep "actually".
@@ -162,6 +163,29 @@ public enum LanguagePassPrompt {
             ], in: formalExamples)
 
         case .standard:
+            if lower.contains("from my transcript") {
+                return examples(matching: [
+                    "find from my transcript many more examples where the language model took too aggressive of a pass and messed things up",
+                    "drop the random comments please",
+                    "can you make the hero smaller and keep the buttons where they are",
+                ], in: baseExamples)
+            }
+            if lower.contains("synthetic") || lower.contains("agent facing") || lower.contains("agent-facing") {
+                return examples(matching: [
+                    "you shouldn't want to comment asking if we could replace synthetic with like agent facing text as like a name that's a db column right",
+                    "okay but if i merge this in main i can just tell that agent to look at this to help fix this issue",
+                    "find from my transcript many more examples where the language model took too aggressive of a pass and messed things up",
+                ], in: baseExamples)
+            }
+            if lower.contains("make me") || lower.contains("sub-agent") || lower.contains("sub agents") {
+                return examples(matching: [
+                    "make me two pages one owl themed and one octopus themed have two sub agents do it",
+                    "please have a sub agent do the localhost thing",
+                    "drop the random comments please",
+                    "have the agent check the logs then summarize the errors",
+                    "can you make the hero smaller and keep the buttons where they are",
+                ], in: baseExamples)
+            }
             if lower.contains("a... actually") || lower.contains("an... actually") {
                 return examples(matching: [
                     "Does this PR also make it a... actually register manage tabs and the suggestion tool with this thing?",
@@ -216,6 +240,38 @@ public enum LanguagePassPrompt {
         LanguagePassExample(
             input: "can you review this when you have time",
             output: "Can you review this when you have time?"
+        ),
+        LanguagePassExample(
+            input: "you shouldn't want to comment asking if we could replace synthetic with like agent facing text as like a name that's a db column right",
+            output: "You shouldn't want to comment asking if we could replace synthetic with agent-facing text as a name. That's a DB column, right?"
+        ),
+        LanguagePassExample(
+            input: "okay but if i merge this in main i can just tell that agent to look at this to help fix this issue",
+            output: "Okay, but if I merge this in main, I can just tell that agent to look at this to help fix this issue."
+        ),
+        LanguagePassExample(
+            input: "find from my transcript many more examples where the language model took too aggressive of a pass and messed things up",
+            output: "Find from my transcript many more examples where the language model took too aggressive of a pass and messed things up."
+        ),
+        LanguagePassExample(
+            input: "make me two pages one owl themed and one octopus themed have two sub agents do it",
+            output: "Make me two pages, one owl-themed and one octopus-themed. Have two sub-agents do it."
+        ),
+        LanguagePassExample(
+            input: "please have a sub agent do the localhost thing",
+            output: "Please have a sub-agent do the localhost thing."
+        ),
+        LanguagePassExample(
+            input: "drop the random comments please",
+            output: "Drop the random comments, please."
+        ),
+        LanguagePassExample(
+            input: "have the agent check the logs then summarize the errors",
+            output: "Have the agent check the logs, then summarize the errors."
+        ),
+        LanguagePassExample(
+            input: "can you make the hero smaller and keep the buttons where they are",
+            output: "Can you make the hero smaller and keep the buttons where they are?"
         ),
         LanguagePassExample(
             input: "i think this is like ready to ship",
@@ -281,6 +337,10 @@ public enum LanguagePassPrompt {
             output: "yeah that works can you send it over"
         ),
         LanguagePassExample(
+            input: "Could you, like, review this when you have time?",
+            output: "could you review this when you have time"
+        ),
+        LanguagePassExample(
             input: "wait no actually make it the smaller one",
             output: "wait no actually make it the smaller one"
         ),
@@ -302,6 +362,10 @@ public enum LanguagePassPrompt {
         LanguagePassExample(
             input: "i can join monday probably around three",
             output: "I can join Monday, probably around three."
+        ),
+        LanguagePassExample(
+            input: "um can you like check the logs and tell me what's broken",
+            output: "Can you check the logs and tell me what's broken?"
         ),
         LanguagePassExample(
             input: "can you review this when you have time",
@@ -437,6 +501,8 @@ private extension LanguagePassStyle {
             Unsafe rewrite patterns:
             - Do not delete a leading subject phrase such as "the diff is" from a sentence.
             - Do not delete the request frame from a request, such as "can you".
+            - Do not turn a command like "make me two pages" into "I can make two pages".
+            - Do not turn an instruction like "have two sub-agents do it" into "two sub-agents will do it".
             - Do not delete "wait no actually" when those words are the intended command rather than a correction marker.
             """
         case .casual:
@@ -444,6 +510,8 @@ private extension LanguagePassStyle {
             Unsafe rewrite patterns:
             - Do not delete a leading subject phrase such as "the diff is" from a sentence.
             - Do not delete the request frame from a request, such as "can you".
+            - Do not turn a command like "make me two pages" into "I can make two pages".
+            - Do not turn an instruction like "have two sub-agents do it" into "two sub-agents will do it".
             - Do not delete "wait no actually" when those words are the intended command rather than a correction marker.
             """
         }
@@ -545,6 +613,10 @@ public enum LanguagePassValidator {
             return .init(acceptedText: nil, fallbackReason: "perspective_shift")
         }
 
+        guard !dropsRequestRecipient(candidate: candidate, base: base) else {
+            return .init(acceptedText: nil, fallbackReason: "dropped_content")
+        }
+
         guard !leaksPromptFormat(candidate) else {
             return .init(acceptedText: nil, fallbackReason: "format_leak")
         }
@@ -618,6 +690,9 @@ public enum LanguagePassValidator {
         if candidate.contains("```"), !base.contains("```") {
             return true
         }
+        if introducesSuspiciousQuoteMarks(candidate: candidate, base: base) {
+            return true
+        }
         if containsMarkupTag(candidate), !containsMarkupTag(base) {
             return true
         }
@@ -625,6 +700,62 @@ public enum LanguagePassValidator {
             return !(base.contains("http://") || base.contains("https://"))
         }
         return false
+    }
+
+    private static func introducesSuspiciousQuoteMarks(candidate: String, base: String) -> Bool {
+        let quoteCharacters = CharacterSet(charactersIn: "\"“”")
+        guard candidate.rangeOfCharacter(from: quoteCharacters) != nil,
+            base.rangeOfCharacter(from: quoteCharacters) == nil
+        else {
+            return false
+        }
+
+        let baseTokens = Set(wordTokens(base))
+        return quotedSpans(in: candidate).contains { span in
+            let tokens = wordTokens(span)
+            guard tokens.count == 1, let token = tokens.first else {
+                return true
+            }
+            return !baseTokens.contains(token)
+                || stopTokens.contains(token)
+                || removableTokens.contains(token)
+        }
+    }
+
+    private static func quotedSpans(in text: String) -> [String] {
+        var spans: [String] = []
+        var currentQuote: Character?
+        var currentSpan = ""
+
+        for character in text {
+            if let quoteEnd = matchingQuoteEnd(for: currentQuote) {
+                if character == quoteEnd {
+                    spans.append(currentSpan)
+                    currentQuote = nil
+                    currentSpan = ""
+                } else {
+                    currentSpan.append(character)
+                }
+                continue
+            }
+
+            if quoteStartCharacters.contains(character) {
+                currentQuote = character
+            }
+        }
+
+        return spans
+    }
+
+    private static func matchingQuoteEnd(for quote: Character?) -> Character? {
+        switch quote {
+        case "\"":
+            return "\""
+        case "“":
+            return "”"
+        default:
+            return nil
+        }
     }
 
     private static func containsMarkupTag(_ text: String) -> Bool {
@@ -750,14 +881,75 @@ public enum LanguagePassValidator {
     private static func introducesPerspectiveShift(candidate: String, base: String) -> Bool {
         let normalizedBase = " \(normalize(base).lowercased()) "
         let normalizedCandidate = " \(normalize(candidate).lowercased()) "
+        let baseTokens = wordTokens(base)
+        let candidateTokens = wordTokens(candidate)
 
         if normalizedBase.contains(" can you "), normalizedCandidate.contains(" i can ") {
             return true
         }
-        if wordTokens(base).contains("you"), !wordTokens(candidate).contains("you"),
-            wordTokens(candidate).contains("i")
+        if baseTokens.contains("you"), !candidateTokens.contains("you"),
+            candidateTokens.contains("i")
         {
             return true
+        }
+        if isCommandOrRequest(baseTokens), startsWithAssistantOffer(candidateTokens) {
+            return true
+        }
+        if introducesNewModalCommitment(candidateTokens: candidateTokens, baseTokens: baseTokens) {
+            return true
+        }
+        return false
+    }
+
+    private static func startsWithAssistantOffer(_ tokens: [String]) -> Bool {
+        starts(tokens, with: ["i", "can"])
+            || starts(tokens, with: ["i", "will"])
+            || starts(tokens, with: ["i", "would"])
+            || starts(tokens, with: ["i'll"])
+            || starts(tokens, with: ["we", "can"])
+            || starts(tokens, with: ["we", "will"])
+            || starts(tokens, with: ["we", "would"])
+            || starts(tokens, with: ["we'll"])
+    }
+
+    private static func introducesNewModalCommitment(candidateTokens: [String], baseTokens: [String]) -> Bool {
+        let baseCounts = tokenCounts(baseTokens.filter { modalCommitmentTokens.contains($0) })
+        let candidateCounts = tokenCounts(candidateTokens.filter { modalCommitmentTokens.contains($0) })
+
+        return candidateCounts.contains { token, count in
+            count > (baseCounts[token] ?? 0)
+        }
+    }
+
+    private static func isCommandOrRequest(_ tokens: [String]) -> Bool {
+        guard let first = tokens.first else {
+            return false
+        }
+        if starts(tokens, with: ["can", "you"])
+            || starts(tokens, with: ["could", "you"])
+            || starts(tokens, with: ["would", "you"])
+        {
+            return true
+        }
+        if first == "please", tokens.count > 1 {
+            return true
+        }
+        return imperativeLeadTokens.contains(first)
+    }
+
+    private static func dropsRequestRecipient(candidate: String, base: String) -> Bool {
+        let baseTokens = wordTokens(base)
+        let candidateTokens = Set(wordTokens(candidate))
+
+        for index in baseTokens.indices where requestRecipientTokens.contains(baseTokens[index]) {
+            guard index > 0 else {
+                continue
+            }
+            if requestRecipientVerbs.contains(baseTokens[index - 1]),
+                !candidateTokens.contains(baseTokens[index])
+            {
+                return true
+            }
         }
         return false
     }
@@ -805,6 +997,7 @@ public enum LanguagePassValidator {
         if previous == "you",
             let previousPrevious,
             fillerLikePreviousTokens.contains(previousPrevious)
+                || requestFramePreviousTokens.contains(previousPrevious)
         {
             return true
         }
@@ -875,6 +1068,19 @@ public enum LanguagePassValidator {
         }.map(String.init)
     }
 
+    private static func starts(_ tokens: [String], with prefix: [String]) -> Bool {
+        guard tokens.count >= prefix.count else {
+            return false
+        }
+        return Array(tokens.prefix(prefix.count)) == prefix
+    }
+
+    private static func tokenCounts(_ tokens: [String]) -> [String: Int] {
+        tokens.reduce(into: [:]) { counts, token in
+            counts[token, default: 0] += 1
+        }
+    }
+
     private static let stopTokens: Set<String> = [
         "a", "an", "and", "are", "as", "at", "be", "but", "by", "can", "could",
         "did", "do", "does", "for", "from", "had", "has", "have", "he", "her",
@@ -889,12 +1095,39 @@ public enum LanguagePassValidator {
     ])
 
     private static let removableTokens: Set<String> = [
-        "um", "uh", "er", "oops", "wait", "no", "sorry", "scratch", "actually", "maybe",
+        "um", "uh", "er", "oops", "wait", "no", "sorry", "scratch", "actually", "maybe", "please",
         "like", "basically", "literally",
     ]
 
     private static let fillerLikePreviousTokens: Set<String> = [
         "am", "are", "be", "been", "being", "i'm", "is", "it's", "that's", "they're",
         "was", "we're", "were", "you're",
+    ]
+
+    private static let quoteStartCharacters: Set<Character> = [
+        "\"", "“",
+    ]
+
+    private static let requestFramePreviousTokens: Set<String> = [
+        "can", "could", "should", "will", "would",
+    ]
+
+    private static let modalCommitmentTokens: Set<String> = [
+        "can", "could", "should", "will", "would",
+    ]
+
+    private static let imperativeLeadTokens: Set<String> = [
+        "add", "book", "build", "change", "check", "clean", "create", "delete", "draft",
+        "draw", "fix", "give", "have", "make", "move", "open", "register", "remove",
+        "send", "set", "show", "summarize", "tell", "turn", "update", "write",
+    ]
+
+    private static let requestRecipientTokens: Set<String> = [
+        "me", "us",
+    ]
+
+    private static let requestRecipientVerbs: Set<String> = [
+        "build", "create", "draft", "draw", "give", "make", "send", "show", "tell",
+        "write",
     ]
 }
