@@ -127,14 +127,15 @@ assert_plist_key() {
 }
 
 assert_contains "README names ShoutOut" "$REPO_ROOT/README.md" "^# ShoutOut"
-assert_contains "README documents make install" "$REPO_ROOT/README.md" "make install"
+assert_contains "README links public download" "$REPO_ROOT/README.md" "https://shoutout.sh"
+assert_contains "README documents local dev setup" "$REPO_ROOT/README.md" "make restart-local"
 assert_not_contains "README does not mention stale source branding" "$REPO_ROOT/README.md" "[Ii]nputalk"
 assert_contains "README documents Microphone" "$REPO_ROOT/README.md" "Microphone"
 assert_contains "README documents Speech Recognition" "$REPO_ROOT/README.md" "Speech Recognition"
 assert_contains "README documents Apple Dictation" "$REPO_ROOT/README.md" "Apple Dictation"
 assert_contains "README documents Accessibility" "$REPO_ROOT/README.md" "Accessibility"
 assert_contains "README documents Input Monitoring" "$REPO_ROOT/README.md" "Input Monitoring"
-assert_contains "README documents pinned Actions install" "$REPO_ROOT/README.md" "SHOUTOUT_RUN_ID"
+assert_not_contains "README avoids GitHub Actions install guidance" "$REPO_ROOT/README.md" "SHOUTOUT_RUN_ID|GitHub Actions"
 assert_contains "README links troubleshooting" "$REPO_ROOT/README.md" "TROUBLESHOOTING.md"
 assert_contains "README documents context-aware insertion" "$REPO_ROOT/README.md" "focused-field context"
 assert_contains "README documents smart spacing fallback" "$REPO_ROOT/README.md" "Smart spacing falls back"
