@@ -9,19 +9,21 @@ Treat an app update as a shipped Sparkle boundary, not just a code push. The upd
 
 ## Release Notes
 
-Write concise, mildly user-facing bullets. They should name the actual fixed behavior without dumping implementation details.
+Write concise, mildly user-facing bullets. They should describe the user-visible behavior that changed in the shipped app, not the development path, implementation constraint, or behavior that merely did not regress.
 
-Good:
+Good for a hands-free recording fix:
 
-- Fixes hands-free recording so a quick Fn/Globe double-tap keeps the first bit of audio instead of acting like two tiny recordings.
-- Keeps hold-to-record fast; the quick hold activation timing is unchanged.
-- Switches the recording overlay into hands-free mode as soon as the second tap lands.
+- Fixes Fn/Globe double-tap so hands-free recordings reliably continue after the second tap.
+- Prevents quick double-taps from turning into two short recordings.
+- Shows the hands-free recording state immediately after the second tap.
 
 Avoid:
 
 - Generic notes like "Bug fixes and improvements."
 - Deep internals like enum names, timer phases, callback signatures, or test names.
-- Claims not backed by the patch and validation.
+- Non-regression notes like "keeps hold-to-record fast" unless the user was already experiencing that as a shipped bug.
+- Development-history notes like "preserves the buffer" when the user-facing result is "does not drop the beginning of the recording."
+- Claims not backed by the shipped patch and validation.
 
 ## Version Bump
 
