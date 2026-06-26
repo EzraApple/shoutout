@@ -1,6 +1,11 @@
 import Foundation
 
 public struct ShortcutTimingStateMachine: Sendable {
+    public enum RecordingMode: Equatable, Sendable {
+        case hold
+        case handsFree
+    }
+
     public enum Effect: Equatable, Sendable {
         case startHoldTimer
         case cancelHoldTimer
@@ -8,7 +13,7 @@ public struct ShortcutTimingStateMachine: Sendable {
         case cancelDoubleTapTimer
         case armRecording
         case cancelPendingRecording
-        case commitRecording
+        case commitRecording(RecordingMode)
         case stopRecording
         case delayedHoldCommitted(milliseconds: Int)
     }
@@ -16,20 +21,26 @@ public struct ShortcutTimingStateMachine: Sendable {
     private enum Phase: Equatable, Sendable {
         case idle
         case shortcutDownPending
-        case waitingForDoubleTap
+        case waitingForDoubleTap(committed: Bool)
         case holdRecording
         case handsFreeRecording
     }
 
     public let holdThreshold: TimeInterval
     public let doubleTapWindow: TimeInterval
+    public let tapCandidateThreshold: TimeInterval
 
     private var phase: Phase = .idle
     private var shortcutDownTime: TimeInterval?
 
-    public init(holdThreshold: TimeInterval = 0.12, doubleTapWindow: TimeInterval = 0.4) {
+    public init(
+        holdThreshold: TimeInterval = 0.12,
+        doubleTapWindow: TimeInterval = 0.4,
+        tapCandidateThreshold: TimeInterval = 0.2
+    ) {
         self.holdThreshold = holdThreshold
         self.doubleTapWindow = doubleTapWindow
+        self.tapCandidateThreshold = tapCandidateThreshold
     }
 
     public mutating func shortcutDown(at timestamp: TimeInterval) -> [Effect] {
@@ -42,7 +53,7 @@ public struct ShortcutTimingStateMachine: Sendable {
         case .waitingForDoubleTap:
             phase = .handsFreeRecording
             shortcutDownTime = timestamp
-            return [.cancelDoubleTapTimer, .commitRecording]
+            return [.cancelDoubleTapTimer, .commitRecording(.handsFree)]
 
         case .handsFreeRecording:
             phase = .idle
@@ -59,24 +70,39 @@ public struct ShortcutTimingStateMachine: Sendable {
         case .shortcutDownPending:
             let heldDuration = max(0, timestamp - (shortcutDownTime ?? timestamp))
             if heldDuration >= holdThreshold {
+                if heldDuration <= tapCandidateThreshold {
+                    phase = .waitingForDoubleTap(committed: true)
+                    return [
+                        .cancelHoldTimer,
+                        .delayedHoldCommitted(milliseconds: Int(heldDuration * 1000)),
+                        .commitRecording(.hold),
+                        .startDoubleTapTimer,
+                    ]
+                }
+
                 phase = .idle
                 shortcutDownTime = nil
                 return [
                     .cancelHoldTimer,
                     .delayedHoldCommitted(milliseconds: Int(heldDuration * 1000)),
-                    .commitRecording,
+                    .commitRecording(.hold),
                     .stopRecording,
                 ]
             }
 
-            phase = .waitingForDoubleTap
+            phase = .waitingForDoubleTap(committed: false)
             return [
                 .cancelHoldTimer,
-                .cancelPendingRecording,
                 .startDoubleTapTimer,
             ]
 
         case .holdRecording:
+            let heldDuration = max(0, timestamp - (shortcutDownTime ?? timestamp))
+            if heldDuration <= tapCandidateThreshold {
+                phase = .waitingForDoubleTap(committed: true)
+                return [.startDoubleTapTimer]
+            }
+
             phase = .idle
             shortcutDownTime = nil
             return [.stopRecording]
@@ -89,14 +115,14 @@ public struct ShortcutTimingStateMachine: Sendable {
     public mutating func holdTimerFired() -> [Effect] {
         guard phase == .shortcutDownPending else { return [] }
         phase = .holdRecording
-        return [.commitRecording]
+        return [.commitRecording(.hold)]
     }
 
     public mutating func doubleTapTimerFired() -> [Effect] {
-        guard phase == .waitingForDoubleTap else { return [] }
+        guard case .waitingForDoubleTap(let committed) = phase else { return [] }
         phase = .idle
         shortcutDownTime = nil
-        return [.cancelPendingRecording]
+        return committed ? [.stopRecording] : [.cancelPendingRecording]
     }
 
     public mutating func cancel() -> [Effect] {

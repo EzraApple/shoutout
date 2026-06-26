@@ -1,7 +1,7 @@
 const { randomUUID } = require("node:crypto");
 
 const DOWNLOAD_COOKIE = "shoutout_download_id";
-const DEFAULT_RELEASE_VERSION = "0.1.6";
+const DEFAULT_RELEASE_VERSION = "0.1.7";
 const DEFAULT_POSTHOG_HOST = "https://us.i.posthog.com";
 
 const parseCookies = (cookieHeader = "") =>

@@ -416,8 +416,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         hotkeyManager.onRecordCancelled = { [weak self] in
             self?.cancelPendingRecording()
         }
-        hotkeyManager.onRecordStart = { [weak self] in
-            self?.commitRecording()
+        hotkeyManager.onRecordStart = { [weak self] mode in
+            self?.commitRecording(mode: mode)
         }
         hotkeyManager.onRecordStop = { [weak self] in
             self?.stopRecordingAndTranscribe()
@@ -483,21 +483,26 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         finishIndicator()
     }
 
-    private func commitRecording() {
+    private func commitRecording(mode: ShortcutTimingStateMachine.RecordingMode) {
+        let inputMode: DictationInputMode = mode == .handsFree ? .handsFree : .hold
         guard appState == .recording else {
-            startRecording(commitImmediately: true)
+            startRecording(commitImmediately: true, inputMode: inputMode)
             return
         }
 
+        activeDictationMetrics?.inputMode = inputMode
+        updateIndicator(state: .recording(level: displayedClassicRecordingLevel, mode: recordingIndicatorMode))
         guard !recordingIsCommitted else { return }
         recordingIsCommitted = true
-        activeDictationMetrics?.inputMode = .hold
         activeDictationMetrics?.recordingCommittedAt = Date()
         RuntimeLog.write("record committed")
         audioDucker.beginDuckingIfEnabled()
     }
 
-    private func startRecording(commitImmediately: Bool) {
+    private func startRecording(
+        commitImmediately: Bool,
+        inputMode: DictationInputMode? = nil
+    ) {
         guard appState == .idle else { return }
         let startRequestedAt = Date()
         RuntimeLog.write("record start requested")
@@ -507,7 +512,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if activeDictationMetrics?.insertionTarget == nil {
             activeDictationMetrics?.insertionTarget = TextInserter.captureFocusedTarget()
         }
-        activeDictationMetrics?.inputMode = commitImmediately ? .handsFree : .unknown
+        activeDictationMetrics?.inputMode = inputMode ?? (commitImmediately ? .handsFree : .unknown)
         activeDictationMetrics?.recordStartRequestedAt = startRequestedAt
 
         if !permissions.hasMicrophone {

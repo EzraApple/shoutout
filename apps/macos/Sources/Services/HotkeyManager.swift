@@ -13,7 +13,7 @@ import ShoutOutCore
 class HotkeyManager {
     var onRecordArmed: (() -> Void)?
     var onRecordCancelled: (() -> Void)?
-    var onRecordStart: (() -> Void)?
+    var onRecordStart: ((ShortcutTimingStateMachine.RecordingMode) -> Void)?
     var onRecordStop: (() -> Void)?
     var onShortcutUnavailable: ((String) -> Void)?
 
@@ -376,8 +376,8 @@ private func applyShortcutTimingEffects(
         case .cancelPendingRecording:
             state.manager?.onRecordCancelled?()
 
-        case .commitRecording:
-            state.manager?.onRecordStart?()
+        case .commitRecording(let mode):
+            state.manager?.onRecordStart?(mode)
 
         case .stopRecording:
             state.manager?.onRecordStop?()
