@@ -66,6 +66,24 @@ Notes:
 - `make sparkle-appcast` signs the appcast and stages `apps/web/public/appcast.xml`.
 - Keep generated DMG files out of git; `apps/web/public/releases/*.dmg` and `apps/macos/dist/` are ignored.
 
+## Production Download Env
+
+The `/download` API can override committed defaults with production env vars. After Blob upload, update these before the production deploy:
+
+```bash
+npx vercel env rm SHOUTOUT_RELEASE_VERSION production --yes
+printf '<version>' | npx vercel env add SHOUTOUT_RELEASE_VERSION production
+npx vercel env rm SHOUTOUT_DMG_URL production --yes
+printf 'https://.../releases/ShoutOut-<version>.dmg' | npx vercel env add SHOUTOUT_DMG_URL production
+```
+
+Then deploy or wait for the Git-backed production deployment, and verify:
+
+```bash
+curl -fsSL 'https://shoutout.sh/download?source=verify' -o /tmp/shoutout.dmg -w '%{url_effective}\n'
+rm -f /tmp/shoutout.dmg
+```
+
 ## Validate Before Push
 
 Check the staged release metadata:
