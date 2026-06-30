@@ -28,6 +28,14 @@ const sanitizeSource = (source) => {
   return source;
 };
 
+const sanitizeDistinctId = (distinctId) => {
+  if (typeof distinctId !== "string" || !/^[a-z0-9._:$-]{8,200}$/i.test(distinctId)) {
+    return "";
+  }
+
+  return distinctId;
+};
+
 const normalizedPostHogHost = () => {
   const rawHost = process.env.POSTHOG_HOST || process.env.VITE_POSTHOG_HOST || DEFAULT_POSTHOG_HOST;
 
@@ -38,15 +46,7 @@ const normalizedPostHogHost = () => {
     .replace("https://eu.posthog.com", "https://eu.i.posthog.com");
 };
 
-const getDistinctId = (req, res) => {
-  const cookies = parseCookies(req.headers.cookie);
-  const existingId = cookies[DOWNLOAD_COOKIE];
-
-  if (existingId && /^[a-z0-9-]{12,80}$/i.test(existingId)) {
-    return existingId;
-  }
-
-  const distinctId = randomUUID();
+const setDownloadCookie = (req, res, distinctId) => {
   const cookieParts = [
     `${DOWNLOAD_COOKIE}=${encodeURIComponent(distinctId)}`,
     "Path=/",
@@ -60,15 +60,37 @@ const getDistinctId = (req, res) => {
   }
 
   res.setHeader("Set-Cookie", cookieParts.join("; "));
-  return distinctId;
 };
 
-const captureDownloadStarted = async ({ distinctId, req, source, url, version }) => {
+const getDistinctId = (req, res, url) => {
+  const posthogDistinctId = sanitizeDistinctId(url.searchParams.get("ph_distinct_id"));
+
+  if (posthogDistinctId) {
+    setDownloadCookie(req, res, posthogDistinctId);
+    return { distinctId: posthogDistinctId, source: "posthog" };
+  }
+
+  const cookies = parseCookies(req.headers.cookie);
+  const existingId = sanitizeDistinctId(cookies[DOWNLOAD_COOKIE]);
+
+  if (existingId) {
+    return { distinctId: existingId, source: "download_cookie" };
+  }
+
+  const distinctId = randomUUID();
+  setDownloadCookie(req, res, distinctId);
+  return { distinctId, source: "generated" };
+};
+
+const captureDownloadStarted = async ({ distinctId, distinctIdSource, releaseLocation, req, source, url, version }) => {
   const projectKey = process.env.POSTHOG_PROJECT_API_KEY || process.env.VITE_POSTHOG_KEY;
 
   if (!projectKey) {
     return;
   }
+
+  const analyticsUrl = new URL(url.href);
+  analyticsUrl.searchParams.delete("ph_distinct_id");
 
   const abortController = new AbortController();
   const timeout = setTimeout(() => abortController.abort(), 1_200);
@@ -79,12 +101,20 @@ const captureDownloadStarted = async ({ distinctId, req, source, url, version })
       event: "download started",
       distinct_id: distinctId,
       properties: {
+        analytics_surface: "website",
+        app: "shoutout",
+        product_area: "website",
+        event_source: "download_redirect",
+        download_id: randomUUID(),
+        distinct_id_source: distinctIdSource,
         source,
         release_version: version,
         platform: "macos",
+        release_location: releaseLocation,
+        release_location_type: /^https?:\/\//i.test(releaseLocation) ? "external" : "site",
         referrer: req.headers.referer || "",
         user_agent: req.headers["user-agent"] || "",
-        $current_url: url.href,
+        $current_url: analyticsUrl.href,
         $host: url.host,
       },
     };
@@ -116,8 +146,12 @@ export default async function handler(req, res) {
   const releaseLocation = process.env.SHOUTOUT_DMG_URL || `/releases/ShoutOut-${version}.dmg`;
 
   if (req.method === "GET") {
+    const { distinctId, source: distinctIdSource } = getDistinctId(req, res, url);
+
     await captureDownloadStarted({
-      distinctId: getDistinctId(req, res),
+      distinctId,
+      distinctIdSource,
+      releaseLocation,
       req,
       source: sanitizeSource(url.searchParams.get("source")),
       url,

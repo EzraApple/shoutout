@@ -6,14 +6,23 @@ import "./styles.css";
 
 const posthogProjectKey = import.meta.env.VITE_POSTHOG_KEY?.trim();
 const posthogHost = import.meta.env.VITE_POSTHOG_HOST?.trim() || "https://us.i.posthog.com";
+const analyticsSurface = "website";
 
 if (posthogProjectKey) {
   posthog.init(posthogProjectKey, {
     api_host: posthogHost,
     autocapture: false,
-    capture_pageview: true,
-    disable_session_recording: true,
+    capture_pageview: false,
+    disable_session_recording: false,
     person_profiles: "identified_only",
+    session_recording: {
+      maskAllInputs: true,
+    },
+  });
+  posthog.register({
+    analytics_surface: analyticsSurface,
+    app: "shoutout",
+    product_area: "website",
   });
 }
 
@@ -33,6 +42,71 @@ const compactViewport = window.matchMedia("(max-width: 680px)");
 
 const header = document.querySelector<HTMLElement>(".site-header");
 const brandLink = document.querySelector<HTMLAnchorElement>(".brand");
+
+type AnalyticsValue = string | number | boolean;
+type AnalyticsProps = Record<string, AnalyticsValue>;
+type TrackableWindow = Window & {
+  dataLayer?: Array<Record<string, unknown>>;
+  plausible?: (eventName: string, options?: { props?: Record<string, string> }) => void;
+};
+
+const campaignParamNames = [
+  "utm_source",
+  "utm_medium",
+  "utm_campaign",
+  "utm_term",
+  "utm_content",
+  "ref",
+] as const;
+
+const stringifyProps = (props: AnalyticsProps) =>
+  Object.fromEntries(Object.entries(props).map(([key, value]) => [key, String(value)]));
+
+const getCampaignProps = (): AnalyticsProps => {
+  const searchParams = new URLSearchParams(window.location.search);
+  const campaignProps: AnalyticsProps = {};
+
+  campaignParamNames.forEach((paramName) => {
+    const value = searchParams.get(paramName)?.trim();
+
+    if (value) {
+      campaignProps[paramName] = value.slice(0, 120);
+    }
+  });
+
+  return campaignProps;
+};
+
+const commonAnalyticsProps = (): AnalyticsProps => ({
+  analytics_surface: analyticsSurface,
+  app: "shoutout",
+  product_area: "website",
+  page_path: window.location.pathname,
+  page_hash: window.location.hash.replace(/^#/, ""),
+  page_title: document.title,
+  viewport_width: window.innerWidth,
+  viewport_height: window.innerHeight,
+  viewport_bucket: compactViewport.matches ? "compact" : "wide",
+  ...getCampaignProps(),
+});
+
+const trackEvent = (eventName: string, props: AnalyticsProps = {}) => {
+  const eventProps = { ...commonAnalyticsProps(), ...props };
+  const trackableWindow = window as TrackableWindow;
+
+  if (posthogProjectKey) {
+    posthog.capture(eventName, eventProps);
+  }
+
+  trackableWindow.plausible?.(eventName, { props: stringifyProps(eventProps) });
+  trackableWindow.dataLayer?.push({ event: eventName, ...eventProps });
+
+  if (typeof window.CustomEvent === "function") {
+    window.dispatchEvent(new CustomEvent("shoutout:analytics", { detail: { eventName, props: eventProps } }));
+  }
+};
+
+trackEvent("$pageview");
 
 if (header) {
   let ticking = false;
@@ -58,6 +132,11 @@ if (header) {
 
 brandLink?.addEventListener("click", (event) => {
   event.preventDefault();
+  trackEvent("navigation clicked", {
+    component: "header",
+    label: "brand",
+    target_section: "top",
+  });
   window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
 
   const targetScrollY = !compactViewport.matches && window.scrollY <= 24 ? 72 : 0;
@@ -202,6 +281,11 @@ if (checklistRows.length > 0) {
       checklistState[key] = !checklistState[key];
       syncChecklistRow(row, checklistState[key]);
       writeChecklistState(checklistState);
+      trackEvent("permission checklist toggled", {
+        component: "setup",
+        permission: key,
+        checked: checklistState[key],
+      });
     });
   });
 }
@@ -364,6 +448,7 @@ document.querySelectorAll<HTMLElement>("[data-agent-chat]").forEach((chat) => {
 
     const joke = agentJokes[jokeIndex % agentJokes.length];
     const reply = joke[nextReplyPart];
+    const replyPart = nextReplyPart;
 
     if (nextReplyPart === "setup") {
       nextReplyPart = "punchline";
@@ -371,6 +456,12 @@ document.querySelectorAll<HTMLElement>("[data-agent-chat]").forEach((chat) => {
       nextReplyPart = "setup";
       jokeIndex += 1;
     }
+
+    trackEvent("demo chat submitted", {
+      component: "agent-chat",
+      message_length: text.length,
+      reply_part: replyPart,
+    });
 
     replyTimeout = window.setTimeout(() => {
       pendingTyping?.remove();
@@ -396,37 +487,119 @@ document.querySelectorAll<HTMLElement>("[data-agent-chat]").forEach((chat) => {
   });
 });
 
-type TrackableWindow = Window & {
-  dataLayer?: Array<Record<string, unknown>>;
-  plausible?: (eventName: string, options?: { props?: Record<string, string> }) => void;
-};
+const isLocalHost = ["localhost", "127.0.0.1", "::1"].includes(window.location.hostname);
 
-const trackEvent = (eventName: string, props: Record<string, string>) => {
-  const trackableWindow = window as TrackableWindow;
-
-  if (posthogProjectKey) {
-    posthog.capture(eventName, props);
+const getPostHogDistinctId = () => {
+  if (!posthogProjectKey) {
+    return "";
   }
 
-  trackableWindow.plausible?.(eventName, { props });
-  trackableWindow.dataLayer?.push({ event: eventName, ...props });
-
-  if (typeof window.CustomEvent === "function") {
-    window.dispatchEvent(new CustomEvent("shoutout:analytics", { detail: { eventName, props } }));
+  try {
+    return posthog.get_distinct_id();
+  } catch {
+    return "";
   }
 };
 
-if (["localhost", "127.0.0.1", "::1"].includes(window.location.hostname)) {
+const urlWithoutTelemetry = (href: string) => {
+  try {
+    const url = new URL(href, window.location.href);
+
+    url.searchParams.delete("ph_distinct_id");
+    return url.toString();
+  } catch {
+    return href;
+  }
+};
+
+const prepareDownloadHref = (anchor: HTMLAnchorElement) => {
+  if (isLocalHost) {
+    return anchor.href;
+  }
+
+  const url = new URL(anchor.href, window.location.href);
+
+  if (url.pathname !== "/download") {
+    return anchor.href;
+  }
+
+  const distinctId = getPostHogDistinctId();
+
+  if (distinctId) {
+    url.searchParams.set("ph_distinct_id", distinctId);
+  }
+
+  if (!url.searchParams.has("source") && anchor.dataset.trackLabel) {
+    url.searchParams.set("source", anchor.dataset.trackLabel);
+  }
+
+  anchor.href = url.toString();
+  return anchor.href;
+};
+
+if (isLocalHost) {
   document.querySelectorAll<HTMLAnchorElement>("[data-local-download-href]").forEach((anchor) => {
     anchor.href = anchor.dataset.localDownloadHref ?? anchor.href;
   });
 }
 
+document.querySelectorAll<HTMLAnchorElement>('a[href^="#"]').forEach((anchor) => {
+  if (anchor === brandLink) {
+    return;
+  }
+
+  anchor.addEventListener("click", () => {
+    const targetSection = anchor.getAttribute("href")?.replace(/^#/, "") || "unknown";
+
+    trackEvent("navigation clicked", {
+      component: anchor.closest(".site-header") ? "header" : "body",
+      label: anchor.textContent?.trim() || targetSection,
+      target_section: targetSection,
+    });
+  });
+});
+
+const viewedSections = new Set<string>();
+const trackSectionViewed = (section: HTMLElement) => {
+  const sectionId = section.id || "unknown";
+
+  if (viewedSections.has(sectionId)) {
+    return;
+  }
+
+  viewedSections.add(sectionId);
+  trackEvent("section viewed", {
+    section: sectionId,
+    label: section.getAttribute("aria-labelledby") || sectionId,
+  });
+};
+
+if ("IntersectionObserver" in window) {
+  const sectionObserver = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting && entry.intersectionRatio >= 0.35) {
+          trackSectionViewed(entry.target as HTMLElement);
+        }
+      });
+    },
+    { threshold: [0.35, 0.65] },
+  );
+
+  document.querySelectorAll<HTMLElement>("main section[id]").forEach((section) => sectionObserver.observe(section));
+} else {
+  document.querySelectorAll<HTMLElement>("main section[id]").forEach((section) => trackSectionViewed(section));
+}
+
 document.querySelectorAll<HTMLElement>("[data-track-event]").forEach((element) => {
   element.addEventListener("click", () => {
+    const anchor = element instanceof HTMLAnchorElement ? element : element.closest("a");
+    const href = anchor ? prepareDownloadHref(anchor) : "";
+
     trackEvent(element.dataset.trackEvent ?? "interaction", {
+      component: element.closest(".site-footer") ? "footer" : "body",
       label: element.dataset.trackLabel ?? element.textContent?.trim() ?? "unknown",
-      href: element instanceof HTMLAnchorElement ? element.href : "",
+      href: href ? urlWithoutTelemetry(href) : "",
       release_version: element.dataset.trackReleaseVersion ?? "",
     });
   });

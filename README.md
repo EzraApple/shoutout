@@ -50,6 +50,17 @@ npm --prefix apps/web install
 make web-dev
 ```
 
+Website analytics are PostHog-only and scoped to the public site, not the Mac app. Session replay is enabled for the site with all inputs masked. The Vercel project needs these environment variables set to the same PostHog website project:
+
+```bash
+VITE_POSTHOG_KEY=phc_...
+VITE_POSTHOG_HOST=https://us.i.posthog.com
+POSTHOG_PROJECT_API_KEY=phc_...
+POSTHOG_HOST=https://us.i.posthog.com
+```
+
+The site captures pageviews, section views, navigation clicks, download clicks, download redirect starts, outbound link clicks, setup checklist interactions, and demo chat submissions. The `/download` redirect receives the anonymous browser PostHog ID from the client when available, so `download clicked` and `download started` can be joined in PostHog funnels.
+
 The repo is organized as a small monorepo:
 
 ```text
