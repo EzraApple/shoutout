@@ -132,15 +132,64 @@ final class TextInsertionFormatterTests: XCTestCase {
         XCTAssertEqual(result.strategy, "trailing")
     }
 
-    func testSpacingCanBeDisabled() {
+    func testFallbackTrailingSpaceCanBeDisabledWhenContextIsUnavailable() {
+        let result = TextInsertionFormatter.prepare(
+            "hello",
+            context: nil,
+            options: TextInsertionFormattingOptions(appendTrailingSpace: false, useSmartSpacing: true)
+        )
+
+        XCTAssertEqual(result.text, "hello")
+        XCTAssertEqual(result.strategy, "exact")
+    }
+
+    func testFallbackTrailingSpaceDoesNotDisableSmartSpacing() {
         let result = TextInsertionFormatter.prepare(
             "hello",
             context: TextInsertionContext(characterBefore: "x", characterAfter: nil),
             options: TextInsertionFormattingOptions(appendTrailingSpace: false, useSmartSpacing: true)
         )
 
-        XCTAssertEqual(result.text, "hello")
-        XCTAssertEqual(result.strategy, "exact")
+        XCTAssertEqual(result.text, " hello")
+        XCTAssertEqual(result.strategy, "smart")
+    }
+
+    func testFallbackTrailingSpaceDoesNotDisableSmartCapitalization() {
+        let context = TextInsertionContext(
+            text: "ship it.",
+            selectedUTF16Range: NSRange(location: 8, length: 0)
+        )
+
+        let result = TextInsertionFormatter.prepare(
+            "this works",
+            context: context,
+            options: TextInsertionFormattingOptions(appendTrailingSpace: false, useSmartSpacing: true)
+        )
+
+        XCTAssertEqual(result.text, " This works")
+        XCTAssertEqual(result.strategy, "smart")
+    }
+
+    func testSelectedTextContextDoesNotAddBoundarySpacesInsideExistingSpaces() {
+        let text = "please replace this today"
+        let range = (text as NSString).range(of: "replace this")
+        let context = TextInsertionContext(text: text, selectedUTF16Range: range)
+
+        let result = TextInsertionFormatter.prepare("ship it", context: context)
+
+        XCTAssertEqual(result.text, "ship it")
+    }
+
+    func testSentenceTerminatorBeforeCursorAddsLeadingSpaceAndCapitalizes() {
+        let context = TextInsertionContext(
+            text: "done.",
+            selectedUTF16Range: NSRange(location: 5, length: 0)
+        )
+
+        let result = TextInsertionFormatter.prepare("this works", context: context)
+
+        XCTAssertEqual(result.text, " This works")
+        XCTAssertEqual(result.strategy, "smart")
     }
 
     func testUTF16SelectionContextHandlesEmoji() {

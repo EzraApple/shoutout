@@ -855,16 +855,13 @@ struct ShoutOutHomeView: View {
     }
 
     private func languagePassSummaryText(_ summary: LanguagePassRunSummary) -> String {
-        var parts: [String] = []
-        if let wallMs = summary.wallMs {
-            parts.append("\(wallMs) ms")
-        }
-        if summary.accepted {
-            parts.append(summary.changed ? "cleaned" : "accepted")
-        } else {
-            parts.append(summary.fallbackReason ?? "fallback")
-        }
-        return parts.joined(separator: " · ")
+        LanguagePassDisplayCopy.summary(
+            accepted: summary.accepted,
+            changed: summary.changed,
+            fallbackReason: summary.fallbackReason,
+            wallMs: summary.wallMs,
+            styleRawValue: summary.styleRawValue
+        )
     }
 
     private var selectedHotkeyTrigger: HotkeyTrigger {
@@ -1575,11 +1572,50 @@ private struct HomeToggleRow: View {
                 }
             }
         }
-        .toggleStyle(.switch)
+        .toggleStyle(HomePixelToggleStyle())
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(10)
         .background(ShoutOutHomeTheme.panelBlue.opacity(0.45))
         .overlay(ShoutOutHomeTheme.pixelBorder)
+    }
+}
+
+private struct HomePixelToggleStyle: ToggleStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.12)) {
+                configuration.isOn.toggle()
+            }
+        } label: {
+            HStack(alignment: .center, spacing: 12) {
+                configuration.label
+                Spacer(minLength: 12)
+                HomePixelSwitch(isOn: configuration.isOn)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityValue(configuration.isOn ? "On" : "Off")
+    }
+}
+
+private struct HomePixelSwitch: View {
+    let isOn: Bool
+
+    var body: some View {
+        ZStack(alignment: isOn ? .trailing : .leading) {
+            Rectangle()
+                .fill(isOn ? ShoutOutHomeTheme.panelMint : ShoutOutHomeTheme.panel)
+            Rectangle()
+                .stroke(ShoutOutHomeTheme.ink, lineWidth: 2)
+            Rectangle()
+                .fill(isOn ? ShoutOutHomeTheme.teal : ShoutOutHomeTheme.muted.opacity(0.42))
+                .frame(width: 16, height: 16)
+                .padding(4)
+        }
+        .frame(width: 46, height: 24)
+        .animation(.easeInOut(duration: 0.12), value: isOn)
+        .accessibilityHidden(true)
     }
 }
 
@@ -1701,8 +1737,10 @@ private struct TranscriptionHistoryRow: View {
         let cleanupOutput = entry.languagePassOutput ?? entry.text
         _showCleanupDetails = State(
             initialValue: entry.hasLanguagePassDetails
-                && entry.languagePassInput != nil
-                && entry.languagePassInput.map { $0 != cleanupOutput } == true
+                && LanguagePassDisplayCopy.didChange(
+                    input: entry.languagePassInput,
+                    output: cleanupOutput
+                )
         )
     }
 
@@ -1760,17 +1798,20 @@ private struct TranscriptionHistoryRow: View {
     private var cleanupDetails: some View {
         DisclosureGroup(isExpanded: $showCleanupDetails) {
             VStack(alignment: .leading, spacing: 8) {
-                if let input = entry.languagePassInput {
+                cleanupTraceRows
+
+                if cleanupDidChange, let input = entry.languagePassInput {
                     cleanupTextRow(title: "Before", text: input)
-                }
 
-                if let candidate = entry.languagePassCandidate,
-                    candidate != cleanupOutput
-                {
-                    cleanupTextRow(title: "Model", text: candidate)
-                }
+                    if entry.languagePassAccepted == true,
+                        let candidate = entry.languagePassCandidate,
+                        candidate != cleanupOutput
+                    {
+                        cleanupTextRow(title: "Model", text: candidate)
+                    }
 
-                cleanupTextRow(title: "After", text: cleanupOutput)
+                    cleanupTextRow(title: "After", text: cleanupOutput)
+                }
             }
             .padding(.top, 8)
         } label: {
@@ -1786,6 +1827,28 @@ private struct TranscriptionHistoryRow: View {
         .tint(ShoutOutHomeTheme.teal)
     }
 
+    private var cleanupTraceRows: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            cleanupTraceRow(title: "Reason", value: cleanupReasonText)
+            if let cleanupToneText {
+                cleanupTraceRow(title: "Tone", value: cleanupToneText)
+            }
+        }
+    }
+
+    private func cleanupTraceRow(title: String, value: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text(title)
+                .font(.system(.caption2, design: .monospaced).weight(.heavy))
+                .foregroundStyle(ShoutOutHomeTheme.muted)
+                .frame(width: 48, alignment: .leading)
+            Text(value)
+                .font(.system(.caption, design: .monospaced).weight(.semibold))
+                .foregroundStyle(ShoutOutHomeTheme.ink)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
     private func cleanupTextRow(title: String, text: String) -> some View {
         VStack(alignment: .leading, spacing: 5) {
             Text(title)
@@ -1799,14 +1862,32 @@ private struct TranscriptionHistoryRow: View {
         entry.languagePassOutput ?? entry.text
     }
 
+    private var cleanupDidChange: Bool {
+        LanguagePassDisplayCopy.didChange(
+            input: entry.languagePassInput,
+            output: cleanupOutput
+        )
+    }
+
     private var cleanupStatusText: String {
-        if let accepted = entry.languagePassAccepted {
-            if accepted {
-                return entry.languagePassInput.map { $0 == cleanupOutput } == true ? "accepted" : "cleaned"
-            }
-            return entry.languagePassFallbackReason ?? "fallback"
-        }
-        return entry.languagePassFallbackReason ?? "recorded"
+        LanguagePassDisplayCopy.status(
+            accepted: entry.languagePassAccepted,
+            changed: cleanupDidChange,
+            fallbackReason: entry.languagePassFallbackReason
+        )
+    }
+
+    private var cleanupReasonText: String {
+        LanguagePassDisplayCopy.reason(
+            accepted: entry.languagePassAccepted,
+            changed: cleanupDidChange,
+            fallbackReason: entry.languagePassFallbackReason,
+            styleRawValue: entry.languagePassStyle
+        )
+    }
+
+    private var cleanupToneText: String? {
+        LanguagePassDisplayCopy.toneTitle(entry.languagePassStyle)
     }
 
     private func copyText() {

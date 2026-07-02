@@ -156,10 +156,6 @@ public enum TextInsertionFormatter {
         context: TextInsertionContext?,
         options: TextInsertionFormattingOptions = .default
     ) -> TextInsertionFormattingResult {
-        guard options.appendTrailingSpace else {
-            return TextInsertionFormattingResult(text: text, strategy: "exact")
-        }
-
         if options.useSmartSpacing, let context {
             let fittedText = options.fitCapitalization ? fitCapitalization(text, context: context) : text
             let prefix = shouldPrefixSpace(before: context.characterBefore, text: fittedText) ? " " : ""
@@ -168,6 +164,10 @@ public enum TextInsertionFormatter {
                 text: prefix + fittedText + suffix,
                 strategy: "smart"
             )
+        }
+
+        guard options.appendTrailingSpace else {
+            return TextInsertionFormattingResult(text: text, strategy: "exact")
         }
 
         return TextInsertionFormattingResult(

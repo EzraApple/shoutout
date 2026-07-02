@@ -39,7 +39,8 @@ final class TranscriptionHistoryStoreTests: XCTestCase {
             languagePassCandidate: "Does this PR also make it a... actually register manage tabs?",
             languagePassOutput: "Does this PR also make it actually register manage tabs?",
             languagePassAccepted: true,
-            languagePassFallbackReason: nil
+            languagePassFallbackReason: nil,
+            languagePassStyle: "casual"
         )
 
         let entry = try XCTUnwrap(TranscriptionHistoryStore(fileURL: fileURL).recentEntries.first)
@@ -56,6 +57,7 @@ final class TranscriptionHistoryStoreTests: XCTestCase {
             "Does this PR also make it actually register manage tabs?"
         )
         XCTAssertEqual(entry.languagePassAccepted, true)
+        XCTAssertEqual(entry.languagePassStyle, "casual")
         XCTAssertTrue(entry.hasLanguagePassDetails)
     }
 

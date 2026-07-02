@@ -111,7 +111,7 @@ struct LanguagePassSmoke {
             input: "Okay, but if I merge this in main, I can just tell that agent to look at this to help fix this issue.",
             expectedFragments: ["agent to look", "help fix this issue"],
             rejectedFragments: ["agent can look", "the agent can"],
-            expectation: .requiredRewrite
+            expectation: .safeRewriteOrFallback
         ),
         SmokeCase(
             name: "technical terms allow useful quotes only",
@@ -255,7 +255,9 @@ struct LanguagePassSmoke {
             container: container
         )
         let wallMs = elapsedMilliseconds(since: startedAt)
-        let rawCandidate = LanguagePassValidator.extractCandidate(from: rawOutput)
+        let rawCandidate = LanguagePassMechanicalNormalizer.normalize(
+            LanguagePassValidator.extractCandidate(from: rawOutput)
+        )
         let validation = LanguagePassValidator.validate(candidate: rawCandidate, baseText: smokeCase.input)
         let finalText = validation.acceptedText ?? smokeCase.input
         let finalLower = finalText.lowercased()

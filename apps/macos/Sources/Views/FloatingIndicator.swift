@@ -54,11 +54,16 @@ enum IndicatorRecordingMode: Equatable, Sendable {
 
 enum CrabOverlayLayout {
     static let width: CGFloat = 72
+    static let screenBleed: CGFloat = 4
+    static let verticalOffset: CGFloat = 18
 }
 
 private enum CrabAnimationTiming {
-    static let idleFrameDelay: UInt64 = 180_000_000
-    static let idlePauseRange: ClosedRange<UInt64> = 750_000_000...1_300_000_000
+    static let idleFrameDelay: UInt64 = 130_000_000
+    static let idleStepDuration = 0.13
+    static let idlePauseRange: ClosedRange<UInt64> = 520_000_000...880_000_000
+    static let boomIntroFrameDelay: UInt64 = 68_000_000
+    static let boomOutroFrameDelay: UInt64 = 46_000_000
     static let processingPulseDelay: UInt64 = 540_000_000
     static let processingSpinDuration = 0.54
 }
@@ -593,15 +598,14 @@ private struct CrabOverlayView: View {
     let height: CGFloat
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var spriteFrameIndex = 0
+    @State private var spriteFrameName = CrabSpriteAssets.idleFrameNames[0]
     @State private var idleOffset: CGFloat = 0
     @State private var processingRotation = 0.0
 
     var body: some View {
         ZStack(alignment: .trailing) {
             SpriteWallCrab(
-                showsBoomMic: state.showsBoomMic,
-                frameIndex: spriteFrameIndex,
+                frameName: spriteFrameName,
                 showsProcessing: state.isProcessing,
                 processingRotation: processingRotation,
                 attentionMessage: attentionMessage
@@ -628,27 +632,44 @@ private struct CrabOverlayView: View {
     private func animateCrab() async {
         if reduceMotion {
             idleOffset = 0
-            spriteFrameIndex = 0
+            setSpriteFrame(
+                state.showsBoomMic
+                ? CrabSpriteAssets.boomHoldFrameName
+                : CrabSpriteAssets.idleFrameNames[0]
+            )
             return
         }
 
         if state.showsBoomMic {
-            spriteFrameIndex = 0
+            await animateBoomIntro()
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
+            }
             return
         }
 
-        let maxOffset = max((height - 76) / 2, 18)
+        if CrabSpriteAssets.isBoomFrame(spriteFrameName) {
+            await animateBoomOutro()
+        }
+
+        let maxOffset = min(max((height - 76) / 2 - 16, 0), 72)
         var crawlDirection: CGFloat = Bool.random() ? -1 : 1
+        var crawlFrameIndex = 0
 
         while !Task.isCancelled {
-            let stepCount = Int.random(in: 5...9)
+            let stepCount = Int.random(in: 8...14)
 
             for _ in 0..<stepCount {
                 if Task.isCancelled { return }
 
-                let nextOffset = idleOffset + crawlDirection * CGFloat.random(in: 3...6)
-                idleOffset = min(max(nextOffset, -maxOffset), maxOffset)
-                spriteFrameIndex += 1
+                let nextOffset = idleOffset + crawlDirection * CGFloat.random(in: 3.2...5.4)
+                withAnimation(.easeInOut(duration: CrabAnimationTiming.idleStepDuration)) {
+                    idleOffset = min(max(nextOffset, -maxOffset), maxOffset)
+                }
+                setSpriteFrame(CrabSpriteAssets.idleFrameNames[
+                    crawlFrameIndex % CrabSpriteAssets.idleFrameNames.count
+                ])
+                crawlFrameIndex += 1
 
                 if abs(idleOffset) >= maxOffset - 2 {
                     crawlDirection *= -1
@@ -661,6 +682,32 @@ private struct CrabOverlayView: View {
                 crawlDirection *= -1
             }
             try? await Task.sleep(nanoseconds: UInt64.random(in: CrabAnimationTiming.idlePauseRange))
+        }
+    }
+
+    private func animateBoomIntro() async {
+        for frameName in CrabSpriteAssets.boomIntroFrameNames {
+            if Task.isCancelled { return }
+            setSpriteFrame(frameName)
+            try? await Task.sleep(nanoseconds: CrabAnimationTiming.boomIntroFrameDelay)
+        }
+        setSpriteFrame(CrabSpriteAssets.boomHoldFrameName)
+    }
+
+    private func animateBoomOutro() async {
+        for frameName in CrabSpriteAssets.boomIntroFrameNames.reversed() {
+            if Task.isCancelled { return }
+            setSpriteFrame(frameName)
+            try? await Task.sleep(nanoseconds: CrabAnimationTiming.boomOutroFrameDelay)
+        }
+        setSpriteFrame(CrabSpriteAssets.idleFrameNames[0])
+    }
+
+    private func setSpriteFrame(_ frameName: String) {
+        var transaction = Transaction(animation: nil)
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            spriteFrameName = frameName
         }
     }
 
@@ -678,8 +725,7 @@ private struct CrabOverlayView: View {
 }
 
 private struct SpriteWallCrab: View {
-    let showsBoomMic: Bool
-    let frameIndex: Int
+    let frameName: String
     let showsProcessing: Bool
     let processingRotation: Double
     let attentionMessage: String?
@@ -691,6 +737,12 @@ private struct SpriteWallCrab: View {
         ZStack(alignment: .topTrailing) {
             if let image = currentImage {
                 spriteImage(image)
+                    .id(frameName)
+                    .transition(.identity)
+                    .transaction { transaction in
+                        transaction.animation = nil
+                        transaction.disablesAnimations = true
+                    }
             }
 
             if let attentionMessage {
@@ -737,9 +789,6 @@ private struct SpriteWallCrab: View {
     }
 
     private var currentImage: NSImage? {
-        let frames = showsBoomMic ? CrabSpriteAssets.boomMicFrameNames : CrabSpriteAssets.idleFrameNames
-        guard !frames.isEmpty else { return nil }
-        let frameName = frames[abs(frameIndex) % frames.count]
         return CrabSpriteAssets.image(named: frameName, variant: colorVariant)
     }
 
@@ -767,15 +816,36 @@ private struct SpriteWallCrab: View {
 }
 
 private enum CrabSpriteAssets {
-    static let idleFrameNames = pingPongFrameNames(prefix: "idle", count: 4)
-    static let boomMicFrameNames = ["recording-2"]
+    static let idleFrameNames = [
+        "idle-1",
+        "idle-2",
+        "idle-3",
+        "idle-4",
+        "idle-3",
+        "idle-2",
+    ]
+    static let boomIntroFrameNames = frameNames(prefix: "recording-intro", count: 6)
+    static let boomHoldFrameName = "recording-hold"
 
+    @MainActor private static var imageCache: [String: NSImage] = [:]
+
+    static func isBoomFrame(_ frameName: String) -> Bool {
+        frameName.hasPrefix("recording-")
+    }
+
+    @MainActor
     static func image(named name: String, variant: CrabColorVariant) -> NSImage? {
         image(named: name, subdirectory: "CrabSpriteWallVariants/\(variant.rawValue)")
             ?? image(named: name, subdirectory: "CrabSpritesWall")
     }
 
+    @MainActor
     private static func image(named name: String, subdirectory: String) -> NSImage? {
+        let cacheKey = "\(subdirectory)/\(name)"
+        if let cachedImage = imageCache[cacheKey] {
+            return cachedImage
+        }
+
         guard
             let url = Bundle.main.url(
                 forResource: name,
@@ -788,16 +858,11 @@ private enum CrabSpriteAssets {
         }
 
         image.isTemplate = false
+        imageCache[cacheKey] = image
         return image
     }
 
     private static func frameNames(prefix: String, count: Int) -> [String] {
         (1...count).map { index in "\(prefix)-\(index)" }
-    }
-
-    private static func pingPongFrameNames(prefix: String, count: Int) -> [String] {
-        let forwardFrames = frameNames(prefix: prefix, count: count)
-        let returnFrames = (2..<count).reversed().map { index in "\(prefix)-\(index)" }
-        return forwardFrames + returnFrames
     }
 }

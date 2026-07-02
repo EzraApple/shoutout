@@ -3,6 +3,8 @@ set -euo pipefail
 
 REPO_ROOT="${SHOUTOUT_REPO_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 MACOS_DIR="$REPO_ROOT/apps/macos"
+PYTHON_BIN="${PYTHON_BIN:-${PYTHON:-python3}}"
+export PYTHONDONTWRITEBYTECODE="${PYTHONDONTWRITEBYTECODE:-1}"
 
 SPEECH_ANALYZER_DEVELOPER_DIR=""
 
@@ -239,6 +241,7 @@ assert_contains "Settings expose smart spacing toggle" "$MACOS_DIR/Sources/Views
 assert_contains "Settings expose trailing space fallback toggle" "$MACOS_DIR/Sources/Views/SettingsView.swift" "Fallback trailing space"
 assert_not_contains "Settings hide semantic rewrite toggle" "$MACOS_DIR/Sources/Views/SettingsView.swift" "Rewrite self-corrections"
 assert_contains "Settings expose cleanup timing text" "$MACOS_DIR/Sources/Views/SettingsView.swift" "Last cleanup"
+assert_contains "Settings cleanup summary uses display copy" "$MACOS_DIR/Sources/Views/SettingsView.swift" "LanguagePassDisplayCopy\\.summary"
 assert_contains "Settings expose model progress bar" "$MACOS_DIR/Sources/Views/SettingsView.swift" "ModelProgressBar"
 assert_contains "Settings expose diagnostics export" "$MACOS_DIR/Sources/Views/SettingsView.swift" "Export Diagnostics"
 assert_contains "Settings expose app version helper" "$MACOS_DIR/Sources/Views/SettingsView.swift" "AppVersionInfo.displayWithCommit"
@@ -257,9 +260,21 @@ assert_contains "Diagnostics exporter records updater state" "$MACOS_DIR/Sources
 assert_contains "App launch logs version" "$MACOS_DIR/Sources/AppDelegate.swift" "AppVersionInfo.version"
 assert_contains "App delegate wires Sparkle updater" "$MACOS_DIR/Sources/AppDelegate.swift" "SPUStandardUpdaterController"
 assert_contains "App updater stays disabled without public key" "$MACOS_DIR/Sources/Services/AppUpdaterConfiguration.swift" "placeholderPublicKey"
+assert_contains "Status menu uses square popover panel" "$MACOS_DIR/Sources/AppDelegate.swift" "SharpPopoverPanel"
+assert_contains "Status popover disables rounded host corners" "$MACOS_DIR/Sources/AppDelegate.swift" "cornerRadius = 0"
+assert_not_contains "Status menu avoids rounded NSMenu popover" "$MACOS_DIR/Sources/AppDelegate.swift" "showContextMenu"
 assert_contains "Home window exposes boring mode" "$MACOS_DIR/Sources/Views/ShoutOutHomeView.swift" "Boring mode"
 assert_contains "Home window confirms stats deletion" "$MACOS_DIR/Sources/Views/ShoutOutHomeView.swift" "Clear local stats\\?"
 assert_contains "Home menus highlight hovered rows" "$MACOS_DIR/Sources/Views/ShoutOutHomeView.swift" "onHover"
+assert_contains "Home settings toggles use stable app-drawn switch" "$MACOS_DIR/Sources/Views/ShoutOutHomeView.swift" "HomePixelToggleStyle"
+assert_contains "Home settings toggles keep binding-based switch state" "$MACOS_DIR/Sources/Views/ShoutOutHomeView.swift" "configuration\\.isOn"
+assert_not_contains "Home settings toggles avoid inactive system switch tint" "$MACOS_DIR/Sources/Views/ShoutOutHomeView.swift" "\\.toggleStyle\\(\\.switch\\)"
+assert_contains "Home history cleanup summary uses display copy" "$MACOS_DIR/Sources/Views/ShoutOutHomeView.swift" "LanguagePassDisplayCopy\\.status"
+assert_contains "Home history cleanup details include compact reason" "$MACOS_DIR/Sources/Views/ShoutOutHomeView.swift" "cleanupTraceRow\\(title: \"Reason\""
+assert_contains "Home history cleanup details include selected tone" "$MACOS_DIR/Sources/Views/ShoutOutHomeView.swift" "cleanupTraceRow\\(title: \"Tone\""
+assert_not_contains "Home history avoids raw cleanup fallback slugs" "$MACOS_DIR/Sources/Views/ShoutOutHomeView.swift" "languagePassFallbackReason \\?\\? "
+assert_contains "Language cleanup dropped-content copy is friendly" "$MACOS_DIR/Sources/Core/LanguagePassDisplayCopy.swift" "No cleanup necessary"
+assert_contains "Language cleanup reason copy is compact" "$MACOS_DIR/Sources/Core/LanguagePassDisplayCopy.swift" "Meaning preserved · Tone applied"
 assert_contains "Home brand mark uses colored crab" "$MACOS_DIR/Sources/Views/ShoutOutHomeView.swift" "crabColorVariant"
 assert_contains "Home brand mark uses tinted crab variants" "$MACOS_DIR/Sources/Views/ShoutOutHomeView.swift" "CrabSpriteVariants"
 assert_contains "Home crab color menu previews colors" "$MACOS_DIR/Sources/Views/ShoutOutHomeView.swift" "ColorPreviewTile"
@@ -310,7 +325,31 @@ assert_contains "Audio recorder logs input format" "$MACOS_DIR/Sources/Services/
 assert_contains "Audio converter provides each tap buffer once" "$MACOS_DIR/Sources/Services/AudioConverterInputProvider.swift" "didProvideInput"
 assert_contains "Audio signal analysis gates silence" "$MACOS_DIR/Sources/Core/AudioSignalAnalysis.swift" "hasSpeechLikeAudio"
 assert_contains "App delegate blocks silent recordings" "$MACOS_DIR/Sources/AppDelegate.swift" "record stopped silent"
-assert_contains "App delegate treats silent recordings as idle" "$MACOS_DIR/Sources/AppDelegate.swift" "finishIndicator()"
+assert_contains "App delegate drops low-information transcripts" "$MACOS_DIR/Sources/AppDelegate.swift" "TranscriptHallucinationFilter.shouldDrop"
+assert_contains "Core drops punctuation-only transcripts" "$MACOS_DIR/Sources/Core/TranscriptHallucinationFilter.swift" "alphanumericCharacterCount == 0"
+assert_contains "Core gates low-information transcripts by audio energy" "$MACOS_DIR/Sources/Core/TranscriptHallucinationFilter.swift" "lowEnergyPeak"
+assert_not_contains "Core hallucination filter avoids phrase denylist" "$MACOS_DIR/Sources/Core/TranscriptHallucinationFilter.swift" "thank you"
+if "$PYTHON_BIN" - "$MACOS_DIR/Sources/AppDelegate.swift" <<'PY'
+from pathlib import Path
+import sys
+
+source = Path(sys.argv[1]).read_text()
+if "No speech" in source:
+    raise SystemExit("empty transcription still shows a no-speech attention badge")
+
+marker = 'RuntimeLog.write("transcription empty")'
+index = source.find(marker)
+if index == -1:
+    raise SystemExit("empty transcription log marker missing")
+window = source[index:index + 180]
+if "finishIndicator()" not in window:
+    raise SystemExit("empty transcription does not finish back to idle")
+PY
+then
+  record_pass "App delegate treats empty transcription as idle"
+else
+  record_fail "App delegate treats empty transcription as idle"
+fi
 assert_contains "App delegate starts independent transcription sessions" "$MACOS_DIR/Sources/AppDelegate.swift" "latestTranscriptionSessionID"
 assert_contains "App delegate drops stale transcription sessions" "$MACOS_DIR/Sources/AppDelegate.swift" "transcription stale"
 assert_contains "App delegate tracks pending transcriptions" "$MACOS_DIR/Sources/AppDelegate.swift" "pendingTranscriptionCount"
@@ -322,16 +361,21 @@ assert_contains "App delegate lets boring mode force classic overlay" "$MACOS_DI
 assert_contains "App delegate keeps overlay above apps" "$MACOS_DIR/Sources/AppDelegate.swift" "panel.level = .statusBar"
 assert_contains "App delegate supports overlay preview mode" "$MACOS_DIR/Sources/AppDelegate.swift" "SHOUTOUT_OVERLAY_PREVIEW"
 assert_contains "App delegate creates overlay with concrete frame" "$MACOS_DIR/Sources/AppDelegate.swift" "initialIndicatorFrame"
+assert_contains "App delegate lets crab tips bleed past screen edge" "$MACOS_DIR/Sources/AppDelegate.swift" "CrabOverlayLayout.screenBleed"
+assert_contains "App delegate raises crab above center" "$MACOS_DIR/Sources/AppDelegate.swift" "CrabOverlayLayout.verticalOffset"
 assert_contains "App delegate logs preview overlay visibility" "$MACOS_DIR/Sources/AppDelegate.swift" "shoutout-overlay-preview.log"
 assert_contains "App delegate can snapshot overlay previews" "$MACOS_DIR/Sources/AppDelegate.swift" "SHOUTOUT_OVERLAY_SNAPSHOT_PATH"
-assert_contains "Crab overlay has boom mic" "$MACOS_DIR/Sources/Views/FloatingIndicator.swift" "boomMic"
+assert_contains "Crab overlay has boom mic" "$MACOS_DIR/Sources/Views/FloatingIndicator.swift" "boomHoldFrameName"
 assert_contains "Crab overlay shows processing badge" "$MACOS_DIR/Sources/Views/FloatingIndicator.swift" "processingBadge"
 assert_contains "Crab overlay animates wall crab" "$MACOS_DIR/Sources/Views/FloatingIndicator.swift" "animateCrab"
+assert_contains "Crab overlay defines edge bleed" "$MACOS_DIR/Sources/Views/FloatingIndicator.swift" "screenBleed"
+assert_contains "Crab overlay defines vertical offset" "$MACOS_DIR/Sources/Views/FloatingIndicator.swift" "verticalOffset"
 assert_contains "Crab overlay supports color variants" "$MACOS_DIR/Sources/Views/FloatingIndicator.swift" "CrabColorVariant"
 assert_contains "Crab overlay uses tinted wall variants" "$MACOS_DIR/Sources/Views/FloatingIndicator.swift" "CrabSpriteWallVariants"
 assert_contains "Mascot sync generates app icon variants" "$REPO_ROOT/scripts/sync-mascot-assets.py" "write_app_icon_variants"
+assert_contains "Mascot sync writes default app icon fallback" "$REPO_ROOT/scripts/sync-mascot-assets.py" "write_default_app_icon"
 assert_contains "App icon variants share crab color transform" "$REPO_ROOT/scripts/sync-mascot-assets.py" '"gold": \(-128, 1, 0\)'
-assert_contains "Mascot sync includes original black crab" "$REPO_ROOT/scripts/sync-mascot-assets.py" '"black": \(0, 0.20, -0.42\)'
+assert_contains "Mascot sync includes readable black crab" "$REPO_ROOT/scripts/sync-mascot-assets.py" '"black": \(0, 0.18, -0.30\)'
 assert_not_contains "App icon variants avoid flat target-color replacement" "$REPO_ROOT/scripts/sync-mascot-assets.py" "target_rgb"
 assert_contains "Mascot sync generates tinted crab variants" "$REPO_ROOT/scripts/sync-mascot-assets.py" "write_tinted_sprite_variants"
 tinted_crab_variant_count="$(
@@ -358,7 +402,7 @@ if [[ -f "$MACOS_DIR/Resources/CrabSpriteVariants/black/idle-1.png" && -f "$MACO
 else
   record_fail "Original black crab assets are prebuilt"
 fi
-if python3 - "$MACOS_DIR/Resources/AppIconVariants" <<'PY'
+if "$PYTHON_BIN" - "$MACOS_DIR/Resources/AppIconVariants" <<'PY'
 from pathlib import Path
 from PIL import Image
 import sys
@@ -379,92 +423,514 @@ then
 else
   record_fail "App icon variants are transparent cutouts"
 fi
-assert_contains "Boom crab stays still" "$MACOS_DIR/Sources/Views/FloatingIndicator.swift" "if state.showsBoomMic"
-assert_contains "Boom crab uses fixed frame" "$MACOS_DIR/Sources/Views/FloatingIndicator.swift" 'boomMicFrameNames = \["recording-2"\]'
-wall_recording_frame_count="$(
-  find "$MACOS_DIR/Resources/CrabSpritesWall" -maxdepth 1 -type f -name 'recording-*.png' | wc -l | tr -d ' '
-)"
-if [[ -f "$MACOS_DIR/Resources/CrabSpritesWall/recording-2.png" && "$wall_recording_frame_count" == "1" ]]; then
-  record_pass "Wall boom resources only include fixed frame"
-else
-  record_fail "Wall boom resources only include fixed frame"
-fi
-if python3 - "$REPO_ROOT" <<'PY'
+if "$PYTHON_BIN" - "$MACOS_DIR/Resources" <<'PY'
 from pathlib import Path
 from PIL import Image
+import subprocess
 import sys
+import tempfile
 
-root = Path(sys.argv[1])
-idle = Image.open(root / "assets/mascot/idle-walk/frame-1.png").convert("RGBA")
-overlay = Image.open(root / "assets/mascot/recording-boom/boom-mic-overlay.png").convert("RGBA")
-recording = Image.open(root / "assets/mascot/recording-boom/frame-1.png").convert("RGBA")
-expected = idle.copy()
-expected.alpha_composite(overlay)
-if list(expected.getdata()) != list(recording.getdata()):
-    raise SystemExit(1)
+resources = Path(sys.argv[1])
+with tempfile.TemporaryDirectory() as temporary_directory:
+    iconset_path = Path(temporary_directory) / "AppIcon.iconset"
+    subprocess.run(
+        [
+            "iconutil",
+            "-c",
+            "iconset",
+            "-o",
+            str(iconset_path),
+            str(resources / "AppIcon.icns"),
+        ],
+        check=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    fallback = Image.open(iconset_path / "icon_512x512@2x.png").convert("RGBA")
+
+ocean = Image.open(resources / "AppIconVariants/ocean.png").convert("RGBA")
+if fallback.size != ocean.size or fallback.tobytes() != ocean.tobytes():
+    raise SystemExit("bundle AppIcon.icns does not match the current ocean icon fallback")
 PY
 then
-  record_pass "Recording mascot is idle plus boom overlay"
+  record_pass "Bundle app icon fallback matches current crab style"
 else
-  record_fail "Recording mascot is idle plus boom overlay"
+  record_fail "Bundle app icon fallback matches current crab style"
 fi
-if python3 - "$REPO_ROOT" <<'PY'
-import importlib.util
+if "$PYTHON_BIN" - "$REPO_ROOT" <<'PY'
+from pathlib import Path
+import sys
+
+root = Path(sys.argv[1])
+resources = root / "apps/macos/Resources"
+
+def frame_sets() -> list[Path]:
+    sets = [resources / "CrabSpritesWall"]
+    sets.extend(sorted((resources / "CrabSpriteWallVariants").iterdir()))
+    return [path for path in sets if path.is_dir()]
+
+expected_idle = {f"idle-{index}.png" for index in range(1, 5)}
+expected_intro = {f"recording-intro-{index}.png" for index in range(1, 7)}
+expected_recording = expected_intro | {"recording-hold.png", "recording-2.png"}
+
+for frame_dir in frame_sets():
+    actual_idle = {path.name for path in frame_dir.glob("idle-*.png")}
+    actual_recording = {path.name for path in frame_dir.glob("recording*.png")}
+    if actual_idle != expected_idle:
+        raise SystemExit(f"{frame_dir} idle frames mismatch: {sorted(actual_idle)}")
+    if actual_recording != expected_recording:
+        raise SystemExit(f"{frame_dir} recording frames mismatch: {sorted(actual_recording)}")
+PY
+then
+  record_pass "Wall crab animation frames are complete"
+else
+  record_fail "Wall crab animation frames are complete"
+fi
+if "$PYTHON_BIN" - "$REPO_ROOT" <<'PY'
 from pathlib import Path
 from PIL import Image
 import sys
 
 root = Path(sys.argv[1])
+resources = root / "apps/macos/Resources"
+
+def frame_sets() -> list[Path]:
+    sets = [resources / "CrabSpritesWall"]
+    sets.extend(sorted((resources / "CrabSpriteWallVariants").iterdir()))
+    return [path for path in sets if path.is_dir()]
+
+def rgba(path: Path) -> Image.Image:
+    return Image.open(path).convert("RGBA")
+
+def alpha_bbox(image: Image.Image) -> tuple[int, int, int, int]:
+    bbox = image.getchannel("A").getbbox()
+    if bbox is None:
+        raise SystemExit("frame has no visible pixels")
+    return bbox
+
+def is_crab_core(pixel: tuple[int, int, int, int]) -> bool:
+    red, green, blue, alpha = pixel
+    return (
+        alpha > 80
+        and blue > 70
+        and green > 35
+        and red < 115
+        and (blue > red + 35 or green > red + 35)
+    )
+
+def mask_bbox(image: Image.Image) -> tuple[int, int, int, int]:
+    pixels = image.load()
+    xs = []
+    ys = []
+    for y in range(image.height):
+        for x in range(image.width):
+            if is_crab_core(pixels[x, y]):
+                xs.append(x)
+                ys.append(y)
+    if not xs:
+        raise SystemExit("frame has no crab core pixels")
+    return (min(xs), min(ys), max(xs) + 1, max(ys) + 1)
+
+def assert_recording_frame_integrity(frame_dir: Path) -> None:
+    idle_path = frame_dir / "idle-1.png"
+    recording_paths = sorted(frame_dir.glob("recording*.png"))
+    if not idle_path.exists() or not recording_paths:
+        raise SystemExit(f"{frame_dir} is missing idle or recording frames")
+
+    idle = rgba(idle_path)
+    idle_core = mask_bbox(idle)
+    idle_core_width = idle_core[2] - idle_core[0]
+    idle_core_height = idle_core[3] - idle_core[1]
+    idle_core_center_y = (idle_core[1] + idle_core[3]) / 2
+
+    for recording_path in recording_paths:
+        recording = rgba(recording_path)
+        if recording.size != idle.size:
+            raise SystemExit(f"{recording_path} changes the crab canvas size")
+
+        corners = [
+            recording.getpixel((0, 0)),
+            recording.getpixel((recording.width - 1, 0)),
+            recording.getpixel((0, recording.height - 1)),
+            recording.getpixel((recording.width - 1, recording.height - 1)),
+        ]
+        if any(pixel[3] != 0 for pixel in corners):
+            raise SystemExit(f"{recording_path} has a visible canvas corner")
+
+        visible = alpha_bbox(recording)
+        if visible[3] >= recording.height:
+            raise SystemExit(f"{recording_path} clips visible boom pixels at the bottom edge")
+
+        core = mask_bbox(recording)
+        core_width = core[2] - core[0]
+        core_height = core[3] - core[1]
+        core_center_y = (core[1] + core[3]) / 2
+        width_ratio = core_width / idle_core_width
+        height_ratio = core_height / idle_core_height
+        if not 0.90 <= width_ratio <= 1.03:
+            raise SystemExit(f"{recording_path} changes crab body width ratio to {width_ratio:.3f}")
+        if not 0.90 <= height_ratio <= 1.08:
+            raise SystemExit(f"{recording_path} changes crab body height ratio to {height_ratio:.3f}")
+        if abs(core[2] - idle_core[2]) > 3:
+            raise SystemExit(f"{recording_path} moves the wall-side crab anchor")
+        if abs(core_center_y - idle_core_center_y) > 14:
+            raise SystemExit(f"{recording_path} moves the crab body too far vertically")
+
+assert_recording_frame_integrity(resources / "CrabSpritesWall")
+PY
+then
+  record_pass "Wall boom frames preserve body scale and canvas integrity"
+else
+  record_fail "Wall boom frames preserve body scale and canvas integrity"
+fi
+if "$PYTHON_BIN" - "$REPO_ROOT" <<'PY'
+from pathlib import Path
+from PIL import Image
+import sys
+
+root = Path(sys.argv[1])
+source = root / "assets/mascot/generated-candidates/crab-boom-pet-sheet-v4-alpha.png"
+if not source.exists():
+    raise SystemExit("generated recording sprite sheet is missing")
+
+sheet = Image.open(source).convert("RGBA")
+for point in [(0, 0), (sheet.width - 1, 0), (0, sheet.height - 1), (sheet.width - 1, sheet.height - 1)]:
+    if sheet.getpixel(point)[3] != 0:
+        raise SystemExit(f"generated sheet has a visible corner at {point}")
+
+frame_count = 8
+if sheet.width < frame_count:
+    raise SystemExit("generated sheet is narrower than its frame count")
+for index in range(frame_count):
+    left = round(index * sheet.width / frame_count)
+    right = round((index + 1) * sheet.width / frame_count)
+    bbox = sheet.crop((left, 0, right, sheet.height)).getchannel("A").getbbox()
+    if bbox is None:
+        raise SystemExit(f"generated sheet frame {index + 1} is blank")
+PY
+then
+  record_pass "Wall recording animation uses generated sprite sheet source"
+else
+  record_fail "Wall recording animation uses generated sprite sheet source"
+fi
+if "$PYTHON_BIN" - "$REPO_ROOT" <<'PY'
+from pathlib import Path
+from PIL import Image
+import sys
+
+root = Path(sys.argv[1])
+resources = root / "apps/macos/Resources"
+
+def frame_sets() -> list[Path]:
+    sets = [resources / "CrabSpritesWall"]
+    sets.extend(sorted((resources / "CrabSpriteWallVariants").iterdir()))
+    return [path for path in sets if path.is_dir()]
+
+def alpha_bbox(path: Path) -> tuple[int, int, int, int]:
+    bbox = Image.open(path).convert("RGBA").getchannel("A").getbbox()
+    if bbox is None:
+        raise SystemExit(f"{path} has no visible pixels")
+    return bbox
+
+for frame_dir in frame_sets():
+    idle_right = alpha_bbox(frame_dir / "idle-1.png")[2]
+    for recording_path in sorted(frame_dir.glob("recording*.png")):
+        recording_right = alpha_bbox(recording_path)[2]
+        if recording_right < idle_right - 1:
+            raise SystemExit(
+                f"{recording_path} moved the wall contact edge left "
+                f"(idle={idle_right}, recording={recording_right})"
+            )
+PY
+then
+  record_pass "Wall boom frames keep wall contact edge"
+else
+  record_fail "Wall boom frames keep wall contact edge"
+fi
+if "$PYTHON_BIN" - "$REPO_ROOT" <<'PY'
+from pathlib import Path
+from PIL import Image
+import sys
+
+root = Path(sys.argv[1])
+resources = root / "apps/macos/Resources"
+base_dir = resources / "CrabSpritesWall"
+variant_root = resources / "CrabSpriteWallVariants"
+base_idle = Image.open(base_dir / "idle-1.png").convert("RGBA")
+base_recording = Image.open(base_dir / "recording-hold.png").convert("RGBA")
+idle_pixels = base_idle.load()
+recording_pixels = base_recording.load()
+y_offset = (base_recording.height - base_idle.height) // 2
+
+def is_neutral(pixel):
+    red, green, blue, alpha = pixel
+    if alpha < 96:
+        return False
+    chroma = max(red, green, blue) - min(red, green, blue)
+    luma = (0.2126 * red) + (0.7152 * green) + (0.0722 * blue)
+    return chroma <= 44 or luma <= 34
+
+hardware_coords = []
+for y in range(base_recording.height):
+    for x in range(base_recording.width):
+        pixel = recording_pixels[x, y]
+        if not is_neutral(pixel):
+            continue
+
+        idle_y = y - y_offset
+        if 0 <= idle_y < base_idle.height and x < base_idle.width:
+            idle_pixel = idle_pixels[x, idle_y]
+            if idle_pixel[3] > 0 and all(abs(pixel[channel] - idle_pixel[channel]) <= 3 for channel in range(4)):
+                continue
+        hardware_coords.append((x, y, pixel))
+
+if len(hardware_coords) < 300:
+    raise SystemExit("No neutral boom hardware pixels found")
+
+for variant_dir in sorted(path for path in variant_root.iterdir() if path.is_dir()):
+    variant = Image.open(variant_dir / "recording-hold.png").convert("RGBA")
+    variant_pixels = variant.load()
+    for x, y, expected in hardware_coords:
+        actual = variant_pixels[x, y]
+        if any(abs(actual[channel] - expected[channel]) > 3 for channel in range(3)):
+            raise SystemExit(f"{variant_dir.name} recolors boom hardware at {(x, y)}")
+        if actual[3] + 3 < expected[3]:
+            raise SystemExit(f"{variant_dir.name} recolors boom hardware at {(x, y)}")
+PY
+then
+  record_pass "Wall boom hardware stays neutral across color variants"
+else
+  record_fail "Wall boom hardware stays neutral across color variants"
+fi
+if "$PYTHON_BIN" - "$REPO_ROOT" <<'PY'
+from pathlib import Path
+from PIL import Image
+import sys
+
+root = Path(sys.argv[1])
+base_dir = root / "apps/macos/Resources/CrabSpritesWall"
+idle = Image.open(base_dir / "idle-1.png").convert("RGBA")
+idle_pixels = idle.load()
+
+def is_neutral(pixel):
+    red, green, blue, alpha = pixel
+    if alpha < 96:
+        return False
+    chroma = max(red, green, blue) - min(red, green, blue)
+    luma = (0.2126 * red) + (0.7152 * green) + (0.0722 * blue)
+    return chroma <= 44 or luma <= 34
+
+def hardware_centroid(path: Path) -> tuple[float, int]:
+    image = Image.open(path).convert("RGBA")
+    pixels = image.load()
+    xs = []
+    for y in range(image.height):
+        for x in range(image.width):
+            pixel = pixels[x, y]
+            if not is_neutral(pixel):
+                continue
+            idle_pixel = idle_pixels[x, y]
+            if idle_pixel[3] > 0 and all(abs(pixel[channel] - idle_pixel[channel]) <= 3 for channel in range(4)):
+                continue
+            xs.append(x)
+    if len(xs) < 180:
+        raise SystemExit(f"{path.name} does not contain enough boom hardware pixels")
+    return sum(xs) / len(xs), len(xs)
+
+stats = [
+    hardware_centroid(base_dir / f"recording-intro-{index}.png")
+    for index in range(1, 7)
+]
+centroids = [centroid for centroid, _ in stats]
+counts = [count for _, count in stats]
+if len({round(value) for value in centroids}) < 4:
+    raise SystemExit(f"Boom intro frames do not use distinct hardware poses: {centroids}")
+if max(counts) < counts[0] * 1.15:
+    raise SystemExit(f"Boom hardware does not reveal into a fuller held pose: {counts}")
+if abs(centroids[-1] - centroids[-2]) > 1.5:
+    raise SystemExit(f"Final boom frames do not settle into a stable hold: {centroids}")
+hold = Image.open(base_dir / "recording-hold.png").convert("RGBA")
+final_intro = Image.open(base_dir / "recording-intro-6.png").convert("RGBA")
+if hold.tobytes() != final_intro.tobytes():
+    raise SystemExit("Recording hold frame does not match the final intro frame")
+PY
+then
+  record_pass "Wall boom intro uses distinct pulled-out poses"
+else
+  record_fail "Wall boom intro uses distinct pulled-out poses"
+fi
+if "$PYTHON_BIN" - "$REPO_ROOT" <<'PY'
+from pathlib import Path
+from PIL import Image
+import sys
+
+root = Path(sys.argv[1])
+hold = Image.open(
+    root / "apps/macos/Resources/CrabSpritesWall/recording-hold.png"
+).convert("RGBA")
+
+handle_pixels = 0
+for y in range(130, 134):
+    for x in range(136, 140):
+        red, green, blue, alpha = hold.getpixel((x, y))
+        if alpha < 200:
+            continue
+        chroma = max(red, green, blue) - min(red, green, blue)
+        luma = (0.2126 * red) + (0.7152 * green) + (0.0722 * blue)
+        if chroma <= 24 and 35 <= luma <= 90:
+            handle_pixels += 1
+
+if handle_pixels < 3:
+    raise SystemExit(
+        f"Recording hold boom handle does not reach the claw grip: {handle_pixels}"
+    )
+PY
+then
+  record_pass "Wall boom handle reaches claw grip"
+else
+  record_fail "Wall boom handle reaches claw grip"
+fi
+if "$PYTHON_BIN" - "$REPO_ROOT" <<'PY'
+from pathlib import Path
+from PIL import Image
+import sys
+
+root = Path(sys.argv[1])
+base_dir = root / "apps/macos/Resources/CrabSpritesWall"
+black_dir = root / "apps/macos/Resources/CrabSpriteWallVariants/black"
+idle = Image.open(base_dir / "idle-1.png").convert("RGBA")
+base = Image.open(base_dir / "recording-hold.png").convert("RGBA")
+black = Image.open(black_dir / "recording-hold.png").convert("RGBA")
+idle_pixels = idle.load()
+base_pixels = base.load()
+black_pixels = black.load()
+
+colored_added = []
+for y in range(base.height):
+    for x in range(base.width):
+        pixel = base_pixels[x, y]
+        if pixel[3] < 128:
+            continue
+        idle_pixel = idle_pixels[x, y]
+        if idle_pixel[3] > 0 and all(abs(pixel[channel] - idle_pixel[channel]) <= 3 for channel in range(4)):
+            continue
+        red, green, blue, _ = pixel
+        if max(red, green, blue) - min(red, green, blue) > 60:
+            colored_added.append((x, y, pixel))
+
+if len(colored_added) < 40:
+    raise SystemExit("No crab-colored grip pixels found in recording hold")
+
+changed = 0
+for x, y, expected in colored_added:
+    actual = black_pixels[x, y]
+    if any(abs(actual[channel] - expected[channel]) > 12 for channel in range(3)):
+        changed += 1
+
+if changed / len(colored_added) < 0.75:
+    raise SystemExit("Crab grip pixels are not following color variants")
+PY
+then
+  record_pass "Wall crab grip follows color variants"
+else
+  record_fail "Wall crab grip follows color variants"
+fi
+if "$PYTHON_BIN" - "$REPO_ROOT" <<'PY'
+import importlib.util
+import re
+from pathlib import Path
+import sys
+
+root = Path(sys.argv[1])
+swift_source = (root / "apps/macos/Sources/Views/FloatingIndicator.swift").read_text()
+enum_match = re.search(
+    r"enum CrabColorVariant:[^{]+\{\n(?P<body>.*?)\n\n    var id:",
+    swift_source,
+    re.S,
+)
+if enum_match is None:
+    raise SystemExit("Could not find CrabColorVariant cases")
+enum_cases = re.findall(r"^\s*case\s+([A-Za-z][A-Za-z0-9_]*)\s*$", enum_match.group("body"), re.M)
+
 sync_script = root / "scripts/sync-mascot-assets.py"
 spec = importlib.util.spec_from_file_location("sync_mascot_assets", sync_script)
 sync_mascot_assets = importlib.util.module_from_spec(spec)
+assert spec.loader is not None
 spec.loader.exec_module(sync_mascot_assets)
+script_cases = list(sync_mascot_assets.ICON_COLOR_VARIANTS.keys())
+if enum_cases != script_cases:
+    raise SystemExit(f"Variant enum/script mismatch: {enum_cases} != {script_cases}")
 
-idle = Image.open(root / "assets/mascot/idle-walk/frame-1.png").convert("RGBA")
-idle_wall = sync_mascot_assets.fit_on_canvas(
-    idle,
-    sync_mascot_assets.WALL_IDLE_CANVAS_SIZE,
-    padding=4,
-    rotation_degrees=90,
-    trailing_bleed_pixels=5,
-)
-expected = Image.new("RGBA", sync_mascot_assets.WALL_RECORDING_CANVAS_SIZE, (0, 0, 0, 0))
-vertical_offset = (
-    sync_mascot_assets.WALL_RECORDING_CANVAS_SIZE[1]
-    - sync_mascot_assets.WALL_IDLE_CANVAS_SIZE[1]
-) // 2
-expected.alpha_composite(idle_wall, (0, vertical_offset))
-overlay_canvas = Image.new("RGBA", sync_mascot_assets.WALL_RECORDING_CANVAS_SIZE, (0, 0, 0, 0))
-overlay_canvas.alpha_composite(sync_mascot_assets.compose_wall_boom_overlay())
-if any(overlay_canvas.getpixel((x, overlay_canvas.height - 1))[3] for x in range(overlay_canvas.width)):
-    raise SystemExit(1)
-expected.alpha_composite(
-    overlay_canvas
-)
-recording_wall = Image.open(
-    root / "apps/macos/Resources/CrabSpritesWall/idle-1.png"
-).convert("RGBA")
-if idle_wall.size != recording_wall.size:
-    raise SystemExit(1)
-if list(idle_wall.getdata()) != list(recording_wall.getdata()):
-    raise SystemExit(1)
-actual = Image.open(
-    root / "apps/macos/Resources/CrabSpritesWall/recording-2.png"
-).convert("RGBA")
-if actual.size != expected.size or actual.height <= recording_wall.height:
-    raise SystemExit(1)
-if list(expected.getdata()) != list(actual.getdata()):
-    raise SystemExit(1)
+resources = root / "apps/macos/Resources"
+expected = set(enum_cases)
+checks = {
+    "CrabSpriteVariants": {path.name for path in (resources / "CrabSpriteVariants").iterdir() if path.is_dir()},
+    "CrabSpriteWallVariants": {
+        path.name for path in (resources / "CrabSpriteWallVariants").iterdir() if path.is_dir()
+    },
+    "AppIconVariants": {
+        path.stem for path in (resources / "AppIconVariants").glob("*.png")
+    },
+}
+for label, actual in checks.items():
+    if actual != expected:
+        raise SystemExit(f"{label} variants mismatch: missing={sorted(expected - actual)} extra={sorted(actual - expected)}")
 PY
 then
-  record_pass "Wall boom is idle plus transformed overlay"
+  record_pass "Crab color variants match enum and generated assets"
 else
-  record_fail "Wall boom is idle plus transformed overlay"
+  record_fail "Crab color variants match enum and generated assets"
+fi
+if "$PYTHON_BIN" - "$REPO_ROOT" <<'PY'
+from pathlib import Path
+from PIL import Image
+import sys
+
+root = Path(sys.argv[1])
+wall_variants = root / "apps/macos/Resources/CrabSpriteWallVariants"
+neutral_order = ["black", "graphite", "pearl"]
+
+def visible_luma(path: Path) -> float:
+    image = Image.open(path).convert("RGBA")
+    samples = []
+    pixel_bytes = image.tobytes()
+    for index in range(0, len(pixel_bytes), 4):
+        red, green, blue, alpha = pixel_bytes[index:index + 4]
+        if alpha > 0:
+            samples.append((0.2126 * red) + (0.7152 * green) + (0.0722 * blue))
+    if not samples:
+        raise SystemExit(f"{path} has no visible pixels")
+    return sum(samples) / len(samples)
+
+frame_names = ["idle-1.png"]
+for recording_path in sorted((wall_variants / "black").glob("recording*.png")):
+    frame_names.append(recording_path.name)
+
+for frame_name in frame_names:
+    values = [visible_luma(wall_variants / variant / frame_name) for variant in neutral_order]
+    if not values[0] < values[1] < values[2]:
+        raise SystemExit(f"{frame_name} neutral luminance order is wrong: {values}")
+PY
+then
+  record_pass "Neutral crab variants preserve luminance order"
+else
+  record_fail "Neutral crab variants preserve luminance order"
 fi
 assert_contains "Boom crab scale matches idle crab" "$MACOS_DIR/Sources/Views/FloatingIndicator.swift" "boomScale"
-assert_contains "Crab idle uses ping-pong frame cycle" "$MACOS_DIR/Sources/Views/FloatingIndicator.swift" "pingPongFrameNames\\(prefix: \"idle\""
+assert_contains "Crab idle uses clean pose cycle" "$MACOS_DIR/Sources/Views/FloatingIndicator.swift" "\"idle-4\""
+assert_not_contains "Crab idle avoids blended wall frames" "$MACOS_DIR/Sources/Views/FloatingIndicator.swift" "\"idle-5\""
+assert_contains "Crab crawl offset is animated" "$MACOS_DIR/Sources/Views/FloatingIndicator.swift" "withAnimation\\(\\.easeInOut"
+assert_contains "Crab recording uses intro frames" "$MACOS_DIR/Sources/Views/FloatingIndicator.swift" "boomIntroFrameNames"
+assert_contains "Crab recording holds final boom frame" "$MACOS_DIR/Sources/Views/FloatingIndicator.swift" "boomHoldFrameName"
+assert_contains "Crab recording reverses before walking" "$MACOS_DIR/Sources/Views/FloatingIndicator.swift" "animateBoomOutro"
+assert_contains "Crab frame swaps avoid implicit fade" "$MACOS_DIR/Sources/Views/FloatingIndicator.swift" "Transaction\\(animation: nil\\)"
+assert_contains "Crab sprite image identity follows frame" "$MACOS_DIR/Sources/Views/FloatingIndicator.swift" "\\.id\\(frameName\\)"
+assert_contains "Crab sprite image uses identity transition" "$MACOS_DIR/Sources/Views/FloatingIndicator.swift" "\\.transition\\(\\.identity\\)"
 assert_contains "Crab processing spinner has tuned duration" "$MACOS_DIR/Sources/Views/FloatingIndicator.swift" "processingSpinDuration"
 assert_contains "Crab processing spinner rotates continuously" "$MACOS_DIR/Sources/Views/FloatingIndicator.swift" "processingRotation \\+= 360"
+assert_contains "Wall boom frames use generated sprite sheet" "$REPO_ROOT/scripts/sync-mascot-assets.py" "GENERATED_WALL_RECORDING_SHEET"
+assert_not_contains "Wall boom frames avoid procedural pose overlay" "$REPO_ROOT/scripts/sync-mascot-assets.py" "WALL_BOOM_POSES"
+assert_not_contains "Wall boom frames avoid reveal-mask animation" "$REPO_ROOT/scripts/sync-mascot-assets.py" "slide_reveal_overlay"
 assert_contains "Classic overlay has compact layout" "$MACOS_DIR/Sources/Views/FloatingIndicator.swift" "ClassicOverlayLayout"
 assert_contains "Classic overlay has idle nub" "$MACOS_DIR/Sources/Views/FloatingIndicator.swift" "CGSize\\(width: 14, height: 44\\)"
 assert_contains "Classic overlay responds to audio level" "$MACOS_DIR/Sources/Views/FloatingIndicator.swift" "recordingBarWidth"

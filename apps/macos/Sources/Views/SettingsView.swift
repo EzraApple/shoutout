@@ -658,16 +658,13 @@ struct SettingsView: View {
     }
 
     private func languagePassSummaryText(_ summary: LanguagePassRunSummary) -> String {
-        var parts: [String] = []
-        if let wallMs = summary.wallMs {
-            parts.append("\(wallMs) ms")
-        }
-        if summary.accepted {
-            parts.append(summary.changed ? "cleaned" : "accepted")
-        } else {
-            parts.append(summary.fallbackReason ?? "fallback")
-        }
-        return parts.joined(separator: " · ")
+        LanguagePassDisplayCopy.summary(
+            accepted: summary.accepted,
+            changed: summary.changed,
+            fallbackReason: summary.fallbackReason,
+            wallMs: summary.wallMs,
+            styleRawValue: summary.styleRawValue
+        )
     }
 }
 

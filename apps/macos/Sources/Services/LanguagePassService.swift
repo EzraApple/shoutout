@@ -39,6 +39,7 @@ struct LanguagePassRunResult: Sendable {
     var wallMs: Int?
     var modelID: String?
     var fallbackReason: String?
+    var styleRawValue: String?
 
     static func passthrough(
         _ text: String,
@@ -47,7 +48,8 @@ struct LanguagePassRunResult: Sendable {
         modelID: String? = nil,
         fallbackReason: String,
         inputText: String? = nil,
-        candidateText: String? = nil
+        candidateText: String? = nil,
+        styleRawValue: String? = nil
     ) -> LanguagePassRunResult {
         LanguagePassRunResult(
             finalText: text,
@@ -58,7 +60,8 @@ struct LanguagePassRunResult: Sendable {
             changed: false,
             wallMs: wallMs,
             modelID: modelID,
-            fallbackReason: fallbackReason
+            fallbackReason: fallbackReason,
+            styleRawValue: styleRawValue
         )
     }
 }
@@ -70,6 +73,7 @@ struct LanguagePassRunSummary: Sendable {
     var wallMs: Int?
     var modelID: String?
     var fallbackReason: String?
+    var styleRawValue: String?
 }
 
 @MainActor
@@ -285,7 +289,8 @@ final class LanguagePassService: ObservableObject {
                 baseText,
                 enabled: false,
                 fallbackReason: "disabled",
-                inputText: baseText
+                inputText: baseText,
+                styleRawValue: style.rawValue
             )
         }
 
@@ -295,7 +300,8 @@ final class LanguagePassService: ObservableObject {
                 enabled: true,
                 modelID: modelID,
                 fallbackReason: "empty_input",
-                inputText: baseText
+                inputText: baseText,
+                styleRawValue: style.rawValue
             )
         }
 
@@ -309,7 +315,8 @@ final class LanguagePassService: ObservableObject {
                 enabled: true,
                 modelID: modelID,
                 fallbackReason: "model_not_ready",
-                inputText: baseText
+                inputText: baseText,
+                styleRawValue: style.rawValue
             )
             recordSummary(result)
             return result
@@ -327,7 +334,9 @@ final class LanguagePassService: ObservableObject {
             }
             let wallMs = Self.elapsedMilliseconds(since: startedAt)
             let memoryAfter = Self.mlxMemoryDescription()
-            let candidateText = LanguagePassValidator.extractCandidate(from: output)
+            let candidateText = LanguagePassMechanicalNormalizer.normalize(
+                LanguagePassValidator.extractCandidate(from: output)
+            )
             let validation = LanguagePassValidator.validate(candidate: candidateText, baseText: baseText)
             guard let acceptedText = validation.acceptedText else {
                 let result = LanguagePassRunResult.passthrough(
@@ -337,7 +346,8 @@ final class LanguagePassService: ObservableObject {
                     modelID: modelID,
                     fallbackReason: validation.fallbackReason ?? "rejected",
                     inputText: baseText,
-                    candidateText: candidateText
+                    candidateText: candidateText,
+                    styleRawValue: style.rawValue
                 )
                 recordSummary(result)
                 RuntimeLog.write(
@@ -355,7 +365,8 @@ final class LanguagePassService: ObservableObject {
                 changed: acceptedText != baseText,
                 wallMs: wallMs,
                 modelID: modelID,
-                fallbackReason: nil
+                fallbackReason: nil,
+                styleRawValue: style.rawValue
             )
             recordSummary(result)
             RuntimeLog.write(
@@ -372,7 +383,8 @@ final class LanguagePassService: ObservableObject {
                 wallMs: wallMs,
                 modelID: modelID,
                 fallbackReason: fallbackReason,
-                inputText: baseText
+                inputText: baseText,
+                styleRawValue: style.rawValue
             )
             recordSummary(result)
             RuntimeLog.write("languagePass fallback model=\(modelID) wallMs=\(wallMs) error=\(error) memoryBefore={\(memoryBefore)} memoryAfter={\(memoryAfter)}")
@@ -469,7 +481,8 @@ final class LanguagePassService: ObservableObject {
             changed: result.changed,
             wallMs: result.wallMs,
             modelID: result.modelID,
-            fallbackReason: result.fallbackReason
+            fallbackReason: result.fallbackReason,
+            styleRawValue: result.styleRawValue
         )
         RuntimeLog.write(
             [

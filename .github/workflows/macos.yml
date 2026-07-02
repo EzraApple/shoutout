@@ -5,17 +5,20 @@ on:
   push:
   pull_request:
 
-jobs:
-  build:
-    runs-on: macos-latest
+permissions:
+  contents: read
 
+concurrency:
+  group: macos-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  static-regressions:
+    name: Static regressions
+    runs-on: macos-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-
-      - name: Toolchain
-        run: |
-          xcode-select -p
-          swift --version
 
       - uses: actions/setup-python@v5
         with:
@@ -24,14 +27,50 @@ jobs:
       - name: Install Python test dependencies
         run: python3 -m pip install Pillow
 
-      - name: Static checks
+      - name: Run static regression checks
         run: SKIP_SWIFTPM=true ./scripts/test.sh
 
-      - name: Unit tests
+  swift-tests:
+    name: Swift unit tests
+    runs-on: macos-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Toolchain
+        run: |
+          xcode-select -p
+          swift --version
+
+      - name: Run Swift tests
         run: cd apps/macos && swift test
+
+  swift-build:
+    name: Swift package build
+    runs-on: macos-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Toolchain
+        run: |
+          xcode-select -p
+          swift --version
 
       - name: Build Swift package
         run: cd apps/macos && swift build
+
+  app-bundle:
+    name: App bundle
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Toolchain
+        run: |
+          xcode-select -p
+          swift --version
 
       - name: Build app bundle
         run: cd apps/macos && UNIVERSAL=false SKIP_NOTARIZE=true ./scripts/build-app.sh
@@ -45,3 +84,37 @@ jobs:
           name: ShoutOut-app
           path: apps/macos/dist/ShoutOut-app.zip
           if-no-files-found: error
+
+  language-pass-smoke:
+    name: Language cleanup smoke
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Toolchain
+        run: |
+          xcode-select -p
+          swift --version
+
+      - name: Run language cleanup smoke
+        run: make test-language-pass
+
+  web-build:
+    name: Web build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Install web dependencies
+        run: npm --prefix apps/web ci
+
+      - name: Build web
+        run: npm --prefix apps/web run build

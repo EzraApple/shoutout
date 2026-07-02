@@ -245,6 +245,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var mainWindow: NSWindow?
     var onboardingWindow: NSWindow?
     let homeWindowModel = ShoutOutHomeWindowModel()
+    private var statusPopoverPanel: SharpPopoverPanel?
+    private var statusPopoverHostingView: NSHostingView<StatusPopoverView>?
+    private var statusPopoverLocalEventMonitor: Any?
+    private var statusPopoverGlobalEventMonitor: Any?
     private var appState: AppState = .idle
     private var recordingStartedAt: Date?
     private var recordingIsCommitted = false
@@ -391,6 +395,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if let token = activityToken {
             ProcessInfo.processInfo.endActivity(token)
         }
+        hideStatusPopover()
         dismissIndicator()
         RuntimeLog.flush()
     }
@@ -682,6 +687,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         startTranscriptionSession(
             samples: samples,
             recordingDuration: recordingDuration,
+            signal: signal,
             metrics: metrics
         )
     }
@@ -719,6 +725,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private func startTranscriptionSession(
         samples: [Float],
         recordingDuration: TimeInterval,
+        signal: AudioSignalAnalysis,
         metrics: DictationLatencyMetrics
     ) {
         nextTranscriptionSessionID += 1
@@ -739,6 +746,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 sessionID: sessionID,
                 samples: samples,
                 recordingDuration: recordingDuration,
+                signal: signal,
                 metrics: metrics
             )
         }
@@ -749,6 +757,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         sessionID: Int,
         samples: [Float],
         recordingDuration: TimeInterval,
+        signal: AudioSignalAnalysis,
         metrics initialMetrics: DictationLatencyMetrics
     ) async {
         if Task.isCancelled { return }
@@ -790,6 +799,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     return
                 }
 
+                if TranscriptHallucinationFilter.shouldDrop(
+                    text: result.finalText,
+                    recordingDuration: recordingDuration,
+                    signal: signal
+                ) {
+                    metrics.log(status: "lowInformation", transcriptionTiming: transcription.timing)
+                    RuntimeLog.write(
+                        "transcription dropped lowInformation session=\(sessionID) duration=\(String(format: "%.2f", recordingDuration)) rms=\(String(format: "%.6f", signal.rms)) peak=\(String(format: "%.6f", signal.peak)) activeRatio=\(String(format: "%.4f", signal.activeRatio))"
+                    )
+                    finishIndicator()
+                    return
+                }
+
                 let languagePassResult = await languagePassService.process(
                     rawText: result.rawText,
                     baseText: result.finalText
@@ -814,7 +836,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     languagePassCandidate: languagePassResult.candidateText,
                     languagePassOutput: languagePassResult.finalText,
                     languagePassAccepted: languagePassResult.accepted,
-                    languagePassFallbackReason: languagePassResult.fallbackReason
+                    languagePassFallbackReason: languagePassResult.fallbackReason,
+                    languagePassStyle: languagePassResult.styleRawValue
                 )
                 TextInserter.insertText(
                     finalText,
@@ -835,12 +858,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 metrics.log(status: "inserted", transcriptionTiming: transcription.timing)
                 showTranscriptionResultIndicator(.done(text: finalText))
             } else {
-                showTranscriptionResultIndicator(
-                    .attention(message: "No speech"),
-                    durationNanoseconds: 900_000_000
-                )
                 metrics.log(status: "empty", transcriptionTiming: transcription.timing)
                 RuntimeLog.write("transcription empty")
+                finishIndicator()
             }
         } catch {
             metrics.transcriptionCompletedAt = Date()
@@ -1239,8 +1259,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
             let screenFrame = screen.visibleFrame
             return NSRect(
-                x: screenFrame.maxX - CrabOverlayLayout.width,
-                y: screenFrame.minY + (screenFrame.height - crabHeight) / 2,
+                x: screenFrame.maxX - CrabOverlayLayout.width + CrabOverlayLayout.screenBleed,
+                y: screenFrame.minY + (screenFrame.height - crabHeight) / 2
+                    + CrabOverlayLayout.verticalOffset,
                 width: CrabOverlayLayout.width,
                 height: crabHeight
             )
@@ -1352,8 +1373,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let screenFrame = screen.visibleFrame
         let height = currentCrabHeight()
         let width = CrabOverlayLayout.width
-        let x = screenFrame.maxX - width
+        let x = screenFrame.maxX - width + CrabOverlayLayout.screenBleed
         let y = screenFrame.minY + (screenFrame.height - height) / 2
+            + CrabOverlayLayout.verticalOffset
 
         panel.setFrame(
             NSRect(x: x, y: y, width: width, height: height),
@@ -1607,52 +1629,178 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func statusBarButtonClicked(_ sender: NSStatusBarButton) {
-        showContextMenu()
+        toggleStatusPopover()
     }
 
-    private func showContextMenu() {
-        let menu = NSMenu()
+    private func toggleStatusPopover() {
+        if statusPopoverPanel?.isVisible == true {
+            hideStatusPopover()
+        } else {
+            showStatusPopover()
+        }
+    }
 
-        let openItem = NSMenuItem(
-            title: "Open ShoutOut", action: #selector(showHomeAction), keyEquivalent: "")
-        openItem.target = self
-        menu.addItem(openItem)
-
-        let todaySummary = usageStats.todaySummary
-        let statsItem = NSMenuItem(
-            title: "\(todaySummary.wordCount) words today · \(todaySummary.averageWordsPerMinute) WPM",
-            action: nil,
-            keyEquivalent: ""
+    private func showStatusPopover() {
+        let rootView = StatusPopoverView(
+            todaySummary: usageStats.todaySummary,
+            homeAction: { [weak self] in
+                self?.hideStatusPopover()
+                self?.showHome()
+            },
+            settingsAction: { [weak self] in
+                self?.hideStatusPopover()
+                self?.showSettings()
+            },
+            quitAction: { [weak self] in
+                self?.hideStatusPopover()
+                self?.quitApp()
+            }
         )
-        statsItem.isEnabled = false
-        menu.addItem(statsItem)
 
-        menu.addItem(NSMenuItem.separator())
+        if statusPopoverPanel == nil {
+            let panel = SharpPopoverPanel(
+                contentRect: .zero,
+                styleMask: [.borderless, .nonactivatingPanel],
+                backing: .buffered,
+                defer: false
+            )
+            panel.isOpaque = false
+            panel.backgroundColor = .clear
+            panel.hasShadow = true
+            panel.hidesOnDeactivate = true
+            panel.isReleasedWhenClosed = false
+            panel.level = .statusBar
+            panel.animationBehavior = .none
+            panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
 
-        let settingsItem = NSMenuItem(
-            title: "Settings...", action: #selector(showSettingsAction), keyEquivalent: ",")
-        settingsItem.target = self
-        menu.addItem(settingsItem)
+            let hostingView = NSHostingView(rootView: rootView)
+            hostingView.autoresizingMask = [.width, .height]
+            hostingView.wantsLayer = true
+            hostingView.layer?.cornerRadius = 0
+            hostingView.layer?.masksToBounds = false
+            panel.contentView = hostingView
 
-        menu.addItem(NSMenuItem.separator())
+            statusPopoverPanel = panel
+            statusPopoverHostingView = hostingView
+        } else {
+            statusPopoverHostingView?.rootView = rootView
+        }
 
-        let quitItem = NSMenuItem(
-            title: "Quit ShoutOut", action: #selector(quitApp), keyEquivalent: "q")
-        quitItem.target = self
-        menu.addItem(quitItem)
+        guard let panel = statusPopoverPanel, let hostingView = statusPopoverHostingView else {
+            return
+        }
 
-        statusItem.menu = menu
-        statusItem.button?.performClick(nil)
-        statusItem.menu = nil
+        hostingView.layoutSubtreeIfNeeded()
+        let fittingSize = hostingView.fittingSize
+        let contentSize = NSSize(width: StatusPopoverView.width, height: fittingSize.height)
+        hostingView.frame = NSRect(origin: .zero, size: contentSize)
+        panel.setContentSize(contentSize)
+        panel.setFrame(statusPopoverFrame(contentSize: contentSize), display: true)
+        panel.orderFrontRegardless()
+        installStatusPopoverDismissMonitors()
+    }
+
+    private func statusPopoverFrame(contentSize: NSSize) -> NSRect {
+        guard
+            let button = statusItem.button,
+            let buttonWindow = button.window,
+            let screen = buttonWindow.screen ?? NSScreen.main
+        else {
+            return NSRect(origin: .zero, size: contentSize)
+        }
+
+        let buttonFrame = buttonWindow.convertToScreen(button.convert(button.bounds, to: nil))
+        let visibleFrame = screen.visibleFrame
+        let margin: CGFloat = 8
+        let gap: CGFloat = 6
+        let x = min(
+            max(buttonFrame.midX - contentSize.width / 2, visibleFrame.minX + margin),
+            visibleFrame.maxX - contentSize.width - margin
+        )
+        let belowY = buttonFrame.minY - contentSize.height - gap
+        let y = belowY >= visibleFrame.minY + margin
+            ? belowY
+            : buttonFrame.maxY + gap
+
+        return NSRect(x: x, y: y, width: contentSize.width, height: contentSize.height)
+    }
+
+    private func installStatusPopoverDismissMonitors() {
+        removeStatusPopoverDismissMonitors()
+
+        let popoverPanel = statusPopoverPanel
+        let statusWindow = statusItem.button?.window
+
+        statusPopoverLocalEventMonitor = NSEvent.addLocalMonitorForEvents(
+            matching: [.leftMouseDown, .rightMouseDown, .keyDown]
+        ) { [weak self, weak popoverPanel, weak statusWindow] event in
+            if event.type == .keyDown {
+                let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+                if flags.contains(.command) {
+                    switch event.charactersIgnoringModifiers?.lowercased() {
+                    case ",":
+                        Task { @MainActor in
+                            self?.hideStatusPopover()
+                            self?.showSettings()
+                        }
+                        return nil
+                    case "q":
+                        Task { @MainActor in
+                            self?.hideStatusPopover()
+                            self?.quitApp()
+                        }
+                        return nil
+                    default:
+                        break
+                    }
+                }
+
+                if event.keyCode == 53 {
+                    Task { @MainActor in self?.hideStatusPopover() }
+                    return nil
+                }
+            }
+
+            if event.window === popoverPanel || event.window === statusWindow {
+                return event
+            }
+
+            Task { @MainActor in self?.hideStatusPopover() }
+            return event
+        }
+
+        statusPopoverGlobalEventMonitor = NSEvent.addGlobalMonitorForEvents(
+            matching: [.leftMouseDown, .rightMouseDown]
+        ) { [weak self] _ in
+            Task { @MainActor in self?.hideStatusPopover() }
+        }
+    }
+
+    private func hideStatusPopover() {
+        statusPopoverPanel?.orderOut(nil)
+        removeStatusPopoverDismissMonitors()
+    }
+
+    private func removeStatusPopoverDismissMonitors() {
+        if let statusPopoverLocalEventMonitor {
+            NSEvent.removeMonitor(statusPopoverLocalEventMonitor)
+            self.statusPopoverLocalEventMonitor = nil
+        }
+        if let statusPopoverGlobalEventMonitor {
+            NSEvent.removeMonitor(statusPopoverGlobalEventMonitor)
+            self.statusPopoverGlobalEventMonitor = nil
+        }
     }
 
     // MARK: - Windows
 
     @objc private func showHomeAction() {
+        hideStatusPopover()
         showHome()
     }
 
     @objc private func showSettingsAction() {
+        hideStatusPopover()
         showSettings()
     }
 
@@ -1785,6 +1933,120 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             showHome()
         }
         return true
+    }
+}
+
+private final class SharpPopoverPanel: NSPanel {
+    override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { false }
+}
+
+private struct StatusPopoverView: View {
+    static let width: CGFloat = 280
+
+    let todaySummary: UsageStatsSummary
+    let homeAction: () -> Void
+    let settingsAction: () -> Void
+    let quitAction: () -> Void
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 10) {
+                Image(systemName: "waveform")
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 18)
+
+                Text("\(todaySummary.wordCount) words today")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(.primary)
+
+                Spacer()
+
+                Text("\(todaySummary.averageWordsPerMinute) WPM")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+
+            StatusPopoverSeparator()
+
+            Button(action: homeAction) {
+                StatusPopoverRow(icon: "macwindow", title: "Open ShoutOut")
+            }
+            .buttonStyle(StatusPopoverButtonStyle())
+
+            StatusPopoverSeparator()
+
+            Button(action: settingsAction) {
+                StatusPopoverRow(icon: "gearshape", title: "Settings...", shortcut: "⌘,")
+            }
+            .buttonStyle(StatusPopoverButtonStyle())
+
+            StatusPopoverSeparator()
+
+            Button(action: quitAction) {
+                StatusPopoverRow(icon: "power", title: "Quit ShoutOut", shortcut: "⌘Q")
+            }
+            .buttonStyle(StatusPopoverButtonStyle())
+        }
+        .frame(width: Self.width)
+        .padding(.vertical, 6)
+        .background(Color(nsColor: .windowBackgroundColor))
+        .overlay {
+            Rectangle()
+                .stroke(Color.primary.opacity(0.18), lineWidth: 1)
+        }
+        .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+private struct StatusPopoverRow: View {
+    let icon: String
+    let title: String
+    var shortcut: String? = nil
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(.secondary)
+                .frame(width: 18)
+
+            Text(title)
+                .font(.system(size: 13))
+                .foregroundStyle(.primary)
+
+            Spacer()
+
+            if let shortcut {
+                Text(shortcut)
+                    .font(.system(size: 12))
+                    .foregroundStyle(.tertiary)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .contentShape(Rectangle())
+    }
+}
+
+private struct StatusPopoverSeparator: View {
+    var body: some View {
+        Rectangle()
+            .fill(Color.primary.opacity(0.12))
+            .frame(height: 1)
+    }
+}
+
+private struct StatusPopoverButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .background(
+                Rectangle()
+                    .fill(configuration.isPressed ? Color.primary.opacity(0.08) : .clear)
+            )
     }
 }
 
