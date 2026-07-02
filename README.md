@@ -4,131 +4,98 @@
   <img src="docs/assets/shoutout-icon.png" alt="ShoutOut app icon: a blue crab mascot wearing headphones and a boom microphone" width="180">
 </p>
 
-ShoutOut is a small local-first macOS dictation app with a tiny wall-crawling crab mascot. Hold your shortcut, speak, release, and it pastes cleaned-up text into the app you were already using.
+ShoutOut is a local-first macOS dictation app with a small wall-crawling crab mascot. Hold the shortcut, speak, release, and ShoutOut transcribes locally, cleans the text conservatively, then pastes into the app you were already using.
 
-I built it around the voice loop I wanted for everyday writing: quick global shortcut capture, microphone recording, swappable on-device transcription engines, lightweight cleanup, focused-app paste, and WPM stats.
+This README is product and operator context for the repo. Keep public download and install copy on the website, not here.
 
-The app stays intentionally small: no cloud transcription service, no account system, and no extra editor to manage. The little crab waits on the edge of the screen, pops into boom-mic mode while listening, and shows a tiny spinner while text is being generated.
+## Current Product
 
-## Download
+- Global shortcut recording with hold-to-talk and double-tap hands-free modes.
+- Fn/Globe as the default shortcut, with Option Space, Command Shift Space, and Control Space available in Settings.
+- Local transcription through WhisperKit by default, with Apple Speech and Apple Dictation paths still available.
+- Writing cleanup for filler words, repeats, false starts, and the selected tone: Normal, Casual, or Formal.
+- Smart paste formatting that uses focused-field context for spacing, capitalization, and punctuation, then falls back safely when context is unavailable.
+- Local history, word counts, WPM, latency metrics, and cleanup trace details.
+- A color-selectable crab mascot with idle walking frames, wall-traversal frames, and a boom-mic recording animation that enters, holds still while recording, and exits before walking resumes.
+- Sparkle app updates for signed release builds.
 
-Download the signed Mac app from [shoutout.sh](https://shoutout.sh/). The public build is a notarized Apple-silicon DMG and updates through Sparkle.
+The app has no account system and no cloud transcription service in the normal product path. WhisperKit model files and language cleanup model files live under the user's Application Support directory.
 
-## Developer Setup
+## App Surfaces
 
-Prerequisites:
+- Menu bar waveform: opens the main popover and shows today's dictation stats.
+- Home: compact dashboard, current shortcut state, and recent performance.
+- History: local transcription history with cleanup status, before/after text when cleanup changed content, plain-English reason copy, selected tone, and timing.
+- Settings: shortcut, engine, model, mascot color, app icon color, writing cleanup, paste formatting, audio dimming, and advanced diagnostics.
+- Mascot overlay: edge-of-screen crab that walks when idle, switches to the boom-mic recording sequence while listening, and avoids changing scale between states.
 
-- macOS 15 or newer.
-- Xcode or Command Line Tools with Swift 6. Swift 6.2+ is needed to build the macOS 26 Apple Dictation path.
-- Node.js 22.12 or newer for the website.
+## Dictation Pipeline
+
+1. The hotkey manager detects the selected shortcut while another app is focused.
+2. The recorder starts audio capture and logs press-to-record latency.
+3. Very short or low-signal recordings are discarded instead of pasted.
+4. The selected transcription engine returns text locally.
+5. Optional mechanical cleanup removes simple filler and obvious repeated starts before the model pass.
+6. The local language cleanup pass may apply the selected tone while preserving meaning and meaningful words.
+7. Validation accepts conservative cleanup or keeps the original transcript.
+8. Smart insertion formats spacing, casing, and trailing punctuation against the focused text field.
+9. Text is pasted through the focused app path, then history and metrics are recorded.
+
+## Art And Mascot System
+
+The current visual source is the cute navy-blue crab from `docs/assets/shoutout-icon.png`: round shell, chunky claws, dark teal headphones, small happy face, and a dark boom microphone.
+
+Canonical generated art lives under `assets/mascot/`:
+
+- `idle-walk/`: normal crab with no boom microphone.
+- `recording-boom/`: boom microphone assets for listening states.
+- `generated-candidates/crab-boom-pet-sheet-v4-alpha.png`: current wall recording sprite source.
+
+`scripts/sync-mascot-assets.py` derives the web sprites, macOS sprite resources, wall-traversal frames, recording intro frames, recording hold frame, app icon variants, and mascot color variants from those sources. The app resources intentionally preserve fixed canvas sizes so changing the boom animation does not resize the crab, shift the wall position, or introduce transparent-frame flicker.
+
+## Local Workflows
+
+The useful repo commands are:
 
 ```bash
-git clone git@github.com:EzraApple/shoutout.git
-cd shoutout
-make build
-make restart-local
+make restart-local        # rebuild and replace ~/Applications/ShoutOut.app for local QA
+make test                 # Swift tests plus repo smoke checks
+make test-language-pass   # focused cleanup prompt and validation tests
+make web-build            # production website build
+make release-preflight    # release readiness checks
+UNIVERSAL=false make release-dmg
+make sparkle-appcast
+make blob-upload-dmg
+make sparkle-public-key
 ```
 
-`make restart-local` rebuilds the Swift package, replaces `~/Applications/ShoutOut.app`, skips onboarding, preserves existing macOS permissions, and opens the app. For a first-run local install with onboarding and permission prompts enabled, use:
+For website-only development, use `make web-dev`. The macOS app is a Swift Package under `apps/macos/`; the website lives under `apps/web/`; repo-level install, release, sync, and test helpers live under `scripts/`.
 
-```bash
-make install-local
-```
+## Permissions
 
-Run the main validation commands before pushing app changes:
+ShoutOut needs these macOS permissions:
 
-```bash
-make test
-make test-language-pass
-make web-build
-```
-
-For website-only work:
-
-```bash
-npm --prefix apps/web install
-make web-dev
-```
-
-The repo is organized as a small monorepo:
-
-```text
-apps/macos/  ShoutOut Swift package and app bundle scripts
-apps/web/    Vite site for shoutout.sh
-docs/        implementation notes and release checklists
-scripts/     repo-level install and test helpers
-```
-
-The app is a Swift Package under `apps/macos/`. The core post-processing, insertion formatting, cleanup validation, history, and stats logic live in the `ShoutOutCore` target and are covered by XCTest.
-
-### Permissions
-
-On first launch, grant these in System Settings -> Privacy & Security:
-
-- Microphone, so ShoutOut can record your voice.
-- Speech Recognition, if you use Apple Speech or Apple Dictation.
-- Accessibility, so it can paste text into the focused app.
-- Input Monitoring, so it can detect the global shortcut while another app is focused.
+- Microphone, to record audio.
+- Speech Recognition, when using Apple Speech or Apple Dictation.
+- Accessibility, to paste into the focused app.
+- Input Monitoring, to detect the selected shortcut while another app is focused.
 
 If permissions, audio input, or paste behavior gets stuck, see [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
 
-## Usage
-
-- Hold the selected shortcut to record. Release to transcribe and paste.
-- Double-tap the selected shortcut for hands-free recording. Tap it again to stop.
-- Fn/Globe is the default shortcut; Settings also supports Option Space, Command Shift Space, and Control Space.
-- Click the menu bar waveform icon for Settings and today’s word/WPM/latency count.
-- Pick WhisperKit, Apple Speech, or Apple Dictation in Settings -> Transcription. WhisperKit is the current default.
-- Toggle formatting cleanup for filler words, spoken punctuation, and smart insertion spacing.
-- Smart insertion uses focused-field context for spacing and conservative mid-sentence casing.
-- Smart spacing falls back to a trailing space when focused-field context is unavailable.
-- Toggle “Dim system audio while recording” if you want music lowered during dictation and restored afterward.
-
 ## Engines And Models
 
-WhisperKit is the current default engine. It uses local Core ML models and gives the most model control, at the cost of a first-use download and more startup time.
+WhisperKit is the default engine. It runs local Core ML models and gives the most model control, with a first-use model download.
 
-Apple Speech uses Apple’s built-in Speech framework with `requiresOnDeviceRecognition`, so it fails closed instead of sending audio to cloud recognition. On macOS 26+, recordings longer than about 15 seconds are routed to Apple Dictation, which uses SpeechAnalyzer and the long-dictation transcriber path instead of the older one-request recognizer.
+Apple Speech uses Apple's Speech framework with on-device recognition required. Apple Dictation is available on macOS 26+ with Swift 6.2+ tools and handles longer recordings through the newer long-dictation transcriber path.
 
-Apple Dictation is only available when running on macOS 26+ and building with Swift 6.2+ tools. Older systems still build and run with Apple Speech and WhisperKit.
-
-WhisperKit models download on first use and run locally through WhisperKit/Core ML.
-
-| Model | Size | Use |
-| --- | ---: | --- |
-| Large v3 Turbo 626 MB | ~626 MB | Current default balance of quality and speed |
-| Large v3 Turbo 632 MB | ~632 MB | Benchmark candidate for comparing quality and speed |
-| Fast English | smaller | Faster English-only fallback with a quality tradeoff |
-
-Model data is stored in `~/Library/Application Support/com.ezraapple.shoutout/Models/`.
-
-## Development
-
-Each successful dictation records local performance metrics, including Fn-to-recording latency, stop-to-paste latency, transcription wall time, first-token timing, real-time factor, and speed factor. These show up in Settings and in `~/Library/Logs/ShoutOut/runtime.log` as `dictation metrics ...`.
+WhisperKit model data is stored in `~/Library/Application Support/com.ezraapple.shoutout/Models/`. Language cleanup model data is stored in `~/Library/Application Support/com.ezraapple.shoutout/LanguageModels/`.
 
 ## Release Prep
 
-The public download path is a Developer ID signed and notarized DMG. The release script is wired through:
+Release builds are Developer ID signed, notarized, stapled, packaged as a DMG, and served through the website with a Sparkle appcast. Release builds inject the Sparkle public key into `Info.plist`; local builds without `SPARKLE_PUBLIC_ED_KEY` keep the updater disabled.
 
-```bash
-make release-preflight
-make release-dmg
-make sparkle-appcast
-make blob-upload-dmg
-vercel --prod
-```
+The release machine needs a `Developer ID Application` certificate, notary credentials, Vercel Blob credentials, and a Sparkle EdDSA key. The release QA checklist lives in [docs/release/dmg-readiness-checklist.md](docs/release/dmg-readiness-checklist.md).
 
-The release machine needs:
+## Source Status
 
-- A `Developer ID Application` certificate in Keychain.
-- A private `.env` copied from `.env.example` with `CODE_SIGN_IDENTITY` and `NOTARY_PROFILE`.
-- A Keychain notary profile created with `xcrun notarytool store-credentials`.
-- A Sparkle EdDSA update key. Run `make sparkle-public-key`, paste the printed `SUPublicEDKey` value into `SPARKLE_PUBLIC_ED_KEY`, and keep the private key in Keychain.
-
-Release builds inject the Sparkle public key into `Info.plist`; local builds without `SPARKLE_PUBLIC_ED_KEY` keep the updater disabled. `make sparkle-appcast` signs `dist/sparkle/appcast.xml` from the notarized DMG and stages it into `apps/web/public/appcast.xml` with the DMG in `apps/web/public/releases/`, so a site deploy serves the configured Sparkle URLs.
-
-Release builds default to the current Mac architecture; the public appcast currently declares `arm64`. The release QA checklist lives in [docs/release/dmg-readiness-checklist.md](docs/release/dmg-readiness-checklist.md).
-
-## License
-
-ShoutOut is released under the MIT license. See `LICENSE`.
+Source availability and licensing are intentionally under review. Before publishing this repo publicly, reconcile this section with `LICENSE`, website copy, and release packaging.

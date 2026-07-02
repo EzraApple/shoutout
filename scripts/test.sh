@@ -129,8 +129,12 @@ assert_plist_key() {
 }
 
 assert_contains "README names ShoutOut" "$REPO_ROOT/README.md" "^# ShoutOut"
-assert_contains "README links public download" "$REPO_ROOT/README.md" "https://shoutout.sh"
-assert_contains "README documents local dev setup" "$REPO_ROOT/README.md" "make restart-local"
+assert_contains "README describes local-first dictation" "$REPO_ROOT/README.md" "local-first macOS dictation"
+assert_contains "README documents current crab art" "$REPO_ROOT/README.md" "boom-mic recording animation"
+assert_contains "README documents mascot asset sync" "$REPO_ROOT/README.md" "scripts/sync-mascot-assets.py"
+assert_contains "README documents release prep scripts" "$REPO_ROOT/README.md" "make release-preflight"
+assert_not_contains "README avoids public download framing" "$REPO_ROOT/README.md" "^## Download$|git clone|Download the signed Mac app"
+assert_not_contains "README avoids settled open-source license claim" "$REPO_ROOT/README.md" "released under the MIT license|MIT license"
 assert_not_contains "README does not mention stale source branding" "$REPO_ROOT/README.md" "[Ii]nputalk"
 assert_contains "README documents Microphone" "$REPO_ROOT/README.md" "Microphone"
 assert_contains "README documents Speech Recognition" "$REPO_ROOT/README.md" "Speech Recognition"
@@ -140,7 +144,7 @@ assert_contains "README documents Input Monitoring" "$REPO_ROOT/README.md" "Inpu
 assert_not_contains "README avoids GitHub Actions install guidance" "$REPO_ROOT/README.md" "SHOUTOUT_RUN_ID|GitHub Actions"
 assert_contains "README links troubleshooting" "$REPO_ROOT/README.md" "TROUBLESHOOTING.md"
 assert_contains "README documents context-aware insertion" "$REPO_ROOT/README.md" "focused-field context"
-assert_contains "README documents smart spacing fallback" "$REPO_ROOT/README.md" "Smart spacing falls back"
+assert_contains "README documents smart spacing fallback" "$REPO_ROOT/README.md" "falls back safely"
 assert_contains "README documents custom shortcuts" "$REPO_ROOT/README.md" "Option Space"
 assert_contains "README documents Sparkle key setup" "$REPO_ROOT/README.md" "make sparkle-public-key"
 assert_contains "README documents Sparkle appcast" "$REPO_ROOT/README.md" "make sparkle-appcast"
