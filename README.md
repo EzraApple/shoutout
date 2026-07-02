@@ -96,6 +96,6 @@ Release builds are Developer ID signed, notarized, stapled, packaged as a DMG, a
 
 The release machine needs a `Developer ID Application` certificate, notary credentials, Vercel Blob credentials, and a Sparkle EdDSA key. The release QA checklist lives in [docs/release/dmg-readiness-checklist.md](docs/release/dmg-readiness-checklist.md).
 
-## Source Status
+## License
 
-Source availability and licensing are intentionally under review. Before publishing this repo publicly, reconcile this section with `LICENSE`, website copy, and release packaging.
+ShoutOut is proprietary software. This source repository is private, no open-source license is granted, and source redistribution is not permitted without explicit written permission.
