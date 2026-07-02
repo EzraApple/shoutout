@@ -98,4 +98,4 @@ The release machine needs a `Developer ID Application` certificate, notary crede
 
 ## License
 
-ShoutOut is proprietary software. This source repository is private, no open-source license is granted, and source redistribution is not permitted without explicit written permission.
+This source repository is private. No open-source license is granted for the source code or project files.

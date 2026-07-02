@@ -128,6 +128,16 @@ assert_plist_key() {
   fi
 }
 
+assert_path_missing() {
+  local name="$1"
+  local path="$2"
+  if [[ ! -e "$path" ]]; then
+    record_pass "$name"
+  else
+    record_fail "$name"
+  fi
+}
+
 assert_contains "README names ShoutOut" "$REPO_ROOT/README.md" "^# ShoutOut"
 assert_contains "README describes local-first dictation" "$REPO_ROOT/README.md" "local-first macOS dictation"
 assert_contains "README documents current crab art" "$REPO_ROOT/README.md" "boom-mic recording animation"
@@ -135,9 +145,8 @@ assert_contains "README documents mascot asset sync" "$REPO_ROOT/README.md" "scr
 assert_contains "README documents release prep scripts" "$REPO_ROOT/README.md" "make release-preflight"
 assert_not_contains "README avoids public download framing" "$REPO_ROOT/README.md" "^## Download$|git clone|Download the signed Mac app"
 assert_not_contains "README avoids settled open-source license claim" "$REPO_ROOT/README.md" "released under the MIT license|MIT license"
-assert_contains "README documents proprietary source license" "$REPO_ROOT/README.md" "ShoutOut is proprietary software"
-assert_contains "LICENSE is proprietary" "$REPO_ROOT/LICENSE" "Proprietary License"
-assert_not_contains "LICENSE does not grant MIT rights" "$REPO_ROOT/LICENSE" "MIT License|Permission is hereby granted"
+assert_contains "README documents no source license grant" "$REPO_ROOT/README.md" "No open-source license is granted"
+assert_path_missing "LICENSE file is intentionally absent" "$REPO_ROOT/LICENSE"
 assert_not_contains "README does not mention stale source branding" "$REPO_ROOT/README.md" "[Ii]nputalk"
 assert_contains "README documents Microphone" "$REPO_ROOT/README.md" "Microphone"
 assert_contains "README documents Speech Recognition" "$REPO_ROOT/README.md" "Speech Recognition"
@@ -151,6 +160,8 @@ assert_contains "README documents smart spacing fallback" "$REPO_ROOT/README.md"
 assert_contains "README documents custom shortcuts" "$REPO_ROOT/README.md" "Option Space"
 assert_contains "README documents Sparkle key setup" "$REPO_ROOT/README.md" "make sparkle-public-key"
 assert_contains "README documents Sparkle appcast" "$REPO_ROOT/README.md" "make sparkle-appcast"
+assert_contains "Web landing page can describe app as free" "$REPO_ROOT/apps/web/index.html" "free Mac utility"
+assert_not_contains "Web landing page avoids open-source claims" "$REPO_ROOT/apps/web/index.html" "open[- ]source|MIT license"
 assert_contains "Troubleshooting documents permission reset" "$REPO_ROOT/TROUBLESHOOTING.md" "make reset-permissions"
 assert_contains "Troubleshooting marks agent-oriented scope" "$REPO_ROOT/TROUBLESHOOTING.md" "agents and operators"
 assert_contains "Troubleshooting documents audio input recovery" "$REPO_ROOT/TROUBLESHOOTING.md" "AirPods"
