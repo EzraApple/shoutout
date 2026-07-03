@@ -4,14 +4,14 @@
         <title>ShoutOut</title>
         <item>
             <title>0.1.8</title>
-            <pubDate>Thu, 02 Jul 2026 11:37:11 -0700</pubDate>
+            <pubDate>Thu, 02 Jul 2026 17:31:13 -0700</pubDate>
             <link>https://shoutout.sh</link>
             <sparkle:version>9</sparkle:version>
             <sparkle:shortVersionString>0.1.8</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
             <sparkle:releaseNotesLink>https://xhahmepifrbmvgrg.public.blob.vercel-storage.com/releases/ShoutOut-0.1.8.md</sparkle:releaseNotesLink>
-            <enclosure url="https://xhahmepifrbmvgrg.public.blob.vercel-storage.com/releases/ShoutOut-0.1.8.dmg" length="28757851" type="application/octet-stream" sparkle:edSignature="xQD9CAWcETSFkyCZG4x20qLM0Y29SQriQWUzYRYcSoWI9CyBy6i6sHdeVi2YSF1xwlBQwJe0aeNlL01eiRIHCA=="/>
+            <enclosure url="https://xhahmepifrbmvgrg.public.blob.vercel-storage.com/releases/ShoutOut-0.1.8.dmg" length="28768589" type="application/octet-stream" sparkle:edSignature="jlwX7srMNigEnjDJATrdUPArfhlPDJvv3yVOnqAL/bFvRqRLVIpDMv48Bb9kQkq7k2OzUVSmBICGLFywKC5xAQ=="/>
         </item>
     </channel>
 </rss>
