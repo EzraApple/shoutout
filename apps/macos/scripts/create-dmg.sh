@@ -64,8 +64,7 @@ with timeout of 15 seconds
             set icon size of theViewOptions to 96
             set label position of theViewOptions to bottom
             set background picture of theViewOptions to file ".background:background.png"
-            set position of item "$APP_NAME.app" of container window to {162, 250}
-            set position of item "Applications" of container window to {518, 250}
+            set position of item "$APP_NAME.app" of container window to {340, 250}
             delay 0.5
             close container window
         end tell
@@ -134,7 +133,6 @@ mkdir -p "$DMG_STAGING"
 # Create DMG
 echo -e "${BLUE}Preparing DMG staging directory...${NC}"
 ditto "$APP_BUNDLE" "$DMG_STAGING/$APP_NAME.app"
-ln -s /Applications "$DMG_STAGING/Applications"
 mkdir -p "$DMG_STAGING/.background"
 "$SCRIPT_DIR/render-dmg-background.swift" \
     "$DMG_BACKGROUND" \

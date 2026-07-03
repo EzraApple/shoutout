@@ -283,6 +283,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         RuntimeLog.write(
             "app launch bundle=\(AppVersionInfo.bundleIdentifier) version=\(AppVersionInfo.version) build=\(AppVersionInfo.build) git=\(AppVersionInfo.gitCommit ?? "unknown") builtAt=\(AppVersionInfo.builtAt ?? "unknown")"
         )
+        if AppRelocator.installToUserApplicationsIfNeeded() {
+            return
+        }
+
         UserDefaults.standard.register(defaults: [
             Defaults.showInDock: true,
             Defaults.dimSystemAudio: true,

@@ -68,32 +68,10 @@ for y in stride(from: 0, through: Int(canvasSize.height), by: 34) {
 grid.lineWidth = 1
 grid.stroke()
 
-let appPanel = NSRect(x: 74, y: 82, width: 176, height: 166)
-let applicationsPanel = NSRect(x: 430, y: 82, width: 176, height: 166)
-for panel in [appPanel, applicationsPanel] {
-    fill(panel.offsetBy(dx: 7, dy: -7), color(0x061833))
-    fill(panel, color(0xf7fbff))
-    stroke(panel, color(0x061833), width: 4)
-}
-
-let arrow = NSBezierPath()
-arrow.move(to: NSPoint(x: 284, y: 168))
-arrow.line(to: NSPoint(x: 386, y: 168))
-arrow.lineWidth = 8
-arrow.lineCapStyle = .square
-color(0x061833).setStroke()
-arrow.stroke()
-
-let arrowHead = NSBezierPath()
-arrowHead.move(to: NSPoint(x: 396, y: 168))
-arrowHead.line(to: NSPoint(x: 366, y: 190))
-arrowHead.line(to: NSPoint(x: 366, y: 146))
-arrowHead.close()
-color(0xff6b67).setFill()
-arrowHead.fill()
-color(0x061833).setStroke()
-arrowHead.lineWidth = 4
-arrowHead.stroke()
+let appPanel = NSRect(x: 252, y: 82, width: 176, height: 166)
+fill(appPanel.offsetBy(dx: 7, dy: -7), color(0x061833))
+fill(appPanel, color(0xf7fbff))
+stroke(appPanel, color(0x061833), width: 4)
 
 if let mascot = NSImage(contentsOf: mascotURL) {
     let mascotRect = NSRect(x: 288, y: 278, width: 104, height: 75)

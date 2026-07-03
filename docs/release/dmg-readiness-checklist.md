@@ -33,8 +33,9 @@ SKIP_NOTARIZE=true make release-dmg
 ## Fresh Install QA
 
 - Mount the DMG.
-- Drag ShoutOut into `/Applications`.
-- Launch from `/Applications`.
+- Launch ShoutOut from the DMG.
+- Confirm ShoutOut copies itself to `~/Applications/ShoutOut.app`, relaunches from there, and quits the DMG copy.
+- Confirm the first-run flow does not create `/Applications/ShoutOut.app`.
 - Complete onboarding.
 - Grant Microphone, Speech Recognition, Accessibility, and Input Monitoring.
 - Confirm Fn hold-to-record works.

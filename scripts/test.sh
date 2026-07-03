@@ -218,6 +218,13 @@ assert_contains "Release preflight checks notary profile" "$MACOS_DIR/scripts/re
 assert_contains "Release preflight checks Sparkle public key" "$MACOS_DIR/scripts/release-preflight.sh" "SPARKLE_PUBLIC_ED_KEY"
 assert_contains "DMG script supports notarization profile" "$MACOS_DIR/scripts/create-dmg.sh" "NOTARY_PROFILE"
 assert_contains "DMG script uses built-in hdiutil" "$MACOS_DIR/scripts/create-dmg.sh" "hdiutil create"
+assert_not_contains "DMG does not link whole-Mac Applications folder" "$MACOS_DIR/scripts/create-dmg.sh" "ln -s /Applications"
+assert_not_contains "DMG background avoids drag-to-Applications arrow" "$MACOS_DIR/scripts/render-dmg-background.swift" "arrowHead|applicationsPanel"
+assert_contains "App delegate relocates before onboarding" "$MACOS_DIR/Sources/AppDelegate.swift" "AppRelocator.installToUserApplicationsIfNeeded"
+assert_contains "App relocator targets user Applications" "$MACOS_DIR/Sources/Services/AppRelocator.swift" "userApplicationsDirectory"
+assert_contains "App relocator uses user domain" "$MACOS_DIR/Sources/Services/AppRelocator.swift" "userDomainMask"
+assert_contains "App relocator handles root Applications as source only" "$MACOS_DIR/Sources/Services/AppRelocator.swift" "rootApplications"
+assert_contains "App relocator relaunches installed copy as new instance" "$MACOS_DIR/Sources/Services/AppRelocator.swift" '"-n"'
 assert_contains "Sparkle key script uses generate_keys" "$MACOS_DIR/scripts/sparkle-public-key.sh" "generate_keys"
 assert_contains "Sparkle appcast script uses generate_appcast" "$MACOS_DIR/scripts/generate-appcast.sh" "generate_appcast"
 assert_contains "Sparkle appcast stages web appcast" "$MACOS_DIR/scripts/generate-appcast.sh" "apps/web/public"
