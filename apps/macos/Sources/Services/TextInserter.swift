@@ -8,6 +8,7 @@ enum TextInserter {
     private static let clipboardRestoreTimeoutNanoseconds: UInt64 = 900_000_000
     private static let clipboardVerifiedRestoreGraceNanoseconds: UInt64 = 150_000_000
     private static let pasteVerificationPollNanoseconds: UInt64 = 50_000_000
+    private static let refocusSettleNanoseconds: UInt64 = 100_000_000
     private static var pendingClipboardRestore: PendingClipboardRestore?
     private static var clipboardRestoreTask: Task<Void, Never>?
 
@@ -18,7 +19,12 @@ enum TextInserter {
         options: TextInsertionFormattingOptions = .default,
         target preferredTarget: CapturedTarget? = nil
     ) {
-        let target = refreshedTarget(from: preferredTarget) ?? captureFocusedTarget()
+        let target: CapturedTarget?
+        if let preferredTarget {
+            target = refreshedTarget(from: preferredTarget) ?? preferredTarget
+        } else {
+            target = captureFocusedTarget()
+        }
         let formatted = TextInsertionFormatter.prepare(text, context: target?.context, options: options)
         let pasteText = formatted.text
         RuntimeLog.write(
@@ -96,7 +102,10 @@ enum TextInserter {
         }
         let insertedChangeCount = pasteboard.changeCount
 
-        // 3. Simulate Cmd+V
+        // 3. Refocus the original composer and simulate Cmd+V.
+        if let target {
+            _ = focusTextTarget(target, activateApplication: false)
+        }
         guard simulatePaste(targetPID: target?.processIdentifier) else {
             restorePasteboard(pasteboard, savedItems: restore.savedItems)
             pendingClipboardRestore = nil
@@ -106,11 +115,27 @@ enum TextInserter {
 
         // 4. Restore clipboard after paste verification or a bounded timeout.
         clipboardRestoreTask = Task { @MainActor in
-            let verification = await waitForPasteVerification(
+            var verification = await waitForPasteVerification(
                 from: verificationState,
                 target: target
             )
             guard !Task.isCancelled else { return }
+
+            if verification == .unchanged,
+                let target,
+                pasteboard.changeCount == insertedChangeCount,
+                focusTextTarget(target, activateApplication: true)
+            {
+                RuntimeLog.write("paste retry reason=unchanged targetPID=\(target.processIdentifier)")
+                try? await Task.sleep(nanoseconds: refocusSettleNanoseconds)
+                guard !Task.isCancelled else { return }
+                if simulatePaste(targetPID: target.processIdentifier) {
+                    verification = await waitForPasteVerification(
+                        from: verificationState,
+                        target: target
+                    )
+                }
+            }
 
             if verification == .verified {
                 try? await Task.sleep(nanoseconds: clipboardVerifiedRestoreGraceNanoseconds)
@@ -332,6 +357,31 @@ enum TextInserter {
         return clipboardPreferredBundlePrefixes.contains { prefix in
             bundleIdentifier.hasPrefix(prefix)
         }
+    }
+
+    private static func focusTextTarget(
+        _ target: CapturedTarget,
+        activateApplication: Bool
+    ) -> Bool {
+        if activateApplication {
+            guard let application = NSRunningApplication(
+                processIdentifier: target.processIdentifier
+            ) else {
+                RuntimeLog.write("paste refocus failed reason=applicationMissing")
+                return false
+            }
+            _ = application.activate(options: [])
+        }
+
+        let status = AXUIElementSetAttributeValue(
+            target.element,
+            kAXFocusedAttribute as CFString,
+            kCFBooleanTrue
+        )
+        RuntimeLog.write(
+            "paste refocus status=\(status.rawValue) activate=\(activateApplication) targetPID=\(target.processIdentifier)"
+        )
+        return status == .success
     }
 
     private static func focusedTextState(for element: AXUIElement) -> FocusedTextState? {

@@ -233,6 +233,26 @@ final class TextInsertionFormatterTests: XCTestCase {
         XCTAssertEqual(snapshot.editableText, "")
     }
 
+    func testClaudeComposerPlaceholderIsTreatedAsEmptyTextWithoutMetadata() {
+        let snapshot = TextInsertionTargetSnapshot(
+            text: "Type / for commands",
+            selectedUTF16Range: NSRange(location: 0, length: 0)
+        )
+
+        XCTAssertTrue(snapshot.isPlaceholderValue)
+        XCTAssertEqual(snapshot.editableText, "")
+    }
+
+    func testCodexComposerPlaceholderIsTreatedAsEmptyTextWithoutMetadata() {
+        let snapshot = TextInsertionTargetSnapshot(
+            text: "Do anything",
+            selectedUTF16Range: NSRange(location: 0, length: 0)
+        )
+
+        XCTAssertTrue(snapshot.isPlaceholderValue)
+        XCTAssertEqual(snapshot.editableText, "")
+    }
+
     func testPlaceholderLikeRealTextIsPreservedWhenCharacterCountIsNonzero() {
         let snapshot = TextInsertionTargetSnapshot(
             text: "Ask for follow-up changes",

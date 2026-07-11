@@ -138,6 +138,8 @@ public struct TextInsertionTargetSnapshot: Equatable, Sendable {
 
     private static let knownEmptyComposerPlaceholders: Set<String> = [
         "Ask for follow-up changes",
+        "Do anything",
+        "Type / for commands",
     ]
 
     private static func normalized(_ value: String) -> String {
