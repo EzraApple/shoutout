@@ -70,6 +70,7 @@ test-language-pass:
 	cd "$(MACOS_DIR)" && ./scripts/run-language-pass-smoke.sh
 
 release-preflight:
+	python3 ./scripts/check-release-metadata.py
 	cd "$(MACOS_DIR)" && ./scripts/release-preflight.sh
 	./scripts/verify-live-release.sh
 

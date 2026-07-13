@@ -7,7 +7,7 @@ const require = createRequire(import.meta.url);
 const productionHandler = require("../api/download.js");
 
 const DEFAULT_RELEASE_LOCATION =
-  "https://xhahmepifrbmvgrg.public.blob.vercel-storage.com/releases/ShoutOut-0.1.8.dmg";
+  "https://xhahmepifrbmvgrg.public.blob.vercel-storage.com/releases/ShoutOut-0.1.9.dmg";
 const ENV_KEYS = [
   "POSTHOG_PROJECT_API_KEY",
   "SHOUTOUT_DMG_URL",
