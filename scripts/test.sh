@@ -103,6 +103,25 @@ assert_not_contains() {
   fi
 }
 
+assert_file_regex() {
+  local name="$1"
+  local file="$2"
+  local pattern="$3"
+  if "$PYTHON_BIN" - "$file" "$pattern" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+source = Path(sys.argv[1]).read_text()
+raise SystemExit(0 if re.search(sys.argv[2], source, re.S) else 1)
+PY
+  then
+    record_pass "$name"
+  else
+    record_fail "$name"
+  fi
+}
+
 assert_plist_value() {
   local name="$1"
   local file="$2"
@@ -153,6 +172,14 @@ assert_contains "README documents Speech Recognition" "$REPO_ROOT/README.md" "Sp
 assert_contains "README documents Apple Dictation" "$REPO_ROOT/README.md" "Apple Dictation"
 assert_contains "README documents Accessibility" "$REPO_ROOT/README.md" "Accessibility"
 assert_contains "README documents Input Monitoring" "$REPO_ROOT/README.md" "Input Monitoring"
+assert_file_regex \
+  "Input Monitoring request falls back to System Settings" \
+  "$MACOS_DIR/Sources/Services/PermissionManager.swift" \
+  'func requestInputMonitoring\(\).*?if !hasInputMonitoring \{.*?openInputMonitoringSettings\(\).*?return.*?\}'
+assert_contains \
+  "Onboarding describes Input Monitoring action as opening Settings" \
+  "$MACOS_DIR/Sources/Views/OnboardingView.swift" \
+  'OnboardingPillButton\("Open Settings"\)'
 assert_not_contains "README avoids GitHub Actions install guidance" "$REPO_ROOT/README.md" "SHOUTOUT_RUN_ID|GitHub Actions"
 assert_contains "README links troubleshooting" "$REPO_ROOT/README.md" "TROUBLESHOOTING.md"
 assert_contains "README documents context-aware insertion" "$REPO_ROOT/README.md" "focused-field context"
@@ -239,6 +266,10 @@ assert_contains "Web landing page has Open Graph description" "$REPO_ROOT/apps/w
 assert_contains "Web landing page has Open Graph image" "$REPO_ROOT/apps/web/index.html" 'property="og:image" content="https://shoutout.sh/assets/pixel-hero.png"'
 assert_contains "Web landing page has large Twitter preview card" "$REPO_ROOT/apps/web/index.html" 'name="twitter:card" content="summary_large_image"'
 assert_contains "Web download function is self-contained for Vercel project root" "$REPO_ROOT/apps/web/api/download.js" "DEFAULT_RELEASE_VERSION"
+assert_contains "Web download fallback uses hosted release asset" "$REPO_ROOT/apps/web/api/download.js" "DEFAULT_RELEASE_LOCATION"
+assert_not_contains "Web download fallback avoids deployment-local DMG" "$REPO_ROOT/apps/web/api/download.js" 'SHOUTOUT_DMG_URL \|\| `/releases/'
+assert_contains "Production download fallback uses hosted release asset" "$REPO_ROOT/api/download.js" "DEFAULT_RELEASE_LOCATION"
+assert_not_contains "Production download fallback avoids deployment-local DMG" "$REPO_ROOT/api/download.js" 'SHOUTOUT_DMG_URL \|\| `/releases/'
 assert_contains "Test script auto-selects current CLT" "$REPO_ROOT/scripts/test.sh" "Command Line Tools for Apple Dictation support"
 assert_contains "Transcription imports core" "$MACOS_DIR/Sources/Services/TranscriptionService.swift" "import ShoutOutCore"
 assert_contains "Transcription returns result shape" "$MACOS_DIR/Sources/Services/TranscriptionService.swift" "DictationResult"

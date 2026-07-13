@@ -128,6 +128,10 @@ class PermissionManager: ObservableObject {
         RuntimeLog.write("permissions request inputMonitoring")
         hasInputMonitoring = CGRequestListenEventAccess()
         RuntimeLog.write("permissions inputMonitoring result granted=\(hasInputMonitoring)")
+        if !hasInputMonitoring {
+            openInputMonitoringSettings()
+            return
+        }
         beginPollingForPermissionChanges()
     }
 

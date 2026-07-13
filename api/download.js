@@ -2,6 +2,8 @@ const { randomUUID } = require("node:crypto");
 
 const DOWNLOAD_COOKIE = "shoutout_download_id";
 const DEFAULT_RELEASE_VERSION = "0.1.8";
+const DEFAULT_RELEASE_LOCATION =
+  "https://xhahmepifrbmvgrg.public.blob.vercel-storage.com/releases/ShoutOut-0.1.8.dmg";
 const DEFAULT_POSTHOG_HOST = "https://us.i.posthog.com";
 
 const parseCookies = (cookieHeader = "") =>
@@ -113,7 +115,7 @@ module.exports = async function handler(req, res) {
   const host = req.headers.host || "shoutout.sh";
   const url = new URL(req.url || "/download", `https://${host}`);
   const version = process.env.SHOUTOUT_RELEASE_VERSION || DEFAULT_RELEASE_VERSION;
-  const releaseLocation = process.env.SHOUTOUT_DMG_URL || `/releases/ShoutOut-${version}.dmg`;
+  const releaseLocation = process.env.SHOUTOUT_DMG_URL || DEFAULT_RELEASE_LOCATION;
 
   if (req.method === "GET") {
     await captureDownloadStarted({
