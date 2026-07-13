@@ -7,7 +7,7 @@ INSTALLED_APP := $$HOME/Applications/$(APP_NAME).app
 DIST_APP := $(MACOS_DIR)/dist/$(APP_NAME).app
 UNIVERSAL ?= false
 
-.PHONY: build sync-assets install install-local onboarding-local restart-local reset-permissions run test test-language-pass clean release-preflight release-dmg notary-credentials sparkle-public-key sparkle-appcast blob-upload-dmg web-check web-build web-dev
+.PHONY: build sync-assets install install-local onboarding-local restart-local reset-permissions run test test-language-pass clean release-preflight release-verify-live release-dmg notary-credentials sparkle-public-key sparkle-appcast blob-upload-dmg web-check web-build web-dev
 
 sync-assets:
 	python3 ./scripts/sync-mascot-assets.py
@@ -71,6 +71,10 @@ test-language-pass:
 
 release-preflight:
 	cd "$(MACOS_DIR)" && ./scripts/release-preflight.sh
+	./scripts/verify-live-release.sh
+
+release-verify-live:
+	./scripts/verify-live-release.sh
 
 release-dmg: sync-assets
 	cd "$(MACOS_DIR)" && UNIVERSAL="$(UNIVERSAL)" ./scripts/release.sh

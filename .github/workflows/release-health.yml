@@ -1,0 +1,29 @@
+name: Release health
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 */6 * * *"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/release-health.yml"
+      - "api/download.js"
+      - "apps/web/api/download.js"
+      - "apps/web/public/appcast.xml"
+      - "scripts/verify-live-release.sh"
+
+permissions:
+  contents: read
+
+jobs:
+  verify-live-release:
+    name: Verify live download
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check appcast, redirect, and DMG
+        run: ./scripts/verify-live-release.sh

@@ -4,6 +4,7 @@ set -euo pipefail
 REPO_ROOT="${SHOUTOUT_REPO_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 MACOS_DIR="$REPO_ROOT/apps/macos"
 PYTHON_BIN="${PYTHON_BIN:-${PYTHON:-python3}}"
+NODE_BIN="${NODE_BIN:-${NODE:-node}}"
 export PYTHONDONTWRITEBYTECODE="${PYTHONDONTWRITEBYTECODE:-1}"
 
 SPEECH_ANALYZER_DEVELOPER_DIR=""
@@ -270,6 +271,15 @@ assert_contains "Web download fallback uses hosted release asset" "$REPO_ROOT/ap
 assert_not_contains "Web download fallback avoids deployment-local DMG" "$REPO_ROOT/apps/web/api/download.js" 'SHOUTOUT_DMG_URL \|\| `/releases/'
 assert_contains "Production download fallback uses hosted release asset" "$REPO_ROOT/api/download.js" "DEFAULT_RELEASE_LOCATION"
 assert_not_contains "Production download fallback avoids deployment-local DMG" "$REPO_ROOT/api/download.js" 'SHOUTOUT_DMG_URL \|\| `/releases/'
+if "$NODE_BIN" "$REPO_ROOT/scripts/test-download-handlers.mjs"; then
+  record_pass "Download handlers pass executable behavior tests"
+else
+  record_fail "Download handlers pass executable behavior tests"
+fi
+assert_contains "Makefile has live release verification" "$REPO_ROOT/Makefile" "^release-verify-live:"
+assert_contains "Release preflight verifies the current live release" "$REPO_ROOT/Makefile" "scripts/verify-live-release.sh"
+assert_contains "Live release verification compares redirect with appcast" "$REPO_ROOT/scripts/verify-live-release.sh" "Download redirect mismatch"
+assert_contains "Live release health runs on a schedule" "$REPO_ROOT/.github/workflows/release-health.yml" "cron:"
 assert_contains "Test script auto-selects current CLT" "$REPO_ROOT/scripts/test.sh" "Command Line Tools for Apple Dictation support"
 assert_contains "Transcription imports core" "$MACOS_DIR/Sources/Services/TranscriptionService.swift" "import ShoutOutCore"
 assert_contains "Transcription returns result shape" "$MACOS_DIR/Sources/Services/TranscriptionService.swift" "DictationResult"
