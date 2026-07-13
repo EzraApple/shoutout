@@ -259,6 +259,7 @@ assert_contains "Sparkle appcast stages web appcast" "$MACOS_DIR/scripts/generat
 assert_contains "Sparkle appcast stages releases directory" "$MACOS_DIR/scripts/generate-appcast.sh" "WEB_PUBLIC_DIR/releases"
 assert_contains "Sparkle appcast stages release notes" "$MACOS_DIR/scripts/generate-appcast.sh" "RELEASE_NOTES_URL_PREFIX"
 assert_contains "Sparkle appcast preserves authored release notes" "$MACOS_DIR/scripts/generate-appcast.sh" "STAGED_NOTES_PATH"
+assert_contains "Sparkle appcast handles empty preserved environment" "$MACOS_DIR/scripts/generate-appcast.sh" 'PRESERVED_ENV_VALUES\[@\].*-gt 0'
 assert_contains "Web Vite package exists" "$REPO_ROOT/apps/web/package.json" '"vite"'
 assert_contains "Web Vercel config exists" "$REPO_ROOT/apps/web/vercel.json" '"framework": "vite"'
 assert_contains "Web landing page names ShoutOut" "$REPO_ROOT/apps/web/index.html" "ShoutOut"

@@ -32,9 +32,11 @@ for ENV_FILE in "$ROOT_DIR/.env" "$PROJECT_DIR/.env"; do
     fi
 done
 
-for PAIR in "${PRESERVED_ENV_VALUES[@]}"; do
-    export "$PAIR"
-done
+if [[ ${#PRESERVED_ENV_VALUES[@]} -gt 0 ]]; then
+    for PAIR in "${PRESERVED_ENV_VALUES[@]}"; do
+        export "$PAIR"
+    done
+fi
 
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
