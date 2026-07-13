@@ -283,7 +283,7 @@ struct OnboardingView: View {
                         withAnimation { step = 5 }
                     }
                 } else {
-                    OnboardingPillButton("Grant Permission") {
+                    OnboardingPillButton("Open Settings") {
                         permissions.requestInputMonitoring()
                     }
 

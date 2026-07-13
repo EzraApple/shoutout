@@ -75,7 +75,7 @@ enum TextInserter {
     ) {
         let pasteboard = NSPasteboard.general
 
-        // 1. Save current clipboard contents (all types). If a prior restore is pending,
+        // 1. Save safe text-like clipboard contents. If a prior restore is pending,
         // keep its original snapshot so quick back-to-back dictations do not capture our
         // generated paste text as the user's clipboard.
         let restore = pendingClipboardRestore ?? PendingClipboardRestore(
@@ -371,9 +371,11 @@ enum TextInserter {
     }
 
     private static let clipboardPreferredBundleIdentifiers: Set<String> = [
+        "com.anthropic.claudefordesktop",
         "com.apple.Safari",
         "com.brave.Browser",
         "com.google.Chrome",
+        "com.hnc.Discord",
         "com.linear",
         "com.microsoft.edgemac",
         "com.openai.chat",
@@ -385,7 +387,21 @@ enum TextInserter {
     ]
 
     private static let clipboardPreferredBundlePrefixes = [
+        "com.hnc.Discord",
         "com.openai.",
+    ]
+
+    private static let restorablePasteboardTypes: Set<NSPasteboard.PasteboardType> = [
+        .html,
+        .rtf,
+        .string,
+        .tabularText,
+        NSPasteboard.PasteboardType(rawValue: "NSHTMLPboardType"),
+        NSPasteboard.PasteboardType(rawValue: "NSRTFPboardType"),
+        NSPasteboard.PasteboardType(rawValue: "NSStringPboardType"),
+        NSPasteboard.PasteboardType(rawValue: "NSTabularTextPboardType"),
+        NSPasteboard.PasteboardType(rawValue: "public.text"),
+        NSPasteboard.PasteboardType(rawValue: "public.utf16-plain-text"),
     ]
 
     private static func copyStringAttribute(_ element: AXUIElement, _ attribute: CFString) -> String? {
@@ -458,9 +474,13 @@ enum TextInserter {
         guard let items = pasteboard.pasteboardItems else { return [] }
 
         return items.compactMap { item in
+            guard !item.types.contains(where: isFileBackedPasteboardType) else {
+                return nil
+            }
+
             let newItem = NSPasteboardItem()
             var hasData = false
-            for type in item.types {
+            for type in item.types where restorablePasteboardTypes.contains(type) {
                 if let data = item.data(forType: type) {
                     newItem.setData(data, forType: type)
                     hasData = true
@@ -468,6 +488,14 @@ enum TextInserter {
             }
             return hasData ? newItem : nil
         }
+    }
+
+    private static func isFileBackedPasteboardType(_ type: NSPasteboard.PasteboardType) -> Bool {
+        let rawValue = type.rawValue.lowercased()
+        return rawValue == "nsfilenamespboardtype"
+            || rawValue == "com.apple.finder.node"
+            || rawValue.contains("file-url")
+            || rawValue.contains("promised-file")
     }
 
     private static func restorePasteboard(

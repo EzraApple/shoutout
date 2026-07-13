@@ -32,9 +32,11 @@ for ENV_FILE in "$ROOT_DIR/.env" "$PROJECT_DIR/.env"; do
     fi
 done
 
-for PAIR in "${PRESERVED_ENV_VALUES[@]}"; do
-    export "$PAIR"
-done
+if [[ ${#PRESERVED_ENV_VALUES[@]} -gt 0 ]]; then
+    for PAIR in "${PRESERVED_ENV_VALUES[@]}"; do
+        export "$PAIR"
+    done
+fi
 
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
@@ -78,18 +80,24 @@ DOWNLOAD_URL_PREFIX="${SPARKLE_DOWNLOAD_URL_PREFIX:-https://shoutout.sh/releases
 RELEASE_NOTES_URL_PREFIX="${SPARKLE_RELEASE_NOTES_URL_PREFIX:-$DOWNLOAD_URL_PREFIX}"
 PRODUCT_LINK="${SPARKLE_PRODUCT_LINK:-https://shoutout.sh}"
 ACCOUNT="${SPARKLE_KEY_ACCOUNT:-ed25519}"
+WEB_PUBLIC_DIR="${SPARKLE_WEB_PUBLIC_DIR:-$ROOT_DIR/apps/web/public}"
 
 mkdir -p "$ARCHIVES_DIR"
 cp "$DMG_PATH" "$ARCHIVES_DIR/$(basename "$DMG_PATH")"
 
 NOTES_PATH="$ARCHIVES_DIR/ShoutOut-$VERSION.md"
 if [[ ! -f "$NOTES_PATH" ]]; then
-    cat > "$NOTES_PATH" <<EOF
+    STAGED_NOTES_PATH="$WEB_PUBLIC_DIR/releases/ShoutOut-$VERSION.md"
+    if [[ -f "$STAGED_NOTES_PATH" ]]; then
+        cp "$STAGED_NOTES_PATH" "$NOTES_PATH"
+    else
+        cat > "$NOTES_PATH" <<EOF
 # ShoutOut $VERSION
 
 - Local-first macOS dictation update.
 - Signed and notarized DMG release.
 EOF
+    fi
 fi
 
 GENERATE_APPCAST="$(tool_path generate_appcast)"
@@ -111,7 +119,6 @@ fi
 
 if [[ -f "$ARCHIVES_DIR/appcast.xml" ]]; then
     echo -e "${GREEN}Appcast ready: $ARCHIVES_DIR/appcast.xml${NC}"
-    WEB_PUBLIC_DIR="${SPARKLE_WEB_PUBLIC_DIR:-$ROOT_DIR/apps/web/public}"
     if [[ "${SPARKLE_STAGE_WEB_PUBLIC:-true}" == "true" && -d "$WEB_PUBLIC_DIR" ]]; then
         mkdir -p "$WEB_PUBLIC_DIR/releases"
         cp "$ARCHIVES_DIR/appcast.xml" "$WEB_PUBLIC_DIR/appcast.xml"

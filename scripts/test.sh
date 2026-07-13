@@ -4,6 +4,7 @@ set -euo pipefail
 REPO_ROOT="${SHOUTOUT_REPO_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 MACOS_DIR="$REPO_ROOT/apps/macos"
 PYTHON_BIN="${PYTHON_BIN:-${PYTHON:-python3}}"
+NODE_BIN="${NODE_BIN:-${NODE:-node}}"
 export PYTHONDONTWRITEBYTECODE="${PYTHONDONTWRITEBYTECODE:-1}"
 
 SPEECH_ANALYZER_DEVELOPER_DIR=""
@@ -103,6 +104,25 @@ assert_not_contains() {
   fi
 }
 
+assert_file_regex() {
+  local name="$1"
+  local file="$2"
+  local pattern="$3"
+  if "$PYTHON_BIN" - "$file" "$pattern" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+source = Path(sys.argv[1]).read_text()
+raise SystemExit(0 if re.search(sys.argv[2], source, re.S) else 1)
+PY
+  then
+    record_pass "$name"
+  else
+    record_fail "$name"
+  fi
+}
+
 assert_plist_value() {
   local name="$1"
   local file="$2"
@@ -153,6 +173,14 @@ assert_contains "README documents Speech Recognition" "$REPO_ROOT/README.md" "Sp
 assert_contains "README documents Apple Dictation" "$REPO_ROOT/README.md" "Apple Dictation"
 assert_contains "README documents Accessibility" "$REPO_ROOT/README.md" "Accessibility"
 assert_contains "README documents Input Monitoring" "$REPO_ROOT/README.md" "Input Monitoring"
+assert_file_regex \
+  "Input Monitoring request falls back to System Settings" \
+  "$MACOS_DIR/Sources/Services/PermissionManager.swift" \
+  'func requestInputMonitoring\(\).*?if !hasInputMonitoring \{.*?openInputMonitoringSettings\(\).*?return.*?\}'
+assert_contains \
+  "Onboarding describes Input Monitoring action as opening Settings" \
+  "$MACOS_DIR/Sources/Views/OnboardingView.swift" \
+  'OnboardingPillButton\("Open Settings"\)'
 assert_not_contains "README avoids GitHub Actions install guidance" "$REPO_ROOT/README.md" "SHOUTOUT_RUN_ID|GitHub Actions"
 assert_contains "README links troubleshooting" "$REPO_ROOT/README.md" "TROUBLESHOOTING.md"
 assert_contains "README documents context-aware insertion" "$REPO_ROOT/README.md" "focused-field context"
@@ -230,6 +258,8 @@ assert_contains "Sparkle appcast script uses generate_appcast" "$MACOS_DIR/scrip
 assert_contains "Sparkle appcast stages web appcast" "$MACOS_DIR/scripts/generate-appcast.sh" "apps/web/public"
 assert_contains "Sparkle appcast stages releases directory" "$MACOS_DIR/scripts/generate-appcast.sh" "WEB_PUBLIC_DIR/releases"
 assert_contains "Sparkle appcast stages release notes" "$MACOS_DIR/scripts/generate-appcast.sh" "RELEASE_NOTES_URL_PREFIX"
+assert_contains "Sparkle appcast preserves authored release notes" "$MACOS_DIR/scripts/generate-appcast.sh" "STAGED_NOTES_PATH"
+assert_contains "Sparkle appcast handles empty preserved environment" "$MACOS_DIR/scripts/generate-appcast.sh" 'PRESERVED_ENV_VALUES\[@\].*-gt 0'
 assert_contains "Web Vite package exists" "$REPO_ROOT/apps/web/package.json" '"vite"'
 assert_contains "Web Vercel config exists" "$REPO_ROOT/apps/web/vercel.json" '"framework": "vite"'
 assert_contains "Web landing page names ShoutOut" "$REPO_ROOT/apps/web/index.html" "ShoutOut"
@@ -239,6 +269,24 @@ assert_contains "Web landing page has Open Graph description" "$REPO_ROOT/apps/w
 assert_contains "Web landing page has Open Graph image" "$REPO_ROOT/apps/web/index.html" 'property="og:image" content="https://shoutout.sh/assets/pixel-hero.png"'
 assert_contains "Web landing page has large Twitter preview card" "$REPO_ROOT/apps/web/index.html" 'name="twitter:card" content="summary_large_image"'
 assert_contains "Web download function is self-contained for Vercel project root" "$REPO_ROOT/apps/web/api/download.js" "DEFAULT_RELEASE_VERSION"
+assert_contains "Web download fallback uses hosted release asset" "$REPO_ROOT/apps/web/api/download.js" "DEFAULT_RELEASE_LOCATION"
+assert_not_contains "Web download fallback avoids deployment-local DMG" "$REPO_ROOT/apps/web/api/download.js" 'SHOUTOUT_DMG_URL \|\| `/releases/'
+assert_contains "Production download fallback uses hosted release asset" "$REPO_ROOT/api/download.js" "DEFAULT_RELEASE_LOCATION"
+assert_not_contains "Production download fallback avoids deployment-local DMG" "$REPO_ROOT/api/download.js" 'SHOUTOUT_DMG_URL \|\| `/releases/'
+if "$NODE_BIN" "$REPO_ROOT/scripts/test-download-handlers.mjs"; then
+  record_pass "Download handlers pass executable behavior tests"
+else
+  record_fail "Download handlers pass executable behavior tests"
+fi
+if "$PYTHON_BIN" "$REPO_ROOT/scripts/check-release-metadata.py"; then
+  record_pass "Release metadata stays version-aligned"
+else
+  record_fail "Release metadata stays version-aligned"
+fi
+assert_contains "Makefile has live release verification" "$REPO_ROOT/Makefile" "^release-verify-live:"
+assert_contains "Release preflight verifies the current live release" "$REPO_ROOT/Makefile" "scripts/verify-live-release.sh"
+assert_contains "Live release verification compares redirect with appcast" "$REPO_ROOT/scripts/verify-live-release.sh" "Download redirect mismatch"
+assert_contains "Live release health runs on a schedule" "$REPO_ROOT/.github/workflows/release-health.yml" "cron:"
 assert_contains "Test script auto-selects current CLT" "$REPO_ROOT/scripts/test.sh" "Command Line Tools for Apple Dictation support"
 assert_contains "Transcription imports core" "$MACOS_DIR/Sources/Services/TranscriptionService.swift" "import ShoutOutCore"
 assert_contains "Transcription returns result shape" "$MACOS_DIR/Sources/Services/TranscriptionService.swift" "DictationResult"
@@ -326,12 +374,15 @@ assert_contains "App delegate logs dictation metrics" "$MACOS_DIR/Sources/AppDel
 assert_contains "App delegate uses structured tail policy" "$MACOS_DIR/Sources/AppDelegate.swift" "RecordingTailPolicy"
 assert_contains "App delegate logs tail grace" "$MACOS_DIR/Sources/AppDelegate.swift" "tailGraceMs"
 assert_contains "Text inserter supports smart spacing" "$MACOS_DIR/Sources/Services/TextInserter.swift" "focusedTextInsertionContext"
+assert_contains "Text inserter routes Claude through clipboard paste" "$MACOS_DIR/Sources/Services/TextInserter.swift" "com.anthropic.claudefordesktop"
 assert_contains "Text inserter routes Codex through clipboard paste" "$MACOS_DIR/Sources/Services/TextInserter.swift" "com.openai.codex"
+assert_contains "Text inserter routes Discord through clipboard paste" "$MACOS_DIR/Sources/Services/TextInserter.swift" "com.hnc.Discord"
 assert_contains "Text inserter avoids AX insertion for web shells" "$MACOS_DIR/Sources/Services/TextInserter.swift" "prefersClipboardInsertion"
 assert_contains "Text inserter captures target before overlay focus" "$MACOS_DIR/Sources/AppDelegate.swift" "TextInserter.captureFocusedTarget"
 assert_contains "Text inserter verifies AX insertion before success" "$MACOS_DIR/Sources/Services/TextInserter.swift" "paste accessibility unverified"
 assert_contains "Text inserter uses bounded clipboard verification" "$MACOS_DIR/Sources/Services/TextInserter.swift" "waitForPasteVerification"
 assert_contains "Text inserter preserves recovery clipboard on unverified paste" "$MACOS_DIR/Sources/Services/TextInserter.swift" "restore skipped reason=unverified"
+assert_contains "Text inserter skips file-backed clipboard items" "$MACOS_DIR/Sources/Services/TextInserter.swift" "isFileBackedPasteboardType"
 assert_contains "Text inserter can post paste to captured app PID" "$MACOS_DIR/Sources/Services/TextInserter.swift" "postToPid"
 assert_contains "Core supports trailing fallback" "$MACOS_DIR/Sources/Core/TextInsertionFormatter.swift" "fallbackTrailing"
 assert_contains "Core formats insertion spacing" "$MACOS_DIR/Sources/Core/TextInsertionFormatter.swift" "TextInsertionFormatter"
