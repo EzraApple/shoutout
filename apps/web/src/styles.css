@@ -685,13 +685,18 @@ p {
 
 .flow-node {
   position: relative;
+  z-index: 1;
   min-height: 230px;
   border: 2px solid var(--line);
   border-radius: 4px;
   padding: 18px;
   background: var(--panel);
   box-shadow: 5px 5px 0 var(--ink);
-  transition: transform 180ms var(--ease-snap), box-shadow 180ms var(--ease-snap), background 180ms ease;
+  transition:
+    transform 180ms var(--ease-snap),
+    box-shadow 180ms var(--ease-snap),
+    background 180ms ease,
+    z-index 0s linear 180ms;
 }
 
 .flow-node::before {
@@ -707,8 +712,10 @@ p {
 }
 
 .flow-node:hover {
+  z-index: 3;
   box-shadow: 8px 8px 0 var(--ink), var(--soft-shadow);
   transform: translate(-2px, -4px);
+  transition-delay: 0s;
 }
 
 .flow-node:hover::before {
@@ -726,13 +733,12 @@ p {
   height: 22px;
   border-top: 2px solid var(--line);
   border-right: 2px solid var(--line);
-  background: var(--paper);
+  background: inherit;
   transform: rotate(45deg);
-  transition: transform 180ms var(--ease-snap), background 180ms ease;
+  transition: transform 180ms var(--ease-snap);
 }
 
 .flow-node:hover::after {
-  background: var(--panel-blue);
   transform: translateX(3px) rotate(45deg);
 }
 
