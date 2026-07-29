@@ -20,7 +20,7 @@ asset_headers_path="$temp_dir/asset-headers.txt"
 
 curl --fail --silent --show-error --retry 3 --retry-all-errors "$FEED_URL" -o "$appcast_path"
 
-read -r version build enclosure_url expected_length < <(
+read -r version build enclosure_url expected_length full_notes_url < <(
   "$PYTHON_BIN" - "$appcast_path" <<'PY'
 import sys
 import xml.etree.ElementTree as ET
@@ -38,11 +38,18 @@ version = item.findtext(f"{sparkle}shortVersionString", "").strip()
 build = item.findtext(f"{sparkle}version", "").strip()
 url = enclosure.attrib.get("url", "").strip()
 length = enclosure.attrib.get("length", "").strip()
+full_notes_url = item.findtext(f"{sparkle}fullReleaseNotesLink", "").strip()
 
-if not version or not build or not url.startswith("https://") or not length.isdigit():
+if (
+    not version
+    or not build
+    or not url.startswith("https://")
+    or not length.isdigit()
+    or not full_notes_url.startswith("https://")
+):
     raise SystemExit("Appcast release metadata is incomplete")
 
-print(version, build, url, length)
+print(version, build, url, length, full_notes_url)
 PY
 )
 
@@ -82,4 +89,7 @@ case "$content_type" in
     ;;
 esac
 
-echo "ok - live ShoutOut $version build $build is downloadable ($actual_length bytes)"
+curl --fail --silent --show-error --head --location --retry 3 --retry-all-errors \
+  "$full_notes_url" >/dev/null
+
+echo "ok - live ShoutOut $version build $build is downloadable with version history ($actual_length bytes)"

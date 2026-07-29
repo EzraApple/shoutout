@@ -258,11 +258,15 @@ assert_contains "Sparkle appcast script uses generate_appcast" "$MACOS_DIR/scrip
 assert_contains "Sparkle appcast stages web appcast" "$MACOS_DIR/scripts/generate-appcast.sh" "apps/web/public"
 assert_contains "Sparkle appcast stages releases directory" "$MACOS_DIR/scripts/generate-appcast.sh" "WEB_PUBLIC_DIR/releases"
 assert_contains "Sparkle appcast stages release notes" "$MACOS_DIR/scripts/generate-appcast.sh" "RELEASE_NOTES_URL_PREFIX"
+assert_contains "Sparkle appcast links version history" "$MACOS_DIR/scripts/generate-appcast.sh" "SPARKLE_FULL_RELEASE_NOTES_URL"
 assert_contains "Sparkle appcast preserves authored release notes" "$MACOS_DIR/scripts/generate-appcast.sh" "STAGED_NOTES_PATH"
 assert_contains "Sparkle appcast handles empty preserved environment" "$MACOS_DIR/scripts/generate-appcast.sh" 'PRESERVED_ENV_VALUES\[@\].*-gt 0'
 assert_contains "Web Vite package exists" "$REPO_ROOT/apps/web/package.json" '"vite"'
 assert_contains "Web Vercel config exists" "$REPO_ROOT/apps/web/vercel.json" '"framework": "vite"'
 assert_contains "Web landing page names ShoutOut" "$REPO_ROOT/apps/web/index.html" "ShoutOut"
+assert_contains "Web landing page links version history" "$REPO_ROOT/apps/web/index.html" 'href="/version-history"'
+assert_contains "Web version history has latest release" "$REPO_ROOT/apps/web/version-history/index.html" "ShoutOut 0.1.10"
+assert_contains "Web version history includes early releases" "$REPO_ROOT/apps/web/version-history/index.html" "ShoutOut 0.1.1"
 assert_contains "Web landing page explains permissions" "$REPO_ROOT/apps/web/index.html" "Input Monitoring"
 assert_contains "Web landing page has Open Graph title" "$REPO_ROOT/apps/web/index.html" 'property="og:title" content="ShoutOut"'
 assert_contains "Web landing page has Open Graph description" "$REPO_ROOT/apps/web/index.html" 'property="og:description"'
@@ -286,6 +290,7 @@ fi
 assert_contains "Makefile has live release verification" "$REPO_ROOT/Makefile" "^release-verify-live:"
 assert_contains "Release preflight verifies the current live release" "$REPO_ROOT/Makefile" "scripts/verify-live-release.sh"
 assert_contains "Live release verification compares redirect with appcast" "$REPO_ROOT/scripts/verify-live-release.sh" "Download redirect mismatch"
+assert_contains "Live release verification checks version history" "$REPO_ROOT/scripts/verify-live-release.sh" "fullReleaseNotesLink"
 assert_contains "Live release health runs on a schedule" "$REPO_ROOT/.github/workflows/release-health.yml" "cron:"
 assert_contains "Test script auto-selects current CLT" "$REPO_ROOT/scripts/test.sh" "Command Line Tools for Apple Dictation support"
 assert_contains "Transcription imports core" "$MACOS_DIR/Sources/Services/TranscriptionService.swift" "import ShoutOutCore"

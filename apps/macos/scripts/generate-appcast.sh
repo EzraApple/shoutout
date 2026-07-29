@@ -10,6 +10,7 @@ for KEY in \
     SPARKLE_ARCHIVES_DIR \
     SPARKLE_DOWNLOAD_URL_PREFIX \
     SPARKLE_RELEASE_NOTES_URL_PREFIX \
+    SPARKLE_FULL_RELEASE_NOTES_URL \
     SPARKLE_PRODUCT_LINK \
     SPARKLE_KEY_ACCOUNT \
     SPARKLE_MAXIMUM_VERSIONS \
@@ -62,6 +63,32 @@ tool_path() {
     printf '%s\n' "$path"
 }
 
+ensure_full_release_notes_link() {
+    local appcast_path="$1"
+    local full_release_notes_url="$2"
+
+    if grep -q "<sparkle:fullReleaseNotesLink>" "$appcast_path"; then
+        return
+    fi
+
+    local updated_path
+    updated_path="$(mktemp)"
+    awk -v url="$full_release_notes_url" '
+        /<sparkle:releaseNotesLink>/ {
+            match($0, /^[[:space:]]*/)
+            indent = substr($0, 1, RLENGTH)
+            print indent "<sparkle:fullReleaseNotesLink>" url "</sparkle:fullReleaseNotesLink>"
+        }
+        { print }
+    ' "$appcast_path" > "$updated_path"
+    mv "$updated_path" "$appcast_path"
+
+    if ! grep -q "<sparkle:fullReleaseNotesLink>" "$appcast_path"; then
+        echo "Could not add full release notes link to $appcast_path" >&2
+        exit 1
+    fi
+}
+
 VERSION="$(plutil -extract CFBundleShortVersionString raw -o - "$PROJECT_DIR/Resources/Info.plist" 2>/dev/null || true)"
 if [[ -z "$VERSION" ]]; then
     echo -e "${RED}Could not read CFBundleShortVersionString from Info.plist.${NC}" >&2
@@ -78,6 +105,7 @@ fi
 ARCHIVES_DIR="${SPARKLE_ARCHIVES_DIR:-$PROJECT_DIR/dist/sparkle}"
 DOWNLOAD_URL_PREFIX="${SPARKLE_DOWNLOAD_URL_PREFIX:-https://shoutout.sh/releases/}"
 RELEASE_NOTES_URL_PREFIX="${SPARKLE_RELEASE_NOTES_URL_PREFIX:-$DOWNLOAD_URL_PREFIX}"
+FULL_RELEASE_NOTES_URL="${SPARKLE_FULL_RELEASE_NOTES_URL:-https://shoutout.sh/version-history}"
 PRODUCT_LINK="${SPARKLE_PRODUCT_LINK:-https://shoutout.sh}"
 ACCOUNT="${SPARKLE_KEY_ACCOUNT:-ed25519}"
 WEB_PUBLIC_DIR="${SPARKLE_WEB_PUBLIC_DIR:-$ROOT_DIR/apps/web/public}"
@@ -105,6 +133,7 @@ ARGS=(
     --account "$ACCOUNT"
     --download-url-prefix "$DOWNLOAD_URL_PREFIX"
     --release-notes-url-prefix "$RELEASE_NOTES_URL_PREFIX"
+    --full-release-notes-url "$FULL_RELEASE_NOTES_URL"
     --link "$PRODUCT_LINK"
     --maximum-versions "${SPARKLE_MAXIMUM_VERSIONS:-5}"
     "$ARCHIVES_DIR"
@@ -118,6 +147,7 @@ else
 fi
 
 if [[ -f "$ARCHIVES_DIR/appcast.xml" ]]; then
+    ensure_full_release_notes_link "$ARCHIVES_DIR/appcast.xml" "$FULL_RELEASE_NOTES_URL"
     echo -e "${GREEN}Appcast ready: $ARCHIVES_DIR/appcast.xml${NC}"
     if [[ "${SPARKLE_STAGE_WEB_PUBLIC:-true}" == "true" && -d "$WEB_PUBLIC_DIR" ]]; then
         mkdir -p "$WEB_PUBLIC_DIR/releases"
