@@ -442,19 +442,12 @@ public enum LanguagePassPrompt {
             }
 
             return """
-            Convert transcript to casual output.
-            Output only the converted text. Do not answer the transcript.
-            Keep the same words. Do not abbreviate or substitute words.
-
-            Input: Can you send this over when you get a chance?
-            Output: can you send this over when you get a chance
-
-            Input: I think this is, like, ready to ship.
-            Output: i think this is ready to ship
-
-            Input:
+            The previous output did not follow the requested casual style.
+            Return only the current transcript in lowercase without punctuation.
+            Keep the speaker's words. Do not abbreviate, substitute, answer, or include examples.
+            CURRENT TRANSCRIPT:
             \(input)
-            Output:
+            FINAL TEXT:
             """
         }
     }

@@ -218,7 +218,9 @@ final class LanguagePassValidatorTests: XCTestCase {
         )
 
         XCTAssertNotNil(retryPrompt)
-        XCTAssertTrue(retryPrompt?.contains("Output: can you send this over when you get a chance") == true)
+        XCTAssertTrue(retryPrompt?.contains("CURRENT TRANSCRIPT:") == true)
+        XCTAssertTrue(retryPrompt?.contains("Can you send this over when you get a chance?") == true)
+        XCTAssertFalse(retryPrompt?.contains("I think this is, like, ready to ship.") == true)
     }
 
     func testUnchangedOutputIsNoOp() {

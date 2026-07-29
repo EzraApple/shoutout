@@ -15,6 +15,16 @@ public enum LanguagePassMechanicalNormalizer {
         return result.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    public static func normalize(_ text: String, style: LanguagePassStyle) -> String {
+        let normalized = normalize(text)
+        switch style {
+        case .casual:
+            return applyCasualPlaintextStyle(to: normalized)
+        case .standard, .formal:
+            return normalized
+        }
+    }
+
     private static func removeAbandonedArticlesBeforeActually(from text: String) -> String {
         text.replacingOccurrences(
             of: #"\b(?:a|an)\s*(?:\.\.\.|…)\s+(actually\b)"#,
@@ -48,6 +58,43 @@ public enum LanguagePassMechanicalNormalizer {
             .replacingOccurrences(of: #"[ \t]{2,}"#, with: " ", options: .regularExpression)
             .replacingOccurrences(of: #" +([,.!?;:])"#, with: "$1", options: .regularExpression)
             .replacingOccurrences(of: #",\s*([.!?;:])"#, with: "$1", options: .regularExpression)
+    }
+
+    private static func applyCasualPlaintextStyle(to text: String) -> String {
+        text.lowercased()
+            .replacingOccurrences(
+                of: #"(\d+)\.0\b"#,
+                with: "$1",
+                options: .regularExpression
+            )
+            .replacingOccurrences(
+                of: #"(\d+)\.x\b"#,
+                with: "$1",
+                options: .regularExpression
+            )
+            .replacingOccurrences(
+                of: #"(?<=\b[a-z])\.(?=[a-z]\b)"#,
+                with: "",
+                options: .regularExpression
+            )
+            .replacingOccurrences(
+                of: #"(?<=\b[a-z])\.(?=\s|$)"#,
+                with: "",
+                options: .regularExpression
+            )
+            .replacingOccurrences(
+                of: #"[-–—]"#,
+                with: " ",
+                options: .regularExpression
+            )
+            .replacingOccurrences(
+                of: #"[,.!?;:"“”()\[\]{}]"#,
+                with: "",
+                options: .regularExpression
+            )
+            .replacingOccurrences(of: #"[ \t]{2,}"#, with: " ", options: .regularExpression)
+            .replacingOccurrences(of: #" *\n *"#, with: "\n", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private static let repeatedStartPatterns = [

@@ -1,4 +1,5 @@
 import Foundation
+import ShoutOutCore
 
 enum TranscriptionBackend: String, CaseIterable, Hashable, Identifiable, Sendable {
     case whisperKit = "whisperkit"
@@ -78,6 +79,7 @@ enum TranscriptionBackend: String, CaseIterable, Hashable, Identifiable, Sendabl
 
 struct EngineTranscriptionResult: Sendable {
     var rawText: String
+    var wordTimings: [TranscriptWordTiming] = []
     var firstTokenMs: Int?
     var pipelineMs: Int?
     var realTimeFactor: Double?

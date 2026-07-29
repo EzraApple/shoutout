@@ -257,7 +257,26 @@ class TranscriptionService: ObservableObject {
         let engineStart = Date()
         let engineResult = try await engine.transcribe(audioSamples: audioSamples)
         let engineWallMs = Self.elapsedMilliseconds(since: engineStart)
-        let rawText = engineResult.rawText
+        let terminalCleanup = TranscriptHallucinationFilter.removingTerminalSilenceHallucination(
+            from: engineResult.rawText,
+            wordTimings: engineResult.wordTimings,
+            audioSamples: audioSamples,
+            sampleRate: AudioRecorder.sampleRate
+        )
+        let rawText = terminalCleanup.text
+        if let phrase = terminalCleanup.candidatePhrase {
+            RuntimeLog.write(
+                [
+                    "transcription terminalHallucination",
+                    "phrase=\(phrase)",
+                    "removed=\(terminalCleanup.removed)",
+                    "gapMs=\(terminalCleanup.gapSeconds.map { String(Int($0 * 1_000)) } ?? "na")",
+                    "meanProbability=\(terminalCleanup.meanProbability.map { String(format: "%.3f", $0) } ?? "na")",
+                    "suffixRMS=\(terminalCleanup.suffixRMS.map { String(format: "%.6f", $0) } ?? "na")",
+                    "precedingRMS=\(terminalCleanup.precedingRMS.map { String(format: "%.6f", $0) } ?? "na")",
+                ].joined(separator: " ")
+            )
+        }
         let postProcessingOptions = TextPostProcessingOptions(
             removeFillerWords: UserDefaults.standard.object(forKey: "removeFillerWords") == nil
                 || UserDefaults.standard.bool(forKey: "removeFillerWords"),

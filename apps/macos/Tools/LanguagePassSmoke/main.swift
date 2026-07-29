@@ -194,6 +194,14 @@ struct LanguagePassSmoke {
             expectation: .requiredRewrite
         ),
         SmokeCase(
+            name: "casual retry never leaks prompt examples",
+            input: "I still occasionally get the occasional auto-appended and formatted thank you at the end of transcription, which is usually when I leave a little bit of silence at the end.",
+            style: .casual,
+            expectedFragments: ["auto appended", "thank you", "silence at the end"],
+            rejectedFragments: ["can you send this over", "i think this is ready to ship", ".", "?"],
+            expectation: .requiredRewrite
+        ),
+        SmokeCase(
             name: "formal style keeps original words",
             input: "i can join monday probably around three",
             style: .formal,
@@ -259,20 +267,32 @@ struct LanguagePassSmoke {
             LanguagePassValidator.extractCandidate(from: rawOutput)
         )
         let validation = LanguagePassValidator.validate(candidate: rawCandidate, baseText: smokeCase.input)
-        let finalText = validation.acceptedText ?? smokeCase.input
+        let mechanicalFallback = LanguagePassMechanicalNormalizer.normalize(
+            smokeCase.input,
+            style: smokeCase.style
+        )
+        let usedMechanicalFallback = validation.acceptedText == nil && smokeCase.style == .casual
+        let finalText = validation.acceptedText
+            ?? (usedMechanicalFallback ? mechanicalFallback : smokeCase.input)
         let finalLower = finalText.lowercased()
 
         print("\n[\(smokeCase.name)] \(wallMs)ms style=\(smokeCase.style.rawValue)")
         print("input: \(smokeCase.input)")
         print("raw: \(rawCandidate)")
         print("final: \(finalText)")
-        print("accepted: \(validation.acceptedText != nil) fallback: \(validation.fallbackReason ?? "none")")
+        print("accepted: \(validation.acceptedText != nil || usedMechanicalFallback) fallback: \(usedMechanicalFallback ? "mechanical_after_\(validation.fallbackReason ?? "rejected")" : validation.fallbackReason ?? "none")")
 
-        if smokeCase.expectation == .requiredRewrite, validation.acceptedText == nil {
+        if smokeCase.expectation == .requiredRewrite,
+            validation.acceptedText == nil,
+            !usedMechanicalFallback
+        {
             return "\(smokeCase.name): expected accepted rewrite, got \(validation.fallbackReason ?? "no rewrite")"
         }
 
-        if smokeCase.expectation == .safeRewriteOrFallback, validation.acceptedText == nil {
+        if smokeCase.expectation == .safeRewriteOrFallback,
+            validation.acceptedText == nil,
+            !usedMechanicalFallback
+        {
             return nil
         }
 
@@ -296,13 +316,15 @@ struct LanguagePassSmoke {
     }
 
     static func generate(input: String, style: LanguagePassStyle, container: ModelContainer) async throws -> String {
+        let maxTokens = maxGenerationTokens(for: input)
+        let maxKVSize = maxKVSize(for: input)
         let session = ChatSession(
             container,
             instructions: LanguagePassPrompt.systemInstructions(for: style),
             history: fewShotHistory(style: style, input: input),
             generateParameters: GenerateParameters(
-                maxTokens: 96,
-                maxKVSize: 2048,
+                maxTokens: maxTokens,
+                maxKVSize: maxKVSize,
                 temperature: 0.0,
                 topP: 1.0
             )
@@ -323,13 +345,29 @@ struct LanguagePassSmoke {
             instructions: LanguagePassPrompt.systemInstructions(for: style),
             history: [],
             generateParameters: GenerateParameters(
-                maxTokens: 48,
-                maxKVSize: 2048,
+                maxTokens: maxTokens,
+                maxKVSize: maxKVSize,
                 temperature: 0.0,
                 topP: 1.0
             )
         )
         return try await retrySession.respond(to: retryPrompt)
+    }
+
+    static func maxGenerationTokens(for text: String) -> Int {
+        let wordCount = max(1, text.split { $0.isWhitespace || $0.isNewline }.count)
+        return min(1_024, max(128, Int(Double(wordCount) * 1.7) + 32))
+    }
+
+    static func maxKVSize(for text: String) -> Int {
+        let wordCount = text.split { $0.isWhitespace || $0.isNewline }.count
+        if wordCount >= 360 {
+            return 4_096
+        }
+        if wordCount >= 160 {
+            return 3_072
+        }
+        return 2_048
     }
 
     static func fewShotHistory(style: LanguagePassStyle, input: String) -> [Chat.Message] {

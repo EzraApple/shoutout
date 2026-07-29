@@ -46,6 +46,16 @@ final class LanguagePassMechanicalNormalizerTests: XCTestCase {
         )
     }
 
+    func testAppliesCasualPlaintextStyleWithoutDroppingContent() {
+        let input =
+            "Is OpenCode 2.0 out yet? I just remember that OpenCode 1.x was limited in the U.S. docs."
+
+        XCTAssertEqual(
+            LanguagePassMechanicalNormalizer.normalize(input, style: .casual),
+            "is opencode 2 out yet i just remember that opencode 1 was limited in the us docs"
+        )
+    }
+
     func testIsIdempotent() {
         let text = "Can you send this over today?"
 

@@ -114,7 +114,6 @@ final class LanguagePassService: ObservableObject {
     private var modelContainer: ModelContainer?
     private var loadTask: Task<ModelContainer, Error>?
     private var loadGeneration = 0
-    private let generationTimeoutNanoseconds: UInt64 = 1_200_000_000
     private static let mlxCacheLimitBytes = 0
     private static var didConfigureMLXMemory = false
     private static let modelCleanupVersion = 1
@@ -310,6 +309,17 @@ final class LanguagePassService: ObservableObject {
         }
 
         guard modelState == .ready, let container = modelContainer else {
+            if let fallback = Self.mechanicalFallbackResult(
+                baseText: baseText,
+                candidateText: nil,
+                reason: "model_not_ready",
+                style: style,
+                wallMs: nil,
+                modelID: modelID
+            ) {
+                recordSummary(fallback)
+                return fallback
+            }
             let result = LanguagePassRunResult.passthrough(
                 baseText,
                 enabled: true,
@@ -329,7 +339,9 @@ final class LanguagePassService: ObservableObject {
         }
 
         do {
-            let output = try await runWithTimeout(seconds: generationTimeoutNanoseconds) {
+            let output = try await runWithTimeout(
+                seconds: Self.generationTimeoutNanoseconds(for: baseText)
+            ) {
                 try await Self.generateCleanup(container: container, baseText: baseText, style: style)
             }
             let wallMs = Self.elapsedMilliseconds(since: startedAt)
@@ -339,6 +351,20 @@ final class LanguagePassService: ObservableObject {
             )
             let validation = LanguagePassValidator.validate(candidate: candidateText, baseText: baseText)
             guard let acceptedText = validation.acceptedText else {
+                if let fallback = Self.mechanicalFallbackResult(
+                    baseText: baseText,
+                    candidateText: candidateText,
+                    reason: validation.fallbackReason ?? "rejected",
+                    style: style,
+                    wallMs: wallMs,
+                    modelID: modelID
+                ) {
+                    recordSummary(fallback)
+                    RuntimeLog.write(
+                        "languagePass mechanicalFallback model=\(modelID) style=\(style.rawValue) rejectedReason=\(validation.fallbackReason ?? "rejected") wallMs=\(wallMs) inputChars=\(baseText.count) outputChars=\(fallback.finalText.count) memoryBefore={\(memoryBefore)} memoryAfter={\(memoryAfter)}"
+                    )
+                    return fallback
+                }
                 let result = LanguagePassRunResult.passthrough(
                     baseText,
                     enabled: true,
@@ -377,6 +403,20 @@ final class LanguagePassService: ObservableObject {
             let wallMs = Self.elapsedMilliseconds(since: startedAt)
             let memoryAfter = Self.mlxMemoryDescription()
             let fallbackReason = Task.isCancelled ? "cancelled" : "generation_failed"
+            if let fallback = Self.mechanicalFallbackResult(
+                baseText: baseText,
+                candidateText: nil,
+                reason: fallbackReason,
+                style: style,
+                wallMs: wallMs,
+                modelID: modelID
+            ) {
+                recordSummary(fallback)
+                RuntimeLog.write(
+                    "languagePass mechanicalFallback model=\(modelID) style=\(style.rawValue) rejectedReason=\(fallbackReason) wallMs=\(wallMs) inputChars=\(baseText.count) outputChars=\(fallback.finalText.count) memoryBefore={\(memoryBefore)} memoryAfter={\(memoryAfter)}"
+                )
+                return fallback
+            }
             let result = LanguagePassRunResult.passthrough(
                 baseText,
                 enabled: true,
@@ -406,13 +446,15 @@ final class LanguagePassService: ObservableObject {
         baseText: String,
         style: LanguagePassStyle
     ) async throws -> String {
+        let maxTokens = Self.maxGenerationTokens(for: baseText)
+        let maxKVSize = Self.maxKVSize(for: baseText)
         let session = ChatSession(
             container,
             instructions: LanguagePassPrompt.systemInstructions(for: style),
             history: Self.fewShotHistory(style: style, input: baseText),
             generateParameters: GenerateParameters(
-                maxTokens: 96,
-                maxKVSize: 2048,
+                maxTokens: maxTokens,
+                maxKVSize: maxKVSize,
                 temperature: 0.0,
                 topP: 1.0
             )
@@ -432,13 +474,67 @@ final class LanguagePassService: ObservableObject {
             instructions: LanguagePassPrompt.systemInstructions(for: style),
             history: [],
             generateParameters: GenerateParameters(
-                maxTokens: 48,
-                maxKVSize: 2048,
+                maxTokens: maxTokens,
+                maxKVSize: maxKVSize,
                 temperature: 0.0,
                 topP: 1.0
             )
         )
         return try await retrySession.respond(to: retryPrompt)
+    }
+
+    nonisolated private static func mechanicalFallbackResult(
+        baseText: String,
+        candidateText: String?,
+        reason: String,
+        style: LanguagePassStyle,
+        wallMs: Int?,
+        modelID: String
+    ) -> LanguagePassRunResult? {
+        guard style == .casual else { return nil }
+
+        let fallbackText = LanguagePassMechanicalNormalizer.normalize(baseText, style: style)
+        guard !fallbackText.isEmpty else { return nil }
+
+        return LanguagePassRunResult(
+            finalText: fallbackText,
+            inputText: baseText,
+            candidateText: candidateText,
+            enabled: true,
+            accepted: true,
+            changed: fallbackText != baseText,
+            wallMs: wallMs,
+            modelID: modelID,
+            fallbackReason: "mechanical_after_\(reason)",
+            styleRawValue: style.rawValue
+        )
+    }
+
+    nonisolated private static func maxGenerationTokens(for text: String) -> Int {
+        let wordCount = max(1, textWordCount(text))
+        return min(1_024, max(128, Int(Double(wordCount) * 1.7) + 32))
+    }
+
+    nonisolated private static func maxKVSize(for text: String) -> Int {
+        let wordCount = textWordCount(text)
+        if wordCount >= 360 {
+            return 4_096
+        }
+        if wordCount >= 160 {
+            return 3_072
+        }
+        return 2_048
+    }
+
+    nonisolated private static func generationTimeoutNanoseconds(for text: String) -> UInt64 {
+        let wordCount = textWordCount(text)
+        let extraChunks = max(0, wordCount - 80) / 80
+        let timeout = 1_200_000_000 + UInt64(extraChunks) * 400_000_000
+        return min(timeout, 4_000_000_000)
+    }
+
+    nonisolated private static func textWordCount(_ text: String) -> Int {
+        text.split { $0.isWhitespace || $0.isNewline }.count
     }
 
     nonisolated private static func fewShotHistory(style: LanguagePassStyle, input: String) -> [Chat.Message] {

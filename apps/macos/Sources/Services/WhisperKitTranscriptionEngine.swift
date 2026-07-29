@@ -71,7 +71,7 @@ final class WhisperKitTranscriptionEngine: TranscriptionEngine {
             temperature: 0.0,
             usePrefillPrompt: true,
             usePrefillCache: true,
-            wordTimestamps: false,
+            wordTimestamps: true,
             suppressBlank: false
         )
 
@@ -80,10 +80,19 @@ final class WhisperKitTranscriptionEngine: TranscriptionEngine {
             decodeOptions: decodingOptions
         )
         let rawText = results.map { $0.text }.joined(separator: " ")
+        let wordTimings = results.flatMap(\.allWords).map {
+            TranscriptWordTiming(
+                text: $0.word,
+                start: TimeInterval($0.start),
+                end: TimeInterval($0.end),
+                probability: $0.probability
+            )
+        }
         let whisperTiming = results.first?.timings
 
         return EngineTranscriptionResult(
             rawText: rawText,
+            wordTimings: wordTimings,
             firstTokenMs: Self.firstTokenMilliseconds(from: whisperTiming),
             pipelineMs: Self.pipelineMilliseconds(from: whisperTiming),
             realTimeFactor: TimingMetricSanitizer.finiteNonNegative(whisperTiming?.realTimeFactor),
