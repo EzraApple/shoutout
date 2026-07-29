@@ -267,20 +267,23 @@ struct LanguagePassSmoke {
             LanguagePassValidator.extractCandidate(from: rawOutput)
         )
         let validation = LanguagePassValidator.validate(candidate: rawCandidate, baseText: smokeCase.input)
-        let mechanicalFallback = LanguagePassMechanicalNormalizer.normalize(
-            smokeCase.input,
+        let mechanicalFallback = LanguagePassFallbackPolicy.fallback(
+            baseText: smokeCase.input,
+            candidateText: rawCandidate,
+            reason: validation.fallbackReason ?? "rejected",
             style: smokeCase.style
         )
-        let usedMechanicalFallback = validation.acceptedText == nil && smokeCase.style == .casual
+        let usedMechanicalFallback = validation.acceptedText == nil && mechanicalFallback != nil
         let finalText = validation.acceptedText
-            ?? (usedMechanicalFallback ? mechanicalFallback : smokeCase.input)
+            ?? mechanicalFallback?.finalText
+            ?? smokeCase.input
         let finalLower = finalText.lowercased()
 
         print("\n[\(smokeCase.name)] \(wallMs)ms style=\(smokeCase.style.rawValue)")
         print("input: \(smokeCase.input)")
         print("raw: \(rawCandidate)")
         print("final: \(finalText)")
-        print("accepted: \(validation.acceptedText != nil || usedMechanicalFallback) fallback: \(usedMechanicalFallback ? "mechanical_after_\(validation.fallbackReason ?? "rejected")" : validation.fallbackReason ?? "none")")
+        print("accepted: \(validation.acceptedText != nil || usedMechanicalFallback) fallback: \(mechanicalFallback?.reason ?? validation.fallbackReason ?? "none")")
 
         if smokeCase.expectation == .requiredRewrite,
             validation.acceptedText == nil,
@@ -316,15 +319,14 @@ struct LanguagePassSmoke {
     }
 
     static func generate(input: String, style: LanguagePassStyle, container: ModelContainer) async throws -> String {
-        let maxTokens = maxGenerationTokens(for: input)
-        let maxKVSize = maxKVSize(for: input)
+        let budget = LanguagePassGenerationBudget.forText(input)
         let session = ChatSession(
             container,
             instructions: LanguagePassPrompt.systemInstructions(for: style),
             history: fewShotHistory(style: style, input: input),
             generateParameters: GenerateParameters(
-                maxTokens: maxTokens,
-                maxKVSize: maxKVSize,
+                maxTokens: budget.maxTokens,
+                maxKVSize: budget.maxKVSize,
                 temperature: 0.0,
                 topP: 1.0
             )
@@ -345,29 +347,13 @@ struct LanguagePassSmoke {
             instructions: LanguagePassPrompt.systemInstructions(for: style),
             history: [],
             generateParameters: GenerateParameters(
-                maxTokens: maxTokens,
-                maxKVSize: maxKVSize,
+                maxTokens: budget.maxTokens,
+                maxKVSize: budget.maxKVSize,
                 temperature: 0.0,
                 topP: 1.0
             )
         )
         return try await retrySession.respond(to: retryPrompt)
-    }
-
-    static func maxGenerationTokens(for text: String) -> Int {
-        let wordCount = max(1, text.split { $0.isWhitespace || $0.isNewline }.count)
-        return min(1_024, max(128, Int(Double(wordCount) * 1.7) + 32))
-    }
-
-    static func maxKVSize(for text: String) -> Int {
-        let wordCount = text.split { $0.isWhitespace || $0.isNewline }.count
-        if wordCount >= 360 {
-            return 4_096
-        }
-        if wordCount >= 160 {
-            return 3_072
-        }
-        return 2_048
     }
 
     static func fewShotHistory(style: LanguagePassStyle, input: String) -> [Chat.Message] {

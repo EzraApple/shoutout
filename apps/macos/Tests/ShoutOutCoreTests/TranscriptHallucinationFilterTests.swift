@@ -156,4 +156,79 @@ final class TranscriptHallucinationFilterTests: XCTestCase {
         XCTAssertNil(cleanup.candidatePhrase)
         XCTAssertFalse(cleanup.removed)
     }
+
+    func testRemovesTerminalThanksAfterSilentGap() {
+        var samples = Array(repeating: Float(0), count: 3_000)
+        for index in 200..<900 {
+            samples[index] = index.isMultiple(of: 2) ? 0.02 : -0.02
+        }
+
+        let cleanup = TranscriptHallucinationFilter.removingTerminalSilenceHallucination(
+            from: "Please ship this. Thanks!",
+            wordTimings: [
+                .init(text: "this.", start: 0.2, end: 0.9, probability: 0.95),
+                .init(text: " Thanks!", start: 1.8, end: 2.1, probability: 0.45),
+            ],
+            audioSamples: samples,
+            sampleRate: 1_000
+        )
+
+        XCTAssertEqual(cleanup.text, "Please ship this.")
+        XCTAssertEqual(cleanup.candidatePhrase, "thanks")
+        XCTAssertTrue(cleanup.removed)
+    }
+
+    func testKeepsLongerThankYouPhraseOutsideNarrowDenylist() {
+        let text = "Please ship this. Thank you for checking."
+        let cleanup = TranscriptHallucinationFilter.removingTerminalSilenceHallucination(
+            from: text,
+            wordTimings: [
+                .init(text: "this.", start: 0.2, end: 0.8, probability: 0.95),
+                .init(text: " Thank", start: 1.8, end: 2.0, probability: 0.40),
+                .init(text: " you", start: 2.0, end: 2.2, probability: 0.40),
+                .init(text: " for", start: 2.2, end: 2.4, probability: 0.40),
+                .init(text: " checking.", start: 2.4, end: 2.8, probability: 0.40),
+            ],
+            audioSamples: Array(repeating: 0, count: 3_000),
+            sampleRate: 1_000
+        )
+
+        XCTAssertEqual(cleanup.text, text)
+        XCTAssertNil(cleanup.candidatePhrase)
+        XCTAssertFalse(cleanup.removed)
+    }
+
+    func testKeepsCandidateWhenWordTimestampsAreUnavailable() {
+        let text = "Please ship this. Thank you."
+        let cleanup = TranscriptHallucinationFilter.removingTerminalSilenceHallucination(
+            from: text,
+            wordTimings: [],
+            audioSamples: Array(repeating: 0, count: 3_000),
+            sampleRate: 1_000
+        )
+
+        XCTAssertEqual(cleanup.text, text)
+        XCTAssertEqual(cleanup.candidatePhrase, "thank_you")
+        XCTAssertFalse(cleanup.removed)
+        XCTAssertNil(cleanup.gapSeconds)
+    }
+
+    func testKeepsCandidateWhenTimestampWordsDoNotMatchText() {
+        let text = "Please ship this. Thank you."
+        let cleanup = TranscriptHallucinationFilter.removingTerminalSilenceHallucination(
+            from: text,
+            wordTimings: [
+                .init(text: "this.", start: 0.2, end: 0.8, probability: 0.95),
+                .init(text: " all", start: 1.8, end: 2.0, probability: 0.40),
+                .init(text: " done.", start: 2.0, end: 2.2, probability: 0.40),
+            ],
+            audioSamples: Array(repeating: 0, count: 3_000),
+            sampleRate: 1_000
+        )
+
+        XCTAssertEqual(cleanup.text, text)
+        XCTAssertEqual(cleanup.candidatePhrase, "thank_you")
+        XCTAssertFalse(cleanup.removed)
+        XCTAssertNil(cleanup.gapSeconds)
+    }
 }

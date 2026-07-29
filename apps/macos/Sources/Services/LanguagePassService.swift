@@ -446,15 +446,14 @@ final class LanguagePassService: ObservableObject {
         baseText: String,
         style: LanguagePassStyle
     ) async throws -> String {
-        let maxTokens = Self.maxGenerationTokens(for: baseText)
-        let maxKVSize = Self.maxKVSize(for: baseText)
+        let budget = LanguagePassGenerationBudget.forText(baseText)
         let session = ChatSession(
             container,
             instructions: LanguagePassPrompt.systemInstructions(for: style),
             history: Self.fewShotHistory(style: style, input: baseText),
             generateParameters: GenerateParameters(
-                maxTokens: maxTokens,
-                maxKVSize: maxKVSize,
+                maxTokens: budget.maxTokens,
+                maxKVSize: budget.maxKVSize,
                 temperature: 0.0,
                 topP: 1.0
             )
@@ -474,8 +473,8 @@ final class LanguagePassService: ObservableObject {
             instructions: LanguagePassPrompt.systemInstructions(for: style),
             history: [],
             generateParameters: GenerateParameters(
-                maxTokens: maxTokens,
-                maxKVSize: maxKVSize,
+                maxTokens: budget.maxTokens,
+                maxKVSize: budget.maxKVSize,
                 temperature: 0.0,
                 topP: 1.0
             )
@@ -491,50 +490,29 @@ final class LanguagePassService: ObservableObject {
         wallMs: Int?,
         modelID: String
     ) -> LanguagePassRunResult? {
-        guard style == .casual else { return nil }
-
-        let fallbackText = LanguagePassMechanicalNormalizer.normalize(baseText, style: style)
-        guard !fallbackText.isEmpty else { return nil }
+        guard let fallback = LanguagePassFallbackPolicy.fallback(
+            baseText: baseText,
+            candidateText: candidateText,
+            reason: reason,
+            style: style
+        ) else { return nil }
 
         return LanguagePassRunResult(
-            finalText: fallbackText,
+            finalText: fallback.finalText,
             inputText: baseText,
-            candidateText: candidateText,
+            candidateText: fallback.candidateText,
             enabled: true,
             accepted: true,
-            changed: fallbackText != baseText,
+            changed: fallback.changed,
             wallMs: wallMs,
             modelID: modelID,
-            fallbackReason: "mechanical_after_\(reason)",
+            fallbackReason: fallback.reason,
             styleRawValue: style.rawValue
         )
     }
 
-    nonisolated private static func maxGenerationTokens(for text: String) -> Int {
-        let wordCount = max(1, textWordCount(text))
-        return min(1_024, max(128, Int(Double(wordCount) * 1.7) + 32))
-    }
-
-    nonisolated private static func maxKVSize(for text: String) -> Int {
-        let wordCount = textWordCount(text)
-        if wordCount >= 360 {
-            return 4_096
-        }
-        if wordCount >= 160 {
-            return 3_072
-        }
-        return 2_048
-    }
-
     nonisolated private static func generationTimeoutNanoseconds(for text: String) -> UInt64 {
-        let wordCount = textWordCount(text)
-        let extraChunks = max(0, wordCount - 80) / 80
-        let timeout = 1_200_000_000 + UInt64(extraChunks) * 400_000_000
-        return min(timeout, 4_000_000_000)
-    }
-
-    nonisolated private static func textWordCount(_ text: String) -> Int {
-        text.split { $0.isWhitespace || $0.isNewline }.count
+        LanguagePassGenerationBudget.forText(text).timeoutNanoseconds
     }
 
     nonisolated private static func fewShotHistory(style: LanguagePassStyle, input: String) -> [Chat.Message] {
