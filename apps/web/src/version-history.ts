@@ -25,3 +25,16 @@ const syncHeader = () => {
 
 syncHeader();
 window.addEventListener("scroll", syncHeader, { passive: true });
+
+document.querySelectorAll<HTMLElement>("[data-track-event]").forEach((element) => {
+  element.addEventListener("click", () => {
+    if (!posthogProjectKey) {
+      return;
+    }
+
+    posthog.capture(element.dataset.trackEvent ?? "interaction", {
+      label: element.dataset.trackLabel ?? element.textContent?.trim() ?? "unknown",
+      href: element instanceof HTMLAnchorElement ? element.href : "",
+    });
+  });
+});

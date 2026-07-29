@@ -267,6 +267,7 @@ assert_contains "Web landing page names ShoutOut" "$REPO_ROOT/apps/web/index.htm
 assert_contains "Web landing page links version history" "$REPO_ROOT/apps/web/index.html" 'href="/version-history"'
 assert_contains "Web version history has latest release" "$REPO_ROOT/apps/web/version-history/index.html" "ShoutOut 0.1.10"
 assert_contains "Web version history includes early releases" "$REPO_ROOT/apps/web/version-history/index.html" "ShoutOut 0.1.1"
+assert_contains "Web version history links Twitter" "$REPO_ROOT/apps/web/version-history/index.html" "https://x.com/ezra_sf"
 assert_contains "Web landing page explains permissions" "$REPO_ROOT/apps/web/index.html" "Input Monitoring"
 assert_contains "Web landing page has Open Graph title" "$REPO_ROOT/apps/web/index.html" 'property="og:title" content="ShoutOut"'
 assert_contains "Web landing page has Open Graph description" "$REPO_ROOT/apps/web/index.html" 'property="og:description"'
