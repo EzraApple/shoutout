@@ -265,7 +265,7 @@ assert_contains "Web Vite package exists" "$REPO_ROOT/apps/web/package.json" '"v
 assert_contains "Web Vercel config exists" "$REPO_ROOT/apps/web/vercel.json" '"framework": "vite"'
 assert_contains "Web landing page names ShoutOut" "$REPO_ROOT/apps/web/index.html" "ShoutOut"
 assert_contains "Web landing page links version history" "$REPO_ROOT/apps/web/index.html" 'href="/version-history"'
-assert_contains "Web version history has latest release" "$REPO_ROOT/apps/web/version-history/index.html" "ShoutOut 0.1.10"
+assert_contains "Web version history has latest release" "$REPO_ROOT/apps/web/version-history/index.html" "ShoutOut 0.1.11"
 assert_contains "Web version history includes early releases" "$REPO_ROOT/apps/web/version-history/index.html" "ShoutOut 0.1.1"
 assert_contains "Web version history links Twitter" "$REPO_ROOT/apps/web/version-history/index.html" "https://x.com/ezra_sf"
 assert_contains "Web landing page explains permissions" "$REPO_ROOT/apps/web/index.html" "Input Monitoring"
