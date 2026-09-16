@@ -3,6 +3,9 @@ import "@fontsource/pixelify-sans/500.css";
 import "@fontsource/pixelify-sans/600.css";
 import posthog from "posthog-js";
 import "./styles.css";
+import { setupMascotDemos } from "./mascot-demo";
+
+setupMascotDemos();
 
 const posthogProjectKey = import.meta.env.VITE_POSTHOG_KEY?.trim();
 const posthogHost = import.meta.env.VITE_POSTHOG_HOST?.trim() || "https://us.i.posthog.com";
@@ -20,15 +23,6 @@ if (posthogProjectKey) {
 const now = () => window.performance?.now?.() ?? Date.now();
 const requestFrame = (callback: FrameRequestCallback) =>
   window.requestAnimationFrame?.(callback) ?? window.setTimeout(() => callback(now()), 16);
-const cancelFrame = (frameId: number) => {
-  if (window.cancelAnimationFrame) {
-    window.cancelAnimationFrame(frameId);
-  } else {
-    window.clearTimeout(frameId);
-  }
-};
-
-const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 const compactViewport = window.matchMedia("(max-width: 680px)");
 
 const header = document.querySelector<HTMLElement>(".site-header");
@@ -73,93 +67,6 @@ brandLink?.addEventListener("click", (event) => {
   scrollToTarget();
   requestFrame(scrollToTarget);
 });
-
-const railTrack = document.querySelector<HTMLElement>(".rail-track");
-const railCrab = document.querySelector<HTMLElement>(".rail-crab");
-
-if (railTrack && railCrab) {
-  const crossingDuration = 27_000;
-  let crabX = 0;
-  let direction = 1;
-  let lastFrame = now();
-  let frameId = 0;
-
-  const trackWidth = () => railTrack.clientWidth;
-  const crabWidth = () => railCrab.offsetWidth;
-  const minCrabX = () => -crabWidth();
-  const maxCrabX = () => trackWidth();
-  const crossingDistance = () => trackWidth() + crabWidth();
-
-  const syncCrab = () => {
-    railCrab.style.setProperty("--rail-crab-x", `${crabX.toFixed(2)}px`);
-  };
-
-  const setDirection = (nextDirection: 1 | -1) => {
-    direction = nextDirection;
-    railTrack.classList.toggle("is-reversing", direction === -1);
-  };
-
-  const syncDirectionFromHover = () => {
-    setDirection(railTrack.matches(":hover") ? -1 : 1);
-  };
-
-  const tick = (timestamp: number) => {
-    syncDirectionFromHover();
-
-    const maxX = maxCrabX();
-    const minX = minCrabX();
-    const elapsed = Math.min(timestamp - lastFrame, 80);
-    const speed = crossingDistance() / crossingDuration;
-
-    lastFrame = timestamp;
-    crabX += direction * speed * elapsed;
-
-    if (maxX > 0 && direction === 1 && crabX > maxX) {
-      crabX = minX;
-    } else if (direction === -1 && crabX < minX) {
-      crabX = maxX;
-    }
-
-    syncCrab();
-    frameId = requestFrame(tick);
-  };
-
-  const startRailCrab = () => {
-    cancelFrame(frameId);
-
-    if (reduceMotion.matches) {
-      crabX = 0;
-      syncCrab();
-      railTrack.classList.remove("is-reversing");
-      return;
-    }
-
-    lastFrame = now();
-    frameId = requestFrame(tick);
-  };
-
-  railTrack.addEventListener("pointerenter", () => setDirection(-1));
-  railTrack.addEventListener("pointerleave", () => setDirection(1));
-  railTrack.addEventListener("mouseenter", () => setDirection(-1));
-  railTrack.addEventListener("mouseleave", () => setDirection(1));
-
-  window.addEventListener(
-    "resize",
-    () => {
-      crabX = Math.min(Math.max(crabX, minCrabX()), maxCrabX());
-      syncCrab();
-    },
-    { passive: true },
-  );
-
-  startRailCrab();
-
-  if (typeof reduceMotion.addEventListener === "function") {
-    reduceMotion.addEventListener("change", startRailCrab);
-  } else if (typeof reduceMotion.addListener === "function") {
-    reduceMotion.addListener(startRailCrab);
-  }
-}
 
 const checklistRows = document.querySelectorAll<HTMLButtonElement>(".setting-row[data-checklist-key]");
 const checklistStorageKey = "shoutout.permissionsChecklist";

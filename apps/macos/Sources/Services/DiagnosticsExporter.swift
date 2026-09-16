@@ -321,7 +321,6 @@ private struct SettingsMetadata: Encodable {
     let crabColorVariant: String
     let updaterConfigured: Bool
     let updaterFeedURL: String
-    let boringMode: Bool
     let showInDock: Bool
     let dimSystemAudio: Bool
     let removeFillerWords: Bool
@@ -339,7 +338,6 @@ private struct SettingsMetadata: Encodable {
                 ?? CrabColorVariant.ocean.rawValue,
             updaterConfigured: AppUpdaterConfiguration.isConfigured,
             updaterFeedURL: AppUpdaterConfiguration.feedURLString,
-            boringMode: defaults.bool(forKey: Defaults.boringMode),
             showInDock: defaults.object(forKey: Defaults.showInDock) as? Bool ?? true,
             dimSystemAudio: defaults.object(forKey: Defaults.dimSystemAudio) as? Bool ?? true,
             removeFillerWords: defaults.object(forKey: "removeFillerWords") as? Bool ?? true,

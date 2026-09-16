@@ -48,6 +48,7 @@
         <nav class="nav-links" aria-label="Primary">
           <a href="#flow">Flow</a>
           <a href="#writing">Writing</a>
+          <a href="#appearance">Appearance</a>
           <a href="#surfaces">Surfaces</a>
           <a href="#permissions">Setup</a>
           <a href="#download">Download</a>
@@ -67,10 +68,10 @@
               <a
                 class="command-button primary"
                 href="/download?source=hero"
-                data-local-download-href="/releases/ShoutOut-0.1.12.dmg"
+                data-local-download-href="/releases/ShoutOut-0.1.13.dmg"
                 data-track-event="download clicked"
                 data-track-label="hero"
-                data-track-release-version="0.1.12"
+                data-track-release-version="0.1.13"
               >
                 <span class="desktop-cta-label">Download for Mac</span>
                 <span class="mobile-cta-label">Available on macOS</span>
@@ -79,7 +80,7 @@
             </div>
           </div>
 
-          <div class="desktop-diagram" aria-label="ShoutOut focused app diagram">
+          <div data-mascot-demo data-demo-viewport data-demo-phase="walking" class="desktop-diagram" aria-label="ShoutOut focused app diagram">
             <div class="diagram-note note-one">Focused app stays focused</div>
             <div class="diagram-note note-two">Boom appears only while recording</div>
 
@@ -93,33 +94,19 @@
               <div class="message-thread">
                 <div class="bubble incoming">can you send the note?</div>
                 <div class="bubble outgoing">
-                  <span class="type-cursor" aria-hidden="true"></span>
-                  drafting with ShoutOut...
+                  <span data-demo-output>Your words appear here.</span>
                 </div>
               </div>
             </div>
 
-            <div class="recording-widget">
-              <div
-                class="mascot-sprite recording-sprite"
-                role="img"
-                aria-label="Blue pixel-art ShoutOut crab mascot holding a boom microphone"
-              ></div>
-              <div class="meter" aria-hidden="true">
-                <span></span>
-                <span></span>
-                <span></span>
-                <span></span>
-              </div>
-              <p>Recording</p>
+            <div class="demo-crab" aria-hidden="true">
+              <img data-crab-frame src="/assets/mascot/wall/idle-1.png" width="154" height="203" alt="">
+              <span class="demo-processing"></span>
             </div>
-          </div>
-        </section>
-
-        <section class="signal-rail" aria-label="ShoutOut crab walking path">
-          <div class="rail-track">
-            <div class="rail-crab" aria-hidden="true">
-              <div class="mascot-sprite idle-sprite rail-crab-sprite"></div>
+            <div class="demo-controls">
+              <button class="command-button secondary demo-play" type="button" data-demo-play>Try a demo</button>
+              <button class="demo-pause" type="button" data-demo-pause aria-pressed="false">Pause motion</button>
+              <span class="demo-status" data-demo-status role="status">Ready · walking along the edge</span>
             </div>
           </div>
         </section>
@@ -147,9 +134,9 @@
               <p>Global capture starts without moving the cursor.</p>
             </article>
             <article class="flow-node">
-              <span class="node-kicker">Mode</span>
-              <h3>Pick speed</h3>
-              <p>Best for quality, Fast for lighter Macs, or System when you want no model download.</p>
+              <span class="node-kicker">Transcription</span>
+              <h3>Keep it local</h3>
+              <p>Fast English transcription runs on your Mac, with no cloud round trip.</p>
             </article>
             <article class="flow-node">
               <span class="node-kicker">Style</span>
@@ -167,10 +154,10 @@
         <section id="writing" class="section writing-section" aria-labelledby="writing-title">
           <div class="section-copy">
             <p class="eyebrow">Writing style</p>
-            <h2 id="writing-title">Simple choices on top. Exact knobs stay tucked away.</h2>
+            <h2 id="writing-title">Your words. Your writing style.</h2>
             <p>
-              The app now speaks in presets: dictation mode for speed and quality, writing
-              style for tone, and Advanced only when you actually want model details.
+              Choose Casual, Normal, or Formal for local text cleanup, or turn cleanup off.
+              The same fast English dictation powers every style.
             </p>
           </div>
 
@@ -178,7 +165,7 @@
             <article class="feature-card style-card casual-card">
               <span class="feature-kicker">Casual</span>
               <h3>For quick thoughts and DMs.</h3>
-              <p>Loose, fast, and close to how you would type in chat.</p>
+              <p>your words in lowercase no extra punctuation just like a quick message</p>
               <div class="style-example-window" aria-label="Casual style example">
                 <span class="example-label">Example output</span>
                 <p>i can send this by friday if that works</p>
@@ -187,7 +174,7 @@
             <article class="feature-card style-card normal-card">
               <span class="feature-kicker">Normal</span>
               <h3>For everyday writing.</h3>
-              <p>Balanced cleanup for messages, notes, and work chats.</p>
+              <p>Your words, with natural punctuation and everyday capitalization.</p>
               <div class="style-example-window" aria-label="Normal style example">
                 <span class="example-label">Example output</span>
                 <p>I can send this by Friday, if that works.</p>
@@ -196,12 +183,55 @@
             <article class="feature-card style-card formal-card">
               <span class="feature-kicker">Formal</span>
               <h3>For emails and finished notes.</h3>
-              <p>Cleaner sentence shape when the text should read a little more polished.</p>
+              <p>Your words, presented with proper capitalization and precise punctuation.</p>
               <div class="style-example-window" aria-label="Formal style example">
                 <span class="example-label">Example output</span>
                 <p>I can send this by Friday if that works.</p>
               </div>
             </article>
+          </div>
+        </section>
+
+        <section id="appearance" class="section appearance-section" aria-labelledby="appearance-title">
+          <div class="section-copy">
+            <p class="eyebrow">Make it yours</p>
+            <h2 id="appearance-title">Crab or Classic. Your call.</h2>
+            <p>
+              Pick a little personality or a quiet indicator at the edge of your screen.
+              Same shortcut, same local dictation. Switch anytime in Settings → Indicator.
+            </p>
+          </div>
+          <div class="appearance-grid" data-mascot-demo data-demo-phase="walking">
+            <article class="feature-card appearance-card">
+              <span class="feature-kicker">Crab</span>
+              <h3>A little company while you work.</h3>
+              <p>A crab that walks along your screen edge and brings out its mic when you speak. Pick your favorite color, too.</p>
+              <div class="appearance-preview" data-demo-viewport aria-label="Live preview of the crab walking along the screen edge">
+                <div class="appearance-draft"><span>Quick draft</span><p data-demo-output>Your words appear here.</p></div>
+                <div class="demo-crab" aria-hidden="true">
+                  <img data-crab-frame src="/assets/mascot/wall/idle-1.png" width="154" height="203" alt="">
+                  <span class="demo-processing"></span>
+                </div>
+              </div>
+            </article>
+            <article class="feature-card appearance-card">
+              <span class="feature-kicker">Classic</span>
+              <h3>Small, subtle, ready when you are.</h3>
+              <p>A compact indicator that responds while you speak, then settles back into a small tab at the screen edge.</p>
+              <div class="appearance-preview" aria-label="Live preview of the Classic recording indicator">
+                <div class="appearance-draft"><span>Quick draft</span><p data-demo-output>Your words appear here.</p></div>
+                <div class="demo-classic" aria-hidden="true">
+                  <div class="classic-bars"><span data-level-bar></span><span data-level-bar></span><span data-level-bar></span><span data-level-bar></span><span data-level-bar></span><span data-level-bar></span><span data-level-bar></span><span data-level-bar></span><span data-level-bar></span></div>
+                  <span class="demo-processing"></span>
+                  <span class="classic-check">✓</span>
+                </div>
+              </div>
+            </article>
+            <div class="demo-controls">
+              <button class="command-button secondary demo-play" type="button" data-demo-play>Try a demo</button>
+              <button class="demo-pause" type="button" data-demo-pause aria-pressed="false">Pause motion</button>
+              <span class="demo-status" data-demo-status role="status">Ready · walking along the edge</span>
+            </div>
           </div>
         </section>
 
@@ -306,7 +336,7 @@
 
           <div class="dmg-panel" aria-label="macOS download">
             <div class="dmg-icon">
-              <div class="mascot-sprite idle-sprite" aria-hidden="true"></div>
+              <img class="download-crab" src="/assets/mascot/wall/idle-1.png" width="154" height="203" alt="" loading="lazy">
             </div>
             <div>
               <strong>ShoutOut.dmg</strong>
@@ -315,10 +345,10 @@
             <a
               class="command-button primary"
               href="/download?source=download-panel"
-              data-local-download-href="/releases/ShoutOut-0.1.12.dmg"
+              data-local-download-href="/releases/ShoutOut-0.1.13.dmg"
               data-track-event="download clicked"
               data-track-label="download-panel"
-              data-track-release-version="0.1.12"
+              data-track-release-version="0.1.13"
             >
               <span class="desktop-cta-label">Download for macOS</span>
               <span class="mobile-cta-label">Available on macOS</span>

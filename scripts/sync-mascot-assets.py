@@ -765,6 +765,20 @@ def write_default_app_icon() -> None:
         shutil.copyfile(output_path, APP_ICON_FILE)
 
 
+def sync_web_wall_frames() -> None:
+    """Publish the exact frames used by the app, including its fixed canvas size."""
+    destination = WEB_MASCOT_DIR / "wall"
+    destination.mkdir(parents=True, exist_ok=True)
+    names = (
+        [f"idle-{index}" for index in range(1, 5)]
+        + [f"recording-intro-{index}" for index in range(1, 7)]
+        + ["recording-hold"]
+    )
+    for name in names:
+        shutil.copyfile(MACOS_RESOURCES / "CrabSpritesWall" / f"{name}.png", destination / f"{name}.png")
+    prune_pngs(destination, {f"{name}.png" for name in names})
+
+
 def main() -> None:
     ensure_dirs()
     idle_frames = [load_rgba(path) for path in frame_paths(IDLE_DIR)]
@@ -772,9 +786,8 @@ def main() -> None:
     recording_frames = compose_recording_frames(idle_frames, boom_mic_overlay)
     write_recording_sources(recording_frames)
 
-    write_sheet(idle_frames, WEB_MASCOT_DIR / "idle-walk.png")
-    write_sheet(recording_frames, WEB_MASCOT_DIR / "recording-boom.png")
     write_macos_sprites(idle_frames, recording_frames, boom_mic_overlay)
+    sync_web_wall_frames()
     write_tinted_sprite_variants()
     sync_icon_sources()
     write_app_icon_variants()

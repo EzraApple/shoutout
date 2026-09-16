@@ -16,7 +16,6 @@ enum Defaults {
     static let appendTrailingSpace = "appendTrailingSpace"
     static let smartSpacing = "smartSpacing"
     static let hotkeyTrigger = "hotkeyTrigger"
-    static let boringMode = "boringMode"
     static let languagePassEnabled = "languagePassEnabled"
     static let languagePassModel = "languagePassModel"
     static let languagePassModelCleanupVersion = "languagePassModelCleanupVersion"
@@ -296,7 +295,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             Defaults.appendTrailingSpace: true,
             Defaults.smartSpacing: true,
             Defaults.hotkeyTrigger: HotkeyTrigger.defaultTrigger.rawValue,
-            Defaults.boringMode: false,
             Defaults.languagePassEnabled: true,
             Defaults.languagePassModel: LanguagePassModelOption.defaultID,
             Defaults.languagePassStyle: LanguagePassStyle.defaultStyle.rawValue,
@@ -1166,11 +1164,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private var currentOverlayStyle: OverlayStyle {
-        if UserDefaults.standard.bool(forKey: Defaults.boringMode) {
-            return .capsule
-        }
-        return OverlayStyle(rawValue: UserDefaults.standard.string(forKey: Defaults.overlayStyle) ?? "")
-            ?? .crab
+        UserDefaults.standard.string(forKey: Defaults.overlayStyle) == OverlayStyle.capsule.rawValue
+            ? .capsule : .crab
     }
 
     private var modelIsReadyForOverlay: Bool {
@@ -1910,16 +1905,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         setupHotkey()
         startUpdaterIfNeeded(reason: "onboardingComplete")
-    }
-
-    func applyDockVisibilityPreference() {
-        let showInDock = UserDefaults.standard.bool(forKey: Defaults.showInDock)
-        let activeWindow = NSApp.keyWindow
-        NSApp.setActivationPolicy(showInDock ? .regular : .accessory)
-        Task { @MainActor in
-            activeWindow?.makeKeyAndOrderFront(nil)
-            NSApp.activate()
-        }
     }
 
     @objc private func quitApp() {

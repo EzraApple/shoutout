@@ -347,7 +347,7 @@ struct OnboardingView: View {
         switch transcription.modelState {
         case .ready:
             VStack(spacing: 12) {
-                Text("\(transcription.selectedPreset.title) mode is ready")
+                Text("English dictation is ready")
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(OnboardingTheme.muted)
 
@@ -425,7 +425,7 @@ struct OnboardingView: View {
                     )
                     OnboardingSummaryRow(
                         icon: "cpu",
-                        title: "Dictation: \(transcription.selectedPreset.title)",
+                        title: "English dictation",
                         granted: transcription.modelState == .ready
                     )
                 }

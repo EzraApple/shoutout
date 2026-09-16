@@ -51,11 +51,11 @@ public enum LanguagePassStyle: String, CaseIterable, Identifiable, Sendable {
     public var detail: String {
         switch self {
         case .standard:
-            return "Balanced punctuation and sentence casing."
+            return "Your words, with natural punctuation and everyday capitalization."
         case .casual:
-            return "Lowercase text with no added punctuation."
+            return "your words in lowercase no extra punctuation just like a quick message"
         case .formal:
-            return "Clear sentence casing and punctuation for polished text."
+            return "Your words, presented with proper capitalization and precise punctuation."
         }
     }
 

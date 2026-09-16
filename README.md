@@ -12,7 +12,7 @@ This README is product and operator context for the repo. Keep public download a
 
 - Global shortcut recording with hold-to-talk and double-tap hands-free modes.
 - Fn/Globe as the default shortcut, with Option Space, Command Shift Space, and Control Space available in Settings.
-- Local English transcription through Parakeet 1.1B by default, with WhisperKit, Apple Speech, and Apple Dictation still available.
+- Local English transcription through Parakeet 1.1B, with Whisper Turbo verifying suspected trailing silence.
 - Writing cleanup for filler words, repeats, false starts, and the selected tone: Normal, Casual, or Formal.
 - Smart paste formatting that uses focused-field context for spacing, capitalization, and punctuation, then falls back safely when context is unavailable.
 - Local history, word counts, WPM, latency metrics, and cleanup trace details.
@@ -25,8 +25,8 @@ The app has no account system and no cloud transcription service in the normal p
 
 - Menu bar waveform: opens the main popover and shows today's dictation stats.
 - Home: compact dashboard, current shortcut state, and recent performance.
-- History: local transcription history with cleanup status, before/after text when cleanup changed content, plain-English reason copy, selected tone, and timing.
-- Settings: shortcut, engine, model, mascot color, app icon color, writing cleanup, paste formatting, audio dimming, and advanced diagnostics.
+- History: local transcription history rendered lazily in batches of 20, with on-demand cleanup details, before/after text, selected tone, and timing.
+- Settings: shortcut, optional text cleanup and writing style, Crab or Classic indicator, crab color, and launch at login. Model readiness, updates, and diagnostics are also available.
 - Mascot overlay: edge-of-screen crab that walks when idle, switches to the boom-mic recording sequence while listening, and avoids changing scale between states.
 
 ## Dictation Pipeline
@@ -34,8 +34,8 @@ The app has no account system and no cloud transcription service in the normal p
 1. The hotkey manager detects the selected shortcut while another app is focused.
 2. The recorder starts audio capture and logs press-to-record latency.
 3. Very short or low-signal recordings are discarded instead of pasted.
-4. The selected transcription engine returns text locally.
-5. Optional mechanical cleanup removes simple filler and obvious repeated starts before the model pass.
+4. Parakeet returns English text locally.
+5. Mechanical cleanup removes simple fillers and obvious repeated starts before the optional model pass.
 6. The local language cleanup pass may apply the selected tone while preserving meaning and meaningful words.
 7. Validation accepts conservative cleanup or keeps the original transcript.
 8. Smart insertion formats spacing, casing, and trailing punctuation against the focused text field.
@@ -76,7 +76,6 @@ For website-only development, use `make web-dev`. The macOS app is a Swift Packa
 ShoutOut needs these macOS permissions:
 
 - Microphone, to record audio.
-- Speech Recognition, when using Apple Speech or Apple Dictation.
 - Accessibility, to paste into the focused app.
 - Input Monitoring, to detect the selected shortcut while another app is focused.
 
@@ -84,9 +83,9 @@ If permissions, audio input, or paste behavior gets stuck, see [TROUBLESHOOTING.
 
 ## Engines And Models
 
-Parakeet 1.1B is the default English engine and the Best preset. It runs locally through MLX and downloads about 5 GB of models on first use, including Whisper Turbo for the existing terminal-silence verification. Both models remain loaded, so startup still includes Whisper initialization. Explicitly saved engine preferences are preserved. WhisperKit remains available for model selection and technical spelling; the Smaller preset uses Whisper Small with lower memory requirements. See the [expanded benchmark](docs/benchmarks/2026-09-15-expanded-models.md) for accuracy, latency, and limitations.
+The app uses Parakeet 1.1B for English transcription and Llama 3.2 1B (4-bit) for optional cleanup. First setup downloads about 5 GB, including Whisper Turbo for terminal-silence verification. Both transcription models remain loaded, so startup still includes Whisper initialization. See the [expanded benchmark](docs/benchmarks/2026-09-15-expanded-models.md) for accuracy, latency, and limitations.
 
-Apple Speech uses Apple's Speech framework with on-device recognition required. Apple Dictation is available on macOS 26+ with Swift 6.2+ tools and handles longer recordings through the newer long-dictation transcriber path.
+Settings no longer expose experimental engines, model presets, Boring mode, or individual formatting switches. Existing installs discard those retired overrides and use the standard setup; shortcut, cleanup enablement, writing style, indicator appearance, crab color, and onboarding state are retained. Smart spacing, filler handling, audio dimming, and the Dock icon stay enabled. Alternative engine adapters remain in the codebase for benchmark comparisons.
 
 Transcription model data is stored in `~/Library/Application Support/com.ezraapple.shoutout/Models/`. Language cleanup model data is stored in `~/Library/Application Support/com.ezraapple.shoutout/LanguageModels/`.
 
