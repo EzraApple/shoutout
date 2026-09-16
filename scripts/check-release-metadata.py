@@ -39,4 +39,12 @@ notes_path = ROOT / f"apps/web/public/releases/ShoutOut-{version}.md"
 if not notes_path.is_file() or not notes_path.read_text().startswith(f"# ShoutOut {version}\n"):
     raise SystemExit(f"Release notes are missing or mislabeled for {version}")
 
+history_source = (ROOT / "apps/web/version-history/index.html").read_text()
+latest_release = re.search(
+    r'<article class="release-entry latest">\s*<div class="release-heading">\s*<h2>ShoutOut ([^<]+)</h2>',
+    history_source,
+)
+if latest_release is None or latest_release.group(1) != version:
+    raise SystemExit(f"Version history latest release does not match {version}")
+
 print(f"ok - release metadata agrees on ShoutOut {version} build {build}")
