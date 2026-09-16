@@ -3,10 +3,13 @@ import ShoutOutCore
 
 enum TranscriptionBackend: String, CaseIterable, Hashable, Identifiable, Sendable {
     case whisperKit = "whisperkit"
+    case parakeet = "parakeet"
     case appleSpeech = "appleSpeech"
     case appleDictation = "appleDictation"
 
     var id: String { rawValue }
+
+    static let defaultBackend: TranscriptionBackend = .parakeet
 
     static var selectableCases: [TranscriptionBackend] {
         var backends: [TranscriptionBackend] = [.appleSpeech]
@@ -15,7 +18,7 @@ enum TranscriptionBackend: String, CaseIterable, Hashable, Identifiable, Sendabl
             backends.append(.appleDictation)
         }
 #endif
-        backends.append(.whisperKit)
+        backends.append(contentsOf: [.parakeet, .whisperKit])
         return backends
     }
 
@@ -23,6 +26,8 @@ enum TranscriptionBackend: String, CaseIterable, Hashable, Identifiable, Sendabl
         switch self {
         case .whisperKit:
             return "WhisperKit"
+        case .parakeet:
+            return "Parakeet English"
         case .appleSpeech:
             return "Apple Speech"
         case .appleDictation:
@@ -34,6 +39,8 @@ enum TranscriptionBackend: String, CaseIterable, Hashable, Identifiable, Sendabl
         switch self {
         case .whisperKit:
             return "Best local model control and often strongest quality; requires a download and more startup time."
+        case .parakeet:
+            return "Fast local English transcription. About 5 GB of models, including Whisper for checking uncertain endings."
         case .appleSpeech:
             return "Fastest startup with no download; good for short dictation, but less consistent on long speech."
         case .appleDictation:
@@ -49,6 +56,8 @@ enum TranscriptionBackend: String, CaseIterable, Hashable, Identifiable, Sendabl
             return "Balanced"
         case .whisperKit:
             return "Slower start"
+        case .parakeet:
+            return "Fast inference"
         }
     }
 
@@ -60,6 +69,8 @@ enum TranscriptionBackend: String, CaseIterable, Hashable, Identifiable, Sendabl
             return "Better"
         case .whisperKit:
             return "Best control"
+        case .parakeet:
+            return "High English accuracy"
         }
     }
 
@@ -71,7 +82,7 @@ enum TranscriptionBackend: String, CaseIterable, Hashable, Identifiable, Sendabl
         switch self {
         case .appleSpeech, .appleDictation:
             return true
-        case .whisperKit:
+        case .whisperKit, .parakeet:
             return false
         }
     }

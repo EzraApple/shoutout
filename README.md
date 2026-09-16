@@ -12,14 +12,14 @@ This README is product and operator context for the repo. Keep public download a
 
 - Global shortcut recording with hold-to-talk and double-tap hands-free modes.
 - Fn/Globe as the default shortcut, with Option Space, Command Shift Space, and Control Space available in Settings.
-- Local transcription through WhisperKit by default, with Apple Speech and Apple Dictation paths still available.
+- Local English transcription through Parakeet 1.1B by default, with WhisperKit, Apple Speech, and Apple Dictation still available.
 - Writing cleanup for filler words, repeats, false starts, and the selected tone: Normal, Casual, or Formal.
 - Smart paste formatting that uses focused-field context for spacing, capitalization, and punctuation, then falls back safely when context is unavailable.
 - Local history, word counts, WPM, latency metrics, and cleanup trace details.
 - A color-selectable crab mascot with idle walking frames, wall-traversal frames, and a boom-mic recording animation that enters, holds still while recording, and exits before walking resumes.
 - Sparkle app updates for signed release builds.
 
-The app has no account system and no cloud transcription service in the normal product path. WhisperKit model files and language cleanup model files live under the user's Application Support directory.
+The app has no account system and no cloud transcription service in the normal product path. Transcription and language cleanup model files live under the user's Application Support directory.
 
 ## App Surfaces
 
@@ -69,7 +69,7 @@ make blob-upload-dmg
 make sparkle-public-key
 ```
 
-For website-only development, use `make web-dev`. The macOS app is a Swift Package under `apps/macos/`; the website lives under `apps/web/`; repo-level install, release, sync, and test helpers live under `scripts/`.
+For website-only development, use `make web-dev`. The macOS app is a Swift Package under `apps/macos/` and requires Swift 6.2 or newer for the native ASR dependency; the macOS deployment target remains 15. The website lives under `apps/web/`; repo-level install, release, sync, and test helpers live under `scripts/`.
 
 ## Permissions
 
@@ -84,11 +84,11 @@ If permissions, audio input, or paste behavior gets stuck, see [TROUBLESHOOTING.
 
 ## Engines And Models
 
-WhisperKit is the default engine. It runs local Core ML models and gives the most model control, with a first-use model download.
+Parakeet 1.1B is the default English engine and the Best preset. It runs locally through MLX and downloads about 5 GB of models on first use, including Whisper Turbo for the existing terminal-silence verification. Both models remain loaded, so startup still includes Whisper initialization. Explicitly saved engine preferences are preserved. WhisperKit remains available for model selection and technical spelling; the Smaller preset uses Whisper Small with lower memory requirements. See the [expanded benchmark](docs/benchmarks/2026-09-15-expanded-models.md) for accuracy, latency, and limitations.
 
 Apple Speech uses Apple's Speech framework with on-device recognition required. Apple Dictation is available on macOS 26+ with Swift 6.2+ tools and handles longer recordings through the newer long-dictation transcriber path.
 
-WhisperKit model data is stored in `~/Library/Application Support/com.ezraapple.shoutout/Models/`. Language cleanup model data is stored in `~/Library/Application Support/com.ezraapple.shoutout/LanguageModels/`.
+Transcription model data is stored in `~/Library/Application Support/com.ezraapple.shoutout/Models/`. Language cleanup model data is stored in `~/Library/Application Support/com.ezraapple.shoutout/LanguageModels/`.
 
 ## Release Prep
 

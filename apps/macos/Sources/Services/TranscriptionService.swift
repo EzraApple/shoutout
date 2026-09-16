@@ -124,7 +124,7 @@ class TranscriptionService: ObservableObject {
 
     init() {
         let backendRaw = UserDefaults.standard.string(forKey: Defaults.transcriptionBackend)
-        let storedBackend = TranscriptionBackend(rawValue: backendRaw ?? "") ?? .whisperKit
+        let storedBackend = TranscriptionBackend(rawValue: backendRaw ?? "") ?? .defaultBackend
         self.selectedBackend = TranscriptionBackend.selectableCases.contains(storedBackend)
             ? storedBackend
             : .appleSpeech
@@ -145,6 +145,8 @@ class TranscriptionService: ObservableObject {
         }
 
         switch selectedBackend {
+        case .parakeet:
+            return ParakeetTranscriptionEngine.identifier
         case .whisperKit:
             return selectedModel
         case .appleSpeech:
@@ -338,6 +340,10 @@ class TranscriptionService: ObservableObject {
 
     private func makeEngine(for backend: TranscriptionBackend) -> TranscriptionEngine {
         switch backend {
+        case .parakeet:
+            return ParakeetTranscriptionEngine(
+                modelsDirectory: Self.modelsDirectory
+            )
         case .whisperKit:
             return WhisperKitTranscriptionEngine(
                 modelIdentifier: selectedModel,

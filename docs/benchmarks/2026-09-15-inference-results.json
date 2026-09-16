@@ -1,0 +1,349 @@
+{
+  "date": "2026-09-15",
+  "commit": "7f77346",
+  "hardware": "Apple M3 Max, 128 GiB unified memory",
+  "macOS": "26.6.2",
+  "swift": "6.3.2",
+  "experiments": {
+    "cache-sweep": {
+      "policies": {
+        "0": {
+          "runs": 141,
+          "wallMs": {
+            "median": 217.07,
+            "p95": 678.13
+          },
+          "medianPairedSpeedupPercent": 0.0,
+          "maxPeakMiB": 1171.1,
+          "maxIdleCacheBytes": 0,
+          "failures": {
+            "normal style preserves meaningful like: expected output mismatch": 3
+          },
+          "fallbacks": {
+            "none": 96,
+            "unchanged": 24,
+            "unresolved_correction": 6,
+            "mechanical_after_unresolved_correction": 3,
+            "mechanical_after_perspective_shift": 3,
+            "dropped_content": 9
+          },
+          "differencesFromBaseline": []
+        },
+        "2": {
+          "runs": 141,
+          "wallMs": {
+            "median": 216.69,
+            "p95": 620.08
+          },
+          "medianPairedSpeedupPercent": -0.11,
+          "maxPeakMiB": 1171.1,
+          "maxIdleCacheBytes": 0,
+          "failures": {
+            "normal style preserves meaningful like: expected output mismatch": 3
+          },
+          "fallbacks": {
+            "none": 96,
+            "unchanged": 24,
+            "unresolved_correction": 6,
+            "mechanical_after_unresolved_correction": 3,
+            "mechanical_after_perspective_shift": 3,
+            "dropped_content": 9
+          },
+          "differencesFromBaseline": []
+        },
+        "8": {
+          "runs": 141,
+          "wallMs": {
+            "median": 214.18,
+            "p95": 683.43
+          },
+          "medianPairedSpeedupPercent": -0.07,
+          "maxPeakMiB": 1171.11,
+          "maxIdleCacheBytes": 0,
+          "failures": {
+            "normal style preserves meaningful like: expected output mismatch": 3
+          },
+          "fallbacks": {
+            "none": 96,
+            "unchanged": 24,
+            "unresolved_correction": 6,
+            "mechanical_after_unresolved_correction": 3,
+            "mechanical_after_perspective_shift": 3,
+            "dropped_content": 9
+          },
+          "differencesFromBaseline": []
+        },
+        "32": {
+          "runs": 141,
+          "wallMs": {
+            "median": 210.24,
+            "p95": 671.31
+          },
+          "medianPairedSpeedupPercent": -0.33,
+          "maxPeakMiB": 1171.11,
+          "maxIdleCacheBytes": 0,
+          "failures": {
+            "normal style preserves meaningful like: expected output mismatch": 3
+          },
+          "fallbacks": {
+            "none": 96,
+            "unchanged": 24,
+            "unresolved_correction": 6,
+            "mechanical_after_unresolved_correction": 3,
+            "mechanical_after_perspective_shift": 3,
+            "dropped_content": 9
+          },
+          "differencesFromBaseline": []
+        }
+      },
+      "computeProfiles": {
+        "default": {
+          "runs": 24,
+          "wallMs": {
+            "median": 593.0,
+            "p95": 2236.86
+          },
+          "medianPairedSpeedupPercent": 0.0,
+          "rawWordErrorRate": 0.0234,
+          "differencesFromBaseline": []
+        }
+      }
+    },
+    "prefix-pilot": {
+      "policies": {
+        "0": {
+          "runs": 94,
+          "wallMs": {
+            "median": 180.13,
+            "p95": 511.98
+          },
+          "medianPairedSpeedupPercent": 0.0,
+          "maxPeakMiB": 1187.1,
+          "maxIdleCacheBytes": 0,
+          "failures": {
+            "normal style preserves meaningful like: expected output mismatch": 2
+          },
+          "fallbacks": {
+            "none": 64,
+            "unchanged": 16,
+            "unresolved_correction": 4,
+            "mechanical_after_unresolved_correction": 2,
+            "mechanical_after_perspective_shift": 2,
+            "dropped_content": 6
+          },
+          "differencesFromBaseline": []
+        },
+        "0-prefix": {
+          "runs": 94,
+          "wallMs": {
+            "median": 186.12,
+            "p95": 519.44
+          },
+          "medianPairedSpeedupPercent": -4.35,
+          "maxPeakMiB": 1155.61,
+          "maxIdleCacheBytes": 0,
+          "failures": {
+            "normal style preserves meaningful like: expected output mismatch": 2
+          },
+          "fallbacks": {
+            "none": 64,
+            "unchanged": 16,
+            "unresolved_correction": 4,
+            "mechanical_after_unresolved_correction": 2,
+            "mechanical_after_perspective_shift": 2,
+            "dropped_content": 6
+          },
+          "differencesFromBaseline": []
+        }
+      },
+      "computeProfiles": {
+        "default": {
+          "runs": 16,
+          "wallMs": {
+            "median": 592.06,
+            "p95": 2249.16
+          },
+          "medianPairedSpeedupPercent": 0.0,
+          "rawWordErrorRate": 0.0234,
+          "differencesFromBaseline": []
+        }
+      }
+    },
+    "encoder-pilot": {
+      "policies": {
+        "0": {
+          "runs": 141,
+          "wallMs": {
+            "median": 192.01,
+            "p95": 538.02
+          },
+          "medianPairedSpeedupPercent": 0.0,
+          "maxPeakMiB": 1171.1,
+          "maxIdleCacheBytes": 0,
+          "failures": {
+            "normal style preserves meaningful like: expected output mismatch": 3
+          },
+          "fallbacks": {
+            "none": 96,
+            "unchanged": 24,
+            "unresolved_correction": 6,
+            "mechanical_after_unresolved_correction": 3,
+            "mechanical_after_perspective_shift": 3,
+            "dropped_content": 9
+          },
+          "differencesFromBaseline": []
+        }
+      },
+      "computeProfiles": {
+        "default": {
+          "runs": 24,
+          "wallMs": {
+            "median": 591.96,
+            "p95": 2233.21
+          },
+          "medianPairedSpeedupPercent": 0.0,
+          "rawWordErrorRate": 0.0234,
+          "differencesFromBaseline": []
+        },
+        "encoder-gpu": {
+          "runs": 24,
+          "wallMs": {
+            "median": 803.34,
+            "p95": 2667.02
+          },
+          "medianPairedSpeedupPercent": -34.83,
+          "rawWordErrorRate": 0.0234,
+          "differencesFromBaseline": []
+        }
+      }
+    },
+    "decoder-pilot": {
+      "policies": {
+        "0": {
+          "runs": 141,
+          "wallMs": {
+            "median": 311.54,
+            "p95": 933.45
+          },
+          "medianPairedSpeedupPercent": 0.0,
+          "maxPeakMiB": 1171.1,
+          "maxIdleCacheBytes": 0,
+          "failures": {
+            "normal style preserves meaningful like: expected output mismatch": 3,
+            "actually false start removes abandoned article: expected accepted rewrite": 1
+          },
+          "fallbacks": {
+            "none": 95,
+            "unchanged": 24,
+            "unresolved_correction": 6,
+            "mechanical_after_unresolved_correction": 3,
+            "mechanical_after_perspective_shift": 3,
+            "dropped_content": 8,
+            "generation_failed": 2
+          },
+          "differencesFromBaseline": []
+        }
+      },
+      "computeProfiles": {
+        "decoder-gpu": {
+          "runs": 24,
+          "wallMs": {
+            "median": 756.8,
+            "p95": 3362.93
+          },
+          "medianPairedSpeedupPercent": -24.11,
+          "rawWordErrorRate": 0.0234,
+          "differencesFromBaseline": []
+        },
+        "default": {
+          "runs": 24,
+          "wallMs": {
+            "median": 592.51,
+            "p95": 2319.49
+          },
+          "medianPairedSpeedupPercent": 0.0,
+          "rawWordErrorRate": 0.0234,
+          "differencesFromBaseline": []
+        }
+      },
+      "lmExclusionReason": "LM tail overlapped a discarded run briefly; use only this experiment's already-completed ASR phase for conclusions."
+    },
+    "large-cache": {
+      "policies": {
+        "0": {
+          "runs": 115,
+          "wallMs": {
+            "median": 263.69,
+            "p95": 773.92
+          },
+          "medianPairedSpeedupPercent": 0.0,
+          "maxPeakMiB": 1171.1,
+          "maxIdleCacheBytes": 0,
+          "failures": {
+            "normal style preserves meaningful like: expected output mismatch": 5
+          },
+          "fallbacks": {
+            "none": 110,
+            "unchanged": 5
+          },
+          "differencesFromBaseline": []
+        },
+        "64": {
+          "runs": 115,
+          "wallMs": {
+            "median": 261.14,
+            "p95": 783.46
+          },
+          "medianPairedSpeedupPercent": 0.4,
+          "maxPeakMiB": 1171.11,
+          "maxIdleCacheBytes": 0,
+          "failures": {
+            "normal style preserves meaningful like: expected output mismatch": 5
+          },
+          "fallbacks": {
+            "none": 110,
+            "unchanged": 5
+          },
+          "differencesFromBaseline": []
+        },
+        "128": {
+          "runs": 115,
+          "wallMs": {
+            "median": 261.05,
+            "p95": 781.42
+          },
+          "medianPairedSpeedupPercent": -0.07,
+          "maxPeakMiB": 1171.11,
+          "maxIdleCacheBytes": 0,
+          "failures": {
+            "normal style preserves meaningful like: expected output mismatch": 5
+          },
+          "fallbacks": {
+            "none": 110,
+            "unchanged": 5
+          },
+          "differencesFromBaseline": []
+        },
+        "256": {
+          "runs": 115,
+          "wallMs": {
+            "median": 270.95,
+            "p95": 761.85
+          },
+          "medianPairedSpeedupPercent": 0.27,
+          "maxPeakMiB": 1171.11,
+          "maxIdleCacheBytes": 0,
+          "failures": {
+            "normal style preserves meaningful like: expected output mismatch": 5
+          },
+          "fallbacks": {
+            "none": 110,
+            "unchanged": 5
+          },
+          "differencesFromBaseline": []
+        }
+      },
+      "computeProfiles": {}
+    }
+  }
+}

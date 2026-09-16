@@ -273,6 +273,43 @@ final class LanguagePassValidatorTests: XCTestCase {
         XCTAssertEqual(validation.fallbackReason, "new_numbers")
     }
 
+    func testRejectsUnsupportedSuffixAfterCompleteTranscript() {
+        let base = "can you send this over when you get a chance"
+        let validation = LanguagePassValidator.validate(
+            candidate: base + " enjoy you",
+            baseText: base
+        )
+
+        XCTAssertNil(validation.acceptedText)
+        XCTAssertEqual(validation.fallbackReason, "new_content")
+        let fallback = LanguagePassFallbackPolicy.fallback(
+            baseText: base,
+            candidateText: base + " enjoy you",
+            reason: validation.fallbackReason!,
+            style: .casual
+        )
+        XCTAssertEqual(fallback?.finalText, base)
+    }
+
+    func testRejectsInventedTimingAfterCompleteTranscript() {
+        let validation = LanguagePassValidator.validate(
+            candidate: "Please send the report tomorrow.",
+            baseText: "please send the report"
+        )
+
+        XCTAssertNil(validation.acceptedText)
+        XCTAssertEqual(validation.fallbackReason, "new_content")
+    }
+
+    func testAllowsPolitenessAndFormattingAfterCompleteTranscript() {
+        let validation = LanguagePassValidator.validate(
+            candidate: "Check the logs before we ship this update, please.",
+            baseText: "check the logs before we ship this update"
+        )
+
+        XCTAssertEqual(validation.acceptedText, "Check the logs before we ship this update, please.")
+    }
+
     func testRejectsPromptFormatLeak() {
         let validation = LanguagePassValidator.validate(
             output: "Input: hello\nOutput: Hello.",

@@ -181,7 +181,7 @@ class PermissionManager: ObservableObject {
 
     private var speechRecognitionIsRequired: Bool {
         let backendRaw = UserDefaults.standard.string(forKey: Defaults.transcriptionBackend)
-        let backend = TranscriptionBackend(rawValue: backendRaw ?? "") ?? .appleSpeech
+        let backend = TranscriptionBackend(rawValue: backendRaw ?? "") ?? .defaultBackend
         return backend.requiresSpeechRecognitionPermission
     }
 

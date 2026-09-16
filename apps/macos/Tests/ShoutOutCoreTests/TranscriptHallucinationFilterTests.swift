@@ -2,6 +2,15 @@ import XCTest
 @testable import ShoutOutCore
 
 final class TranscriptHallucinationFilterTests: XCTestCase {
+    func testRequestsWordEvidenceOnlyForRecognizedTerminalSuffixes() {
+        for text in ["Keep the backup. Thank you.", "Keep the backup, thanks!"] {
+            XCTAssertTrue(TranscriptHallucinationFilter.requiresWordTimingVerification(for: text))
+        }
+        for text in ["Keep the backup.", "Thank you.", "Thanks!", "Keep the backup. Thank you for listening."] {
+            XCTAssertFalse(TranscriptHallucinationFilter.requiresWordTimingVerification(for: text))
+        }
+    }
+
     func testDropsPunctuationOnlyTranscript() {
         XCTAssertTrue(
             TranscriptHallucinationFilter.shouldDrop(

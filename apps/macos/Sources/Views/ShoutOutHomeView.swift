@@ -772,9 +772,9 @@ struct ShoutOutHomeView: View {
     private var dictationPresetDetail: String {
         switch transcription.selectedPreset {
         case .best:
-            return "Highest quality"
+            return "English dictation"
         case .fast:
-            return "Lower latency"
+            return "Lower memory use"
         case .system:
             return "No download"
         }

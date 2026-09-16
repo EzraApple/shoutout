@@ -292,7 +292,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             Defaults.dimSystemAudio: true,
             Defaults.overlayStyle: OverlayStyle.crab.rawValue,
             Defaults.crabColorVariant: CrabColorVariant.ocean.rawValue,
-            Defaults.transcriptionBackend: TranscriptionBackend.whisperKit.rawValue,
+            Defaults.transcriptionBackend: TranscriptionBackend.defaultBackend.rawValue,
             Defaults.appendTrailingSpace: true,
             Defaults.smartSpacing: true,
             Defaults.hotkeyTrigger: HotkeyTrigger.defaultTrigger.rawValue,

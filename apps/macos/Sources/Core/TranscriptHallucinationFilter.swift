@@ -25,6 +25,10 @@ public struct TerminalHallucinationCleanup: Equatable, Sendable {
 }
 
 public enum TranscriptHallucinationFilter {
+    public static func requiresWordTimingVerification(for text: String) -> Bool {
+        terminalPhraseMatch(in: text) != nil
+    }
+
     private static let lowInformationCaptureDuration: TimeInterval = 3.0
     private static let lowEnergyRMS: Float = 0.0025
     private static let lowEnergyPeak: Float = 0.018

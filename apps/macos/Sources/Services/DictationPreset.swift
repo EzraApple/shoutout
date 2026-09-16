@@ -12,7 +12,7 @@ enum DictationPreset: String, CaseIterable, Identifiable, Sendable {
         case .best:
             return "Best"
         case .fast:
-            return "Fast"
+            return "Smaller"
         case .system:
             return "System"
         }
@@ -21,9 +21,9 @@ enum DictationPreset: String, CaseIterable, Identifiable, Sendable {
     var detail: String {
         switch self {
         case .best:
-            return "Highest quality local dictation. Recommended for most Macs."
+            return "Fast English dictation with larger local models."
         case .fast:
-            return "Lower latency for weaker Macs, with a small quality tradeoff."
+            return "Smaller download and lower memory use, with a quality tradeoff."
         case .system:
             return "No model download. Uses Apple's built-in speech engine."
         }
@@ -31,7 +31,9 @@ enum DictationPreset: String, CaseIterable, Identifiable, Sendable {
 
     var backend: TranscriptionBackend {
         switch self {
-        case .best, .fast:
+        case .best:
+            return .parakeet
+        case .fast:
             return .whisperKit
         case .system:
             return .appleSpeech
@@ -51,6 +53,8 @@ enum DictationPreset: String, CaseIterable, Identifiable, Sendable {
 
     static func matching(backend: TranscriptionBackend, modelID: String) -> DictationPreset {
         switch backend {
+        case .parakeet:
+            return .best
         case .whisperKit:
             return modelID == TranscriptionModelOption.fastID ? .fast : .best
         case .appleSpeech, .appleDictation:

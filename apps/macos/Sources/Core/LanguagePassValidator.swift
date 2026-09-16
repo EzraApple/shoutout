@@ -1017,6 +1017,11 @@ public enum LanguagePassValidator {
         let additions = meaningfulTokens(candidate).filter { token in
             !baseTokens.contains(token) && !safeAddedTokens.contains(token)
         }
+        let sourceWords = wordTokens(base)
+        let candidateWords = wordTokens(candidate)
+        if candidateWords.count > sourceWords.count, candidateWords.starts(with: sourceWords) {
+            return additions.isEmpty
+        }
         return Set(additions).count <= 1
     }
 
