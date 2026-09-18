@@ -28,6 +28,14 @@ final class LanguagePassOutputFormatterTests: XCTestCase {
         XCTAssertFalse(accepted.numericFallback)
     }
 
+    func testKeepsOriginalWhenCasualCleanupWouldEraseEverything() {
+        for source in ["Um", "uh", "..."] {
+            let result = LanguagePassOutputFormatter.format(source: source, finalText: source, style: .casual, enabled: true, fallbackReason: "empty_output")
+            XCTAssertEqual(result.text, source)
+            XCTAssertFalse(result.numericFallback)
+        }
+    }
+
     func testCasesProseWithoutChangingWordsOrGuessingEndings() {
         XCTAssertEqual(LanguagePassOutputFormatter.sentenceCase("i can't publish. can you check? i will wait"), "I can't publish. Can you check? I will wait")
         XCTAssertEqual(LanguagePassOutputFormatter.sentenceCase("the draft is"), "The draft is")

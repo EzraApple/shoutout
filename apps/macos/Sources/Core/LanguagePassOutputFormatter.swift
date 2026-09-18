@@ -13,7 +13,10 @@ public enum LanguagePassOutputFormatter {
         case .standard, .formal:
             return (sentenceCase(finalText), false)
         case .casual:
-            if fallbackReason != nil { return (casualFallback(source), false) }
+            if fallbackReason != nil {
+                let fallback = casualFallback(source)
+                return (fallback.isEmpty ? finalText : fallback, false)
+            }
             if !preservesNumbers(source: source, candidate: finalText) {
                 return (casualFallback(source), true)
             }
