@@ -73,3 +73,9 @@ apps/macos/dist/
 ```
 
 Use [docs/release/dmg-readiness-checklist.md](docs/release/dmg-readiness-checklist.md) for public DMG validation.
+
+## Notarization Says the Keychain Profile Is Missing
+
+If `notarytool` reports “No Keychain password item found” after a successful preflight, unlock the Mac and retry `xcrun notarytool history --keychain-profile notarytool-profile` before recreating credentials. A locked data-protection Keychain can cause this misleading error even when the profile still exists.
+
+For confirmation, inspect macOS Console for `secd` errors mentioning `notarytool`, `keychain is locked`, and error `-25308` at the time of the failure.
