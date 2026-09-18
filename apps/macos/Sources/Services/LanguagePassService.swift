@@ -279,6 +279,27 @@ final class LanguagePassService: ObservableObject {
     }
 
     func process(rawText _: String, baseText: String) async -> LanguagePassRunResult {
+        var result = await generateResult(baseText: baseText)
+        let formatted = LanguagePassOutputFormatter.format(
+            source: baseText,
+            finalText: result.finalText,
+            style: LanguagePassStyle(rawValue: result.styleRawValue ?? "") ?? .standard,
+            enabled: result.enabled,
+            fallbackReason: result.fallbackReason
+        )
+        result.finalText = formatted.text
+        result.changed = result.finalText != baseText
+        if formatted.numericFallback {
+            result.accepted = true
+            result.fallbackReason = "mechanical_after_numeric_format"
+        }
+        if result.enabled && result.fallbackReason != "empty_input" {
+            recordSummary(result)
+        }
+        return result
+    }
+
+    private func generateResult(baseText: String) async -> LanguagePassRunResult {
         let startedAt = Date()
         let modelID = selectedModelID
         let style = selectedStyle
@@ -317,7 +338,6 @@ final class LanguagePassService: ObservableObject {
                 wallMs: nil,
                 modelID: modelID
             ) {
-                recordSummary(fallback)
                 return fallback
             }
             let result = LanguagePassRunResult.passthrough(
@@ -328,7 +348,6 @@ final class LanguagePassService: ObservableObject {
                 inputText: baseText,
                 styleRawValue: style.rawValue
             )
-            recordSummary(result)
             return result
         }
 
@@ -359,7 +378,6 @@ final class LanguagePassService: ObservableObject {
                     wallMs: wallMs,
                     modelID: modelID
                 ) {
-                    recordSummary(fallback)
                     RuntimeLog.write(
                         "languagePass mechanicalFallback model=\(modelID) style=\(style.rawValue) rejectedReason=\(validation.fallbackReason ?? "rejected") wallMs=\(wallMs) inputChars=\(baseText.count) outputChars=\(fallback.finalText.count) memoryBefore={\(memoryBefore)} memoryAfter={\(memoryAfter)}"
                     )
@@ -375,7 +393,6 @@ final class LanguagePassService: ObservableObject {
                     candidateText: candidateText,
                     styleRawValue: style.rawValue
                 )
-                recordSummary(result)
                 RuntimeLog.write(
                     "languagePass rejected model=\(modelID) style=\(style.rawValue) wallMs=\(wallMs) memoryBefore={\(memoryBefore)} memoryAfter={\(memoryAfter)}"
                 )
@@ -394,7 +411,6 @@ final class LanguagePassService: ObservableObject {
                 fallbackReason: nil,
                 styleRawValue: style.rawValue
             )
-            recordSummary(result)
             RuntimeLog.write(
                 "languagePass accepted model=\(modelID) style=\(style.rawValue) wallMs=\(wallMs) inputChars=\(baseText.count) outputChars=\(acceptedText.count) memoryBefore={\(memoryBefore)} memoryAfter={\(memoryAfter)}"
             )
@@ -411,7 +427,6 @@ final class LanguagePassService: ObservableObject {
                 wallMs: wallMs,
                 modelID: modelID
             ) {
-                recordSummary(fallback)
                 RuntimeLog.write(
                     "languagePass mechanicalFallback model=\(modelID) style=\(style.rawValue) rejectedReason=\(fallbackReason) wallMs=\(wallMs) inputChars=\(baseText.count) outputChars=\(fallback.finalText.count) memoryBefore={\(memoryBefore)} memoryAfter={\(memoryAfter)}"
                 )
@@ -426,7 +441,6 @@ final class LanguagePassService: ObservableObject {
                 inputText: baseText,
                 styleRawValue: style.rawValue
             )
-            recordSummary(result)
             RuntimeLog.write("languagePass fallback model=\(modelID) wallMs=\(wallMs) error=\(error) memoryBefore={\(memoryBefore)} memoryAfter={\(memoryAfter)}")
             return result
         }

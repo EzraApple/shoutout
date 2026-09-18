@@ -53,6 +53,10 @@ struct ShoutOutHomeView: View {
     @State private var isConfirmingStatsClear = false
     @State private var isConfirmingHistoryClear = false
     @State private var visibleHistoryCount = 20
+    @State private var historyQuery = ""
+    @State private var historySearchResults: [TranscriptionHistoryEntry]?
+    @FocusState private var historySearchFocused: Bool
+    @State private var historySearchFocusRequest = 0
 
     var body: some View {
         HomeWindowShell {
@@ -130,23 +134,31 @@ struct ShoutOutHomeView: View {
 
     @ViewBuilder
     private var content: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                switch model.selectedSection {
-                case .dashboard:
-                    dashboardPage
-                case .history:
-                    historyPage
-                case .permissions:
-                    permissionsPage
-                case .settings:
-                    settingsPage
-                case .insights:
-                    insightsPage
+        ScrollViewReader { scroll in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    switch model.selectedSection {
+                    case .dashboard:
+                        dashboardPage
+                    case .history:
+                        historyPage
+                    case .permissions:
+                        permissionsPage
+                    case .settings:
+                        settingsPage
+                    case .insights:
+                        insightsPage
+                    }
                 }
+                .padding(28)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .padding(28)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .onChange(of: historyQuery) { _, _ in
+                scroll.scrollTo("history-search", anchor: .top)
+            }
+            .onChange(of: historySearchFocusRequest) { _, _ in
+                scroll.scrollTo("history-search", anchor: .top)
+            }
         }
         .id(model.selectedSection)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -275,19 +287,52 @@ struct ShoutOutHomeView: View {
     }
 
     private var historyPage: some View {
-        let entries = transcriptionHistory.recentEntries
+        let allEntries = transcriptionHistory.recentEntries
+        let query = historyQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        let entries = query.isEmpty ? allEntries : (historySearchResults ?? [])
+        let request = HistorySearchRequest(query: query, entries: allEntries)
         return VStack(alignment: .leading, spacing: 16) {
             PageHeader(
                 title: "History",
                 subtitle: "Recent local transcriptions saved on this Mac."
             )
 
-            if entries.isEmpty {
+            HStack(spacing: 10) {
+                Image(systemName: "magnifyingglass")
+                    .foregroundStyle(ShoutOutHomeTheme.muted)
+                TextField("Search transcriptions…", text: $historyQuery)
+                    .textFieldStyle(.plain)
+                    .focused($historySearchFocused)
+                    .accessibilityLabel("Search transcription history")
+                    .onExitCommand { historyQuery = "" }
+                if !historyQuery.isEmpty {
+                    Button {
+                        historyQuery = ""
+                        historySearchFocused = true
+                    } label: {
+                        Image(systemName: "xmark")
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Clear search")
+                }
+            }
+            .padding(14)
+            .background(ShoutOutHomeTheme.panel)
+            .overlay(Rectangle().stroke(ShoutOutHomeTheme.ink, lineWidth: 2))
+            .id("history-search")
+
+            if !query.isEmpty && historySearchResults == nil {
+                ProgressView("Searching history…")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else if entries.isEmpty {
                 HomePanel {
                     VStack(alignment: .leading, spacing: 10) {
-                        Label("No transcriptions yet", systemImage: "text.badge.plus")
+                        Label(query.isEmpty ? "No transcriptions yet" : "No matching transcriptions",
+                              systemImage: query.isEmpty ? "text.badge.plus" : "magnifyingglass")
                             .font(.headline)
-                        Text("Your pasted dictations will show up here after ShoutOut captures text.")
+                        Text(query.isEmpty
+                             ? "Your pasted dictations will show up here after ShoutOut captures text."
+                             : "Try fewer words or a different spelling.")
                             .foregroundStyle(ShoutOutHomeTheme.muted)
                             .fixedSize(horizontal: false, vertical: true)
                     }
@@ -301,7 +346,7 @@ struct ShoutOutHomeView: View {
 
                 HStack {
                     if visibleHistoryCount < entries.count {
-                        Button("Show older transcriptions") {
+                        Button(query.isEmpty ? "Show older transcriptions" : "Show more matches") {
                             visibleHistoryCount += 20
                         }
                         .buttonStyle(HomeSecondaryButtonStyle())
@@ -310,12 +355,44 @@ struct ShoutOutHomeView: View {
                         .font(.system(.caption, design: .monospaced))
                         .foregroundStyle(ShoutOutHomeTheme.muted)
                     Spacer()
-                    Button("Clear History", role: .destructive) {
-                        isConfirmingHistoryClear = true
+                    if query.isEmpty {
+                        Button("Clear History", role: .destructive) {
+                            isConfirmingHistoryClear = true
+                        }
+                        .buttonStyle(HomeSecondaryButtonStyle())
                     }
-                    .buttonStyle(HomeSecondaryButtonStyle())
                 }
             }
+        }
+        .task(id: request) {
+            visibleHistoryCount = 20
+            historySearchResults = nil
+            guard !query.isEmpty else { return }
+            do {
+                try await Task.sleep(for: .milliseconds(150))
+                let search = Task.detached(priority: .userInitiated) {
+                    try TranscriptionHistorySearch.search(request.entries, query: request.query)
+                }
+                let matches = try await withTaskCancellationHandler {
+                    try await search.value
+                } onCancel: {
+                    search.cancel()
+                }
+                try Task.checkCancellation()
+                historySearchResults = matches
+            } catch is CancellationError {
+                // A newer query or navigation replaced this search.
+            } catch {
+                historySearchResults = []
+            }
+        }
+        .background {
+            Button("Find in history") {
+                historySearchFocusRequest += 1
+                historySearchFocused = true
+            }
+                .keyboardShortcut("f", modifiers: .command)
+                .hidden()
         }
     }
 
@@ -1868,4 +1945,9 @@ private extension NSImage {
 
         return NSImage(contentsOf: url)
     }
+}
+
+private struct HistorySearchRequest: Equatable {
+    let query: String
+    let entries: [TranscriptionHistoryEntry]
 }
