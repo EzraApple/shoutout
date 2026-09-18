@@ -21,3 +21,6 @@ apps/macos/DerivedData/
 
 # Private, frozen evaluation data from local dictation history
 /.local-evals/
+
+# Local Python build tools
+.venv/

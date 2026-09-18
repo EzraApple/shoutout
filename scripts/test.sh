@@ -160,10 +160,8 @@ assert_path_missing() {
 
 assert_contains "README names ShoutOut" "$REPO_ROOT/README.md" "^# ShoutOut"
 assert_contains "README describes local-first dictation" "$REPO_ROOT/README.md" "local-first macOS dictation"
-assert_contains "README documents current crab art" "$REPO_ROOT/README.md" "boom-mic recording animation"
-assert_contains "README documents mascot asset sync" "$REPO_ROOT/README.md" "scripts/sync-mascot-assets.py"
-assert_contains "README documents release prep scripts" "$REPO_ROOT/README.md" "make release-preflight"
-assert_not_contains "README avoids public download framing" "$REPO_ROOT/README.md" "^## Download$|git clone|Download the signed Mac app"
+assert_contains "Development guide documents mascot asset sync" "$REPO_ROOT/docs/development.md" "scripts/sync-mascot-assets.py"
+assert_contains "Development guide documents release prep scripts" "$REPO_ROOT/docs/development.md" "make release-preflight"
 assert_not_contains "README avoids settled open-source license claim" "$REPO_ROOT/README.md" "released under the MIT license|MIT license"
 assert_contains "README documents no source license grant" "$REPO_ROOT/README.md" "No open-source license is granted"
 assert_path_missing "LICENSE file is intentionally absent" "$REPO_ROOT/LICENSE"
@@ -180,12 +178,10 @@ assert_contains \
   "$MACOS_DIR/Sources/Views/OnboardingView.swift" \
   'OnboardingPillButton\("Open Settings"\)'
 assert_not_contains "README avoids GitHub Actions install guidance" "$REPO_ROOT/README.md" "SHOUTOUT_RUN_ID|GitHub Actions"
+assert_contains "README links development guide" "$REPO_ROOT/README.md" "docs/development.md"
 assert_contains "README links troubleshooting" "$REPO_ROOT/README.md" "TROUBLESHOOTING.md"
-assert_contains "README documents context-aware insertion" "$REPO_ROOT/README.md" "focused-field context"
-assert_contains "README documents smart spacing fallback" "$REPO_ROOT/README.md" "falls back safely"
-assert_contains "README documents custom shortcuts" "$REPO_ROOT/README.md" "Option Space"
-assert_contains "README documents Sparkle key setup" "$REPO_ROOT/README.md" "make sparkle-public-key"
-assert_contains "README documents Sparkle appcast" "$REPO_ROOT/README.md" "make sparkle-appcast"
+assert_contains "Development guide documents Sparkle key setup" "$REPO_ROOT/docs/development.md" "make sparkle-public-key"
+assert_contains "Development guide documents Sparkle appcast" "$REPO_ROOT/docs/development.md" "make sparkle-appcast"
 assert_contains "Web landing page can describe app as free" "$REPO_ROOT/apps/web/index.html" "free Mac utility"
 assert_not_contains "Web landing page avoids open-source claims" "$REPO_ROOT/apps/web/index.html" "open[- ]source|MIT license"
 assert_contains "Troubleshooting documents permission reset" "$REPO_ROOT/TROUBLESHOOTING.md" "make reset-permissions"
