@@ -3,16 +3,16 @@
     <channel>
         <title>ShoutOut</title>
         <item>
-            <title>0.1.14</title>
-            <pubDate>Fri, 18 Sep 2026 13:24:10 -0700</pubDate>
+            <title>0.1.15</title>
+            <pubDate>Wed, 23 Sep 2026 11:21:22 -0700</pubDate>
             <link>https://shoutout.sh</link>
             <sparkle:fullReleaseNotesLink>https://shoutout.sh/version-history</sparkle:fullReleaseNotesLink>
-            <sparkle:version>15</sparkle:version>
-            <sparkle:shortVersionString>0.1.14</sparkle:shortVersionString>
+            <sparkle:version>16</sparkle:version>
+            <sparkle:shortVersionString>0.1.15</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <sparkle:releaseNotesLink>https://xhahmepifrbmvgrg.public.blob.vercel-storage.com/releases/ShoutOut-0.1.14.md</sparkle:releaseNotesLink>
-            <enclosure url="https://xhahmepifrbmvgrg.public.blob.vercel-storage.com/releases/ShoutOut-0.1.14.dmg" length="33076389" type="application/octet-stream" sparkle:edSignature="86e2WJpcixpQI19yGq22HP9uat9oH5Jgto2BJNUKYTzp9yFmsxLXZYvuwswdXFZykhwOQh5EFcnGVg624mHKDQ=="/>
+            <sparkle:releaseNotesLink>https://xhahmepifrbmvgrg.public.blob.vercel-storage.com/releases/ShoutOut-0.1.15.md</sparkle:releaseNotesLink>
+            <enclosure url="https://xhahmepifrbmvgrg.public.blob.vercel-storage.com/releases/ShoutOut-0.1.15.dmg" length="32084083" type="application/octet-stream" sparkle:edSignature="6vttT0HWAHQAdq/LC23fUSU7BvqJ1b3rC78PGVeXQC1B90TD2vh7XjsteUnj4M4RwizvaRCJUXm7awExAwhfAw=="/>
         </item>
     </channel>
 </rss>
