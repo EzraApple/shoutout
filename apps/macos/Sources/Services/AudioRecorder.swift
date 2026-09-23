@@ -6,12 +6,18 @@ import Foundation
 private final class AudioSampleCollector: @unchecked Sendable {
     private let lock = NSLock()
     private var samples: ContiguousArray<Float> = []
-    private(set) var latestLevel: Float = 0
+    private var level: Float = 0
+
+    var latestLevel: Float {
+        lock.lock()
+        defer { lock.unlock() }
+        return level
+    }
 
     func append(_ newSamples: [Float], level: Float) {
         lock.lock()
         samples.append(contentsOf: newSamples)
-        latestLevel = level
+        self.level = level
         lock.unlock()
     }
 
@@ -19,7 +25,7 @@ private final class AudioSampleCollector: @unchecked Sendable {
         lock.lock()
         let result = Array(samples)
         samples.removeAll(keepingCapacity: true)
-        latestLevel = 0
+        level = 0
         lock.unlock()
         return result
     }
@@ -27,7 +33,7 @@ private final class AudioSampleCollector: @unchecked Sendable {
     func reset() {
         lock.lock()
         samples.removeAll(keepingCapacity: true)
-        latestLevel = 0
+        level = 0
         lock.unlock()
     }
 }
@@ -78,7 +84,13 @@ class AudioRecorder: ObservableObject {
         )
 
         engine.prepare()
-        try engine.start()
+        do {
+            try engine.start()
+        } catch {
+            stopAudioEngine(engine)
+            collector.reset()
+            throw error
+        }
         audioEngine = engine
         isRecording = true
 
@@ -98,8 +110,9 @@ class AudioRecorder: ObservableObject {
         levelPollTimer?.invalidate()
         levelPollTimer = nil
 
-        audioEngine?.inputNode.removeTap(onBus: 0)
-        audioEngine?.stop()
+        if let audioEngine {
+            stopAudioEngine(audioEngine)
+        }
         audioEngine = nil
         isRecording = false
         audioLevel = 0
@@ -156,6 +169,15 @@ class AudioRecorder: ObservableObject {
             collector.append(samples, level: min(level * 5, 1.0))
         }
     }
+}
+
+private func stopAudioEngine(_ engine: AVAudioEngine) {
+    // Keep the tap and its converter alive until hardware I/O has stopped.
+    RuntimeLog.write("record engine stop begin running=\(engine.isRunning)")
+    engine.stop()
+    RuntimeLog.write("record engine stop complete")
+    engine.inputNode.removeTap(onBus: 0)
+    RuntimeLog.write("record tap removed")
 }
 
 enum AudioRecorderError: LocalizedError {
