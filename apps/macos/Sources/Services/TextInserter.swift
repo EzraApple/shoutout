@@ -8,7 +8,6 @@ enum TextInserter {
     private static let clipboardRestoreTimeoutNanoseconds: UInt64 = 900_000_000
     private static let clipboardVerifiedRestoreGraceNanoseconds: UInt64 = 150_000_000
     private static let pasteVerificationPollNanoseconds: UInt64 = 50_000_000
-    private static let refocusSettleNanoseconds: UInt64 = 100_000_000
     private static var pendingClipboardRestore: PendingClipboardRestore?
     private static var clipboardRestoreTask: Task<Void, Never>?
 
@@ -31,11 +30,15 @@ enum TextInserter {
             "paste start length=\(pasteText.count) spacing=\(formatted.strategy) smartSpacing=\(options.useSmartSpacing) appendTrailingSpace=\(options.appendTrailingSpace)"
         )
 
-        if let target {
-            if shouldUseAccessibilityInsertion(for: target),
-                insertWithAccessibility(pasteText, target: target)
-            {
-                RuntimeLog.write("paste accessibility inserted")
+        if let target, shouldUseAccessibilityInsertion(for: target) {
+            switch insertWithAccessibility(pasteText, target: target) {
+            case .failed:
+                break
+            case .submitted:
+                RuntimeLog.write("paste accessibility submitted verification=unverified")
+                return
+            case .verified:
+                RuntimeLog.write("paste accessibility submitted verification=verified")
                 return
             }
         }
@@ -75,6 +78,12 @@ enum TextInserter {
         case unchanged
     }
 
+    private enum AccessibilityInsertionResult {
+        case failed
+        case submitted
+        case verified
+    }
+
     private static func insertWithClipboard(
         _ pasteText: String,
         target: CapturedTarget?
@@ -102,7 +111,7 @@ enum TextInserter {
         }
         let insertedChangeCount = pasteboard.changeCount
 
-        // 3. Refocus the original composer and simulate Cmd+V.
+        // 3. Refocus the original composer and simulate Cmd+V once.
         if let target {
             _ = focusTextTarget(target, activateApplication: false)
         }
@@ -113,29 +122,14 @@ enum TextInserter {
             return
         }
 
-        // 4. Restore clipboard after paste verification or a bounded timeout.
+        // 4. Restore clipboard after verification or timeout. Preserve the paste
+        // text for manual recovery if the captured target still looks unchanged.
         clipboardRestoreTask = Task { @MainActor in
-            var verification = await waitForPasteVerification(
+            let verification = await waitForPasteVerification(
                 from: verificationState,
                 target: target
             )
             guard !Task.isCancelled else { return }
-
-            if verification == .unchanged,
-                let target,
-                pasteboard.changeCount == insertedChangeCount,
-                focusTextTarget(target, activateApplication: true)
-            {
-                RuntimeLog.write("paste retry reason=unchanged targetPID=\(target.processIdentifier)")
-                try? await Task.sleep(nanoseconds: refocusSettleNanoseconds)
-                guard !Task.isCancelled else { return }
-                if simulatePaste(targetPID: target.processIdentifier) {
-                    verification = await waitForPasteVerification(
-                        from: verificationState,
-                        target: target
-                    )
-                }
-            }
 
             if verification == .verified {
                 try? await Task.sleep(nanoseconds: clipboardVerifiedRestoreGraceNanoseconds)
@@ -276,13 +270,13 @@ enum TextInserter {
     private static func insertWithAccessibility(
         _ insertion: String,
         target: CapturedTarget
-    ) -> Bool {
+    ) -> AccessibilityInsertionResult {
         guard let replacement = replacingSelection(
             in: target.snapshot.editableText,
             selectedRange: target.snapshot.editableSelectedUTF16Range,
             with: insertion
         ) else {
-            return false
+            return .failed
         }
 
         var isSettable = DarwinBoolean(false)
@@ -294,7 +288,7 @@ enum TextInserter {
             isSettable.boolValue
         else {
             RuntimeLog.write("paste accessibility value skipped settable=false")
-            return false
+            return .failed
         }
 
         let valueStatus = AXUIElementSetAttributeValue(
@@ -304,7 +298,7 @@ enum TextInserter {
         )
         guard valueStatus == .success else {
             RuntimeLog.write("paste accessibility value failed status=\(valueStatus.rawValue)")
-            return false
+            return .failed
         }
 
         var cfRange = CFRange(
@@ -319,14 +313,11 @@ enum TextInserter {
             )
         }
 
-        guard let verifiedSnapshot = targetSnapshot(for: target.element),
-            verifiedSnapshot.editableText == replacement.text
-        else {
-            RuntimeLog.write("paste accessibility unverified; falling back to clipboard")
-            return false
+        guard let verifiedSnapshot = targetSnapshot(for: target.element) else {
+            return .submitted
         }
 
-        return true
+        return verifiedSnapshot.editableText == replacement.text ? .verified : .submitted
     }
 
     private static func shouldUseAccessibilityInsertion(
