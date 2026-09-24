@@ -16,6 +16,7 @@ class HotkeyManager {
     var onRecordStart: ((ShortcutTimingStateMachine.RecordingMode) -> Void)?
     var onRecordStop: (() -> Void)?
     var onShortcutUnavailable: ((String) -> Void)?
+    var onScreenshotInput: ((ScreenshotInput) -> Void)?
 
     private var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
@@ -64,6 +65,7 @@ class HotkeyManager {
             (1 << CGEventType.flagsChanged.rawValue)
             | (1 << CGEventType.keyDown.rawValue)
             | (1 << CGEventType.keyUp.rawValue)
+            | (1 << CGEventType.leftMouseUp.rawValue)
 
         guard
             let tap = CGEvent.tapCreate(
@@ -225,13 +227,23 @@ private func fnEventCallback(
     }
 
     guard
-        type == .flagsChanged || type == .keyDown || type == .keyUp,
+        type == .flagsChanged || type == .keyDown || type == .keyUp || type == .leftMouseUp,
         let userInfo
     else {
         return Unmanaged.passUnretained(event)
     }
 
     let state = Unmanaged<ShortcutKeyState>.fromOpaque(userInfo).takeUnretainedValue()
+
+    // This tap runs on the main run loop. Hide before forwarding a screenshot
+    // shortcut so the overlay is absent from an immediate capture.
+    if type == .keyDown || type == .leftMouseUp {
+        let screenshotInput = ScreenshotInput(type: type, event: event)
+        MainActor.assumeIsolated {
+            state.manager?.onScreenshotInput?(screenshotInput)
+        }
+    }
+
     let trigger = state.trigger
 
     let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
