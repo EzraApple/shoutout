@@ -236,6 +236,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     let transcriptionService = TranscriptionService()
     let languagePassService = LanguagePassService()
     let hotkeyManager = HotkeyManager()
+    let screenshotMonitor = ScreenshotMonitor()
     let permissions = PermissionManager.shared
     let usageStats = UsageStatsStore.defaultStore()
     let transcriptionHistory = TranscriptionHistoryStore.defaultStore()
@@ -265,6 +266,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Floating Indicator
 
     private var indicatorPanel: NSPanel?
+    private var indicatorSuppressedForScreenshot = false
     private var indicatorOverlayModel: IndicatorOverlayModel?
     private var indicatorHostingView: NSHostingView<IndicatorOverlayHostView>?
     private var currentIndicatorState: IndicatorState = .idle
@@ -383,6 +385,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         modelStateCancellable?.cancel()
         hotkeyManager.stop()
+        screenshotMonitor.stop()
         pendingStopRecordingTask?.cancel()
         longFormWarmupTask?.cancel()
         for task in transcriptionTasks.values {
@@ -419,6 +422,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         hotkeyManager.onRecordArmed = { [weak self] in
             self?.startPendingRecording()
+        }
+        hotkeyManager.onScreenshotInput = { [weak self] input in
+            self?.screenshotMonitor.handleInput(input)
+        }
+        screenshotMonitor.onSuppressionChanged = { [weak self] isSuppressed in
+            guard let self else { return }
+            self.indicatorSuppressedForScreenshot = isSuppressed
+            if isSuppressed {
+                self.indicatorPanel?.orderOut(nil)
+            } else {
+                self.showIndicator(state: self.currentIndicatorState, preservingDismissal: true)
+            }
         }
         hotkeyManager.onRecordCancelled = { [weak self] in
             self?.cancelPendingRecording()
@@ -980,10 +995,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func showIndicator(state: IndicatorState) {
-        indicatorDismissTask?.cancel()
-        indicatorDismissTask = nil
+    private func showIndicator(state: IndicatorState, preservingDismissal: Bool = false) {
+        let isSuppressedRefresh = indicatorSuppressedForScreenshot && state == currentIndicatorState
+        if !preservingDismissal && !isSuppressedRefresh {
+            indicatorDismissTask?.cancel()
+            indicatorDismissTask = nil
+        }
         currentIndicatorState = state
+
+        guard !indicatorSuppressedForScreenshot else { return }
 
         guard modelIsReadyForOverlay else {
             hideIndicatorPanel()

@@ -36,6 +36,27 @@ record signal rms=... peak=... activeRatio=...
 
 If `rms` and `peak` are near zero, the selected microphone is effectively silent. If those values are nonzero but transcription is wrong, the issue is in transcription or cleanup instead.
 
+## Screenshot Hiding
+
+The crab and Classic indicator temporarily hide for the standard macOS screenshot
+shortcuts (Command-Shift-3, 4, and 5), including Control variants. This uses the
+existing Accessibility and Input Monitoring grants; it does not need Screen
+Recording access. Dictation continues while the indicator is hidden.
+
+Full-screen captures restore the indicator after about 1.5 seconds. Selection
+captures wait for completion or Escape. The screenshot toolbar uses a conservative
+12-second grace after its windows disappear to cover the native ten-second timer.
+macOS has no public completion notification for these captures, so restoration is
+best effort, with a five-minute recovery timeout for missed completion signals.
+Remapped shortcuts, third-party capture tools, and ongoing screen recordings are
+not covered.
+
+For local QA, take actual screenshots with all three shortcuts and check the saved
+images. Also check selection cancellation, toolbar Options, a ten-second timed
+capture, clipboard variants, repeated shortcuts, and capturing while a transient
+Done indicator is visible. Test both the crab and Classic styles. Runtime logs
+include `screenshot overlay suppressed` and `screenshot overlay restored`.
+
 ## Runtime Logs
 
 Runtime logs live at:

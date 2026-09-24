@@ -55,6 +55,11 @@ let package = Package(
             name: "ShoutOutCoreTests",
             dependencies: ["ShoutOutCore"],
             path: "Tests/ShoutOutCoreTests"
+        ),
+        .testTarget(
+            name: "ShoutOutTests",
+            dependencies: ["ShoutOut"],
+            path: "Tests/ShoutOutTests"
         )
     ]
 )
