@@ -265,7 +265,7 @@ assert_contains "Web version history links Twitter" "$REPO_ROOT/apps/web/version
 assert_contains "Web landing page explains permissions" "$REPO_ROOT/apps/web/index.html" "Input Monitoring"
 assert_contains "Web landing page has Open Graph title" "$REPO_ROOT/apps/web/index.html" 'property="og:title" content="ShoutOut"'
 assert_contains "Web landing page has Open Graph description" "$REPO_ROOT/apps/web/index.html" 'property="og:description"'
-assert_contains "Web landing page has Open Graph image" "$REPO_ROOT/apps/web/index.html" 'property="og:image" content="https://shoutout.sh/assets/pixel-hero.png"'
+assert_contains "Web landing page has Open Graph image" "$REPO_ROOT/apps/web/index.html" 'property="og:image" content="https://shoutout.sh/assets/og-image-v2.png"'
 assert_contains "Web landing page has large Twitter preview card" "$REPO_ROOT/apps/web/index.html" 'name="twitter:card" content="summary_large_image"'
 assert_contains "Web download function is self-contained for Vercel project root" "$REPO_ROOT/apps/web/api/download.js" "DEFAULT_RELEASE_VERSION"
 assert_contains "Web download fallback uses hosted release asset" "$REPO_ROOT/apps/web/api/download.js" "DEFAULT_RELEASE_LOCATION"
