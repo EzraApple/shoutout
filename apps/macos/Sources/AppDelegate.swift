@@ -240,6 +240,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     let permissions = PermissionManager.shared
     let usageStats = UsageStatsStore.defaultStore()
     let transcriptionHistory = TranscriptionHistoryStore.defaultStore()
+    let dictionaryStore = DictionaryStore.defaultStore()
     let audioDucker = SystemAudioDucker()
 
     var mainWindow: NSWindow?
@@ -281,6 +282,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var permissionChangeObserver: NSObjectProtocol?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+#if DEBUG
+        if ProcessInfo.processInfo.environment["SHOUTOUT_DICTIONARY_PREVIEW"] != nil {
+            setupMainMenu()
+            showMainWindow(section: .dictionary)
+            return
+        }
+#endif
         RuntimeLog.write(
             "app launch bundle=\(AppVersionInfo.bundleIdentifier) version=\(AppVersionInfo.version) build=\(AppVersionInfo.build) git=\(AppVersionInfo.gitCommit ?? "unknown") builtAt=\(AppVersionInfo.builtAt ?? "unknown")"
         )
@@ -833,8 +841,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     rawText: result.rawText,
                     baseText: result.finalText
                 )
-                let finalText = languagePassResult.finalText
+                let dictionaryResult = DictionaryReplacer.apply(
+                    languagePassResult.finalText,
+                    entries: dictionaryStore.entries
+                )
+                let finalText = dictionaryResult.text
                 metrics.applyLanguagePass(languagePassResult)
+                metrics.finalTextLength = finalText.count
+                metrics.wordCount = estimatedWordCount(in: finalText)
 
                 let performance = metrics.performanceSnapshot(
                     transcriptionTiming: transcription.timing
@@ -868,6 +882,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                         ) == nil
                             || UserDefaults.standard.bool(forKey: Defaults.smartSpacing),
                         fitCapitalization: languagePassService.selectedStyle != .casual
+                            && !dictionaryResult.preservesLeadingCapitalization
                     ),
                     target: metrics.insertionTarget
                 )
@@ -1876,6 +1891,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     .environmentObject(permissions)
                     .environmentObject(usageStats)
                     .environmentObject(transcriptionHistory)
+                    .environmentObject(dictionaryStore)
             )
             window.isReleasedWhenClosed = false
             window.delegate = self
