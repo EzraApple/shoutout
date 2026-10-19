@@ -5,33 +5,30 @@ import SwiftUI
 
 enum ShoutOutHomeSection: String, CaseIterable, Identifiable {
     case dashboard
-    case history
-    case dictionary
-    case permissions
-    case settings
     case insights
+    case dictionary
+    case history
+    case settings
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
         case .dashboard: return "Dashboard"
-        case .history: return "History"
-        case .dictionary: return "Dictionary"
-        case .permissions: return "Permissions"
-        case .settings: return "Settings"
         case .insights: return "Insights"
+        case .dictionary: return "Dictionary"
+        case .history: return "History"
+        case .settings: return "Settings"
         }
     }
 
     var systemImage: String {
         switch self {
         case .dashboard: return "rectangle.grid.2x2"
-        case .history: return "clock.arrow.circlepath"
-        case .dictionary: return "character.book.closed"
-        case .permissions: return "checklist.checked"
-        case .settings: return "slider.horizontal.3"
         case .insights: return "chart.bar"
+        case .dictionary: return "character.book.closed"
+        case .history: return "clock.arrow.circlepath"
+        case .settings: return "slider.horizontal.3"
         }
     }
 }
@@ -53,6 +50,7 @@ struct ShoutOutHomeView: View {
     @AppStorage(Defaults.hotkeyTrigger) private var hotkeyTrigger = HotkeyTrigger.defaultTrigger.rawValue
     @AppStorage(Defaults.overlayStyle) private var overlayStyle = OverlayStyle.crab.rawValue
     @State private var isShowingDiagnostics = false
+    @State private var isOpeningPermissionSettings = false
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var isConfirmingStatsClear = false
     @State private var isConfirmingHistoryClear = false
@@ -144,16 +142,14 @@ struct ShoutOutHomeView: View {
                     switch model.selectedSection {
                     case .dashboard:
                         dashboardPage
-                    case .history:
-                        historyPage
-                    case .dictionary:
-                        DictionaryView(store: dictionary)
-                    case .permissions:
-                        permissionsPage
-                    case .settings:
-                        settingsPage
                     case .insights:
                         insightsPage
+                    case .dictionary:
+                        DictionaryView(store: dictionary)
+                    case .history:
+                        historyPage
+                    case .settings:
+                        settingsPage
                     }
                 }
                 .padding(28)
@@ -164,6 +160,12 @@ struct ShoutOutHomeView: View {
             }
             .onChange(of: historySearchFocusRequest) { _, _ in
                 scroll.scrollTo("history-search", anchor: .top)
+            }
+            .task {
+                if model.selectedSection == .settings && isOpeningPermissionSettings {
+                    scroll.scrollTo("settings-permissions", anchor: .top)
+                    isOpeningPermissionSettings = false
+                }
             }
         }
         .id(model.selectedSection)
@@ -210,7 +212,8 @@ struct ShoutOutHomeView: View {
                     buttonTitle: "Review",
                     systemImage: "checkmark.seal"
                 ) {
-                    model.selectedSection = .permissions
+                    isOpeningPermissionSettings = true
+                    model.selectedSection = .settings
                 }
 
                 ActionPanel(
@@ -225,12 +228,12 @@ struct ShoutOutHomeView: View {
         }
     }
 
-    private var permissionsPage: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            PageHeader(
-                title: "Permissions",
-                subtitle: "macOS keeps these switches explicit. ShoutOut stays useful once they are granted."
-            )
+    private var permissionsSettings: some View {
+        HomeSettingSection(title: "Permissions", systemImage: "checklist.checked") {
+            Text("Allow ShoutOut to record your voice, use your shortcut, and paste text.")
+                .font(.subheadline)
+                .foregroundStyle(ShoutOutHomeTheme.muted)
+                .frame(maxWidth: .infinity, alignment: .leading)
 
             VStack(spacing: 10) {
                 PermissionChecklistRow(
@@ -289,6 +292,7 @@ struct ShoutOutHomeView: View {
                 }
                 .buttonStyle(HomeSecondaryButtonStyle())
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
@@ -408,6 +412,8 @@ struct ShoutOutHomeView: View {
             dictationStatus
             writingSettings
             personalSettings
+            permissionsSettings
+                .id("settings-permissions")
             settingsFooter
         }
         .frame(maxWidth: 760, alignment: .leading)
