@@ -2,7 +2,7 @@
 
 ## Scope
 
-Give users one local dictionary with a page in the existing app sidebar. A rule maps one or more misheard phrases to the exact spelling the user wants. Keep the same behavior across engines and writing tones.
+Give users one local dictionary with a page in the existing app sidebar. A rule maps one or more misheard phrases to the preferred spelling. Apply the same rules across engines; the selected writing tone can then adjust capitalization.
 
 The page includes search, add and edit sheets, delete confirmation, and a live sentence test. It uses the app’s existing visual components. There are no per-app modes, scripts, or additional models.
 
@@ -14,7 +14,7 @@ The page includes search, add and edit sheets, delete confirmation, and a live s
 
 ## Integration
 
-The app delegate owns the shared store and injects it into the home window. After the optional local language cleanup returns, apply the dictionary once before recording history and stats or inserting text. If a replacement includes the first word, preserve its capitalization during smart insertion. Keep the language-cleanup audit fields as that stage’s actual input and output. The final history text and word counts include dictionary changes.
+The app delegate owns the shared store and injects it into the home window. Apply the dictionary once to the mechanically processed transcript, before optional local AI cleanup. The corrected text becomes the cleanup input and its validation/fallback baseline, so the model sees preferred spellings and can apply the selected tone. Casual cleanup may turn `Replo` into `replo`. When cleanup is off or fails, its normal passthrough/fallback starts from the corrected text. Do not reapply dictionary rules after cleanup. Keep the language-cleanup audit fields as that stage’s actual input and output. The final history text and word counts use the cleanup result.
 
 The sentence test calls the same replacement function used by dictation. It does not run transcription, filler removal, or the language model.
 
@@ -34,3 +34,9 @@ Debug builds accept `SHOUTOUT_DICTIONARY_PREVIEW=1` to open the dictionary witho
 The actual home window and editor were inspected at normal and compact sizes. Interactive checks covered adding and editing entries, search by replacement phrase, no search results, replacement output, conflicting aliases, canceling edits, delete confirmation and cancellation, and persistence across launches. A damaged fixture file displayed the recovery state and disabled adding entries; restoring the fixture brought the saved entries back. Unit tests cover deletion and retrying a repaired file.
 
 The installed signed app was preserved. Live microphone-to-paste dictation was not exercised with this build.
+
+## Updated on October 19, 2026
+
+Moved dictionary replacements before AI cleanup so the model receives corrected words and can apply the selected writing tone. Removed the special insertion-capitalization guard and the unused replacement metadata. The preview now explains that writing style follows dictionary replacement.
+
+`make test` passed all 193 XCTest cases, 20 Swift Testing cases, and 287 repository checks. New cases cover Casual accepting lowercase dictionary words and cleanup being disabled. The release build and signature verification passed. The updated page copy was inspected in the native preview. No live model or microphone-to-paste check was run.

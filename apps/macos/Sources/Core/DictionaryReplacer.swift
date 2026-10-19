@@ -1,19 +1,8 @@
 import Foundation
 
-public struct DictionaryReplacementResult: Equatable, Sendable {
-    public let text: String
-    public let preservesLeadingCapitalization: Bool
-}
-
 public enum DictionaryReplacer {
     public static func replace(_ text: String, entries: [DictionaryEntry]) -> String {
-        apply(text, entries: entries).text
-    }
-
-    public static func apply(_ text: String, entries: [DictionaryEntry]) -> DictionaryReplacementResult {
-        guard !text.isEmpty, !entries.isEmpty else {
-            return DictionaryReplacementResult(text: text, preservesLeadingCapitalization: false)
-        }
+        guard !text.isEmpty, !entries.isEmpty else { return text }
 
         let source = text as NSString
         let fullRange = NSRange(location: 0, length: source.length)
@@ -54,20 +43,8 @@ public enum DictionaryReplacer {
             else { continue }
             selected.append(match)
         }
-        guard !selected.isEmpty else {
-            return DictionaryReplacementResult(text: text, preservesLeadingCapitalization: false)
-        }
+        guard !selected.isEmpty else { return text }
         selected.sort { $0.range.location < $1.range.location }
-
-        let firstLetterLocation = text.rangeOfCharacter(from: .letters).map {
-            NSRange($0, in: text).location
-        }
-        let preservesLeadingCapitalization = firstLetterLocation.map { location in
-            selected.contains { match in
-                NSLocationInRange(location, match.range)
-                    && match.replacement.rangeOfCharacter(from: .letters) != nil
-            }
-        } ?? false
 
         var output = ""
         var cursor = 0
@@ -77,10 +54,7 @@ public enum DictionaryReplacer {
             cursor = NSMaxRange(match.range)
         }
         output += source.substring(from: cursor)
-        return DictionaryReplacementResult(
-            text: output,
-            preservesLeadingCapitalization: preservesLeadingCapitalization
-        )
+        return output
     }
 
     private struct Match {

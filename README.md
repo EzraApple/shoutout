@@ -38,7 +38,7 @@ See the [development guide](docs/development.md) for prerequisites, local QA, mo
 
 Open **Dictionary** in the app sidebar and choose **Add Entry**. Enter what ShoutOut hears under **Replace** and your preferred spelling under **Write as**. Separate multiple variations with commas or new lines. You can search, edit, delete, and test your saved entries on the same page.
 
-Replacements match whole phrases without regard to capitalization. Longer phrases win when matches overlap. Each replacement runs once, after text cleanup, with every transcription engine. Your dictionary is saved locally in `dictionary.json` alongside the app’s other local data.
+Replacements match whole phrases without regard to capitalization. Longer phrases win when matches overlap. Each replacement runs once, before optional AI cleanup, with every transcription engine. Cleanup can then apply your writing style, including capitalization. Your dictionary is saved locally in `dictionary.json` alongside the app’s other local data.
 
 ## License
 

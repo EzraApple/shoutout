@@ -42,7 +42,7 @@ struct DictionaryView: View {
                 previewPanel
             }
 
-            Label("Saved on this Mac. Applied after cleanup to every dictation.", systemImage: "lock")
+            Label("Saved on this Mac. Applied before AI cleanup to every dictation.", systemImage: "lock")
                 .font(.caption)
                 .foregroundStyle(ShoutOutHomeTheme.muted)
         }
@@ -208,7 +208,7 @@ struct DictionaryView: View {
             VStack(alignment: .leading, spacing: 12) {
                 Text("Try your dictionary")
                     .font(.headline)
-                Text("Type a sentence to test your saved entries.")
+                Text("Test your saved replacements. Writing style is applied afterward.")
                     .font(.subheadline)
                     .foregroundStyle(ShoutOutHomeTheme.muted)
                 TextField("For example: open rep low", text: $previewText, axis: .vertical)

@@ -79,28 +79,27 @@ final class DictionaryReplacerTests: XCTestCase {
         XCTAssertEqual(DictionaryReplacer.replace("No-op", entries: entries), "No-op")
     }
 
-    func testLeadingReplacementPreservesExplicitCapitalization() {
-        let entries = [DictionaryEntry(phrase: "the", aliases: ["teh", "the"])]
-        let result = DictionaryReplacer.apply("  \"teh answer\"", entries: entries)
-        XCTAssertEqual(result.text, "  \"the answer\"")
-        XCTAssertTrue(result.preservesLeadingCapitalization)
+    func testCasualCleanupAcceptsLowercaseDictionaryWords() throws {
+        let entries = [DictionaryEntry(phrase: "Replo", aliases: ["rep low"])]
+        let correctedText = DictionaryReplacer.replace("open rep low", entries: entries)
+        XCTAssertEqual(correctedText, "open Replo")
 
-        let unchangedSpelling = DictionaryReplacer.apply("the answer", entries: entries)
-        XCTAssertEqual(unchangedSpelling.text, "the answer")
-        XCTAssertTrue(unchangedSpelling.preservesLeadingCapitalization)
+        let validation = LanguagePassValidator.validate(candidate: "open replo", baseText: correctedText)
+        let acceptedText = try XCTUnwrap(validation.acceptedText)
+        let formatted = LanguagePassOutputFormatter.format(
+            source: correctedText, finalText: acceptedText, style: .casual,
+            enabled: true, fallbackReason: nil
+        )
+        XCTAssertEqual(formatted.text, "open replo")
     }
 
-    func testLaterReplacementDoesNotChangeLeadingCapitalizationPolicy() {
-        let entries = [DictionaryEntry(phrase: "the", aliases: ["teh"])]
-        let result = DictionaryReplacer.apply("Meet teh team", entries: entries)
-        XCTAssertEqual(result.text, "Meet the team")
-        XCTAssertFalse(result.preservesLeadingCapitalization)
-    }
-
-    func testReplacementWithoutLettersDoesNotPreserveLeadingCapitalization() {
-        let entries = [DictionaryEntry(phrase: "…", aliases: ["um"])]
-        let result = DictionaryReplacer.apply("um hello", entries: entries)
-        XCTAssertEqual(result.text, "… hello")
-        XCTAssertFalse(result.preservesLeadingCapitalization)
+    func testDisabledCleanupKeepsDictionaryReplacement() {
+        let entries = [DictionaryEntry(phrase: "Replo", aliases: ["rep low"])]
+        let correctedText = DictionaryReplacer.replace("open rep low", entries: entries)
+        let formatted = LanguagePassOutputFormatter.format(
+            source: correctedText, finalText: correctedText, style: .casual,
+            enabled: false, fallbackReason: "disabled"
+        )
+        XCTAssertEqual(formatted.text, "open Replo")
     }
 }

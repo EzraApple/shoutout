@@ -837,18 +837,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     return
                 }
 
-                let languagePassResult = await languagePassService.process(
-                    rawText: result.rawText,
-                    baseText: result.finalText
-                )
-                let dictionaryResult = DictionaryReplacer.apply(
-                    languagePassResult.finalText,
+                let correctedText = DictionaryReplacer.replace(
+                    result.finalText,
                     entries: dictionaryStore.entries
                 )
-                let finalText = dictionaryResult.text
+                let languagePassResult = await languagePassService.process(
+                    rawText: result.rawText,
+                    baseText: correctedText
+                )
+                let finalText = languagePassResult.finalText
                 metrics.applyLanguagePass(languagePassResult)
-                metrics.finalTextLength = finalText.count
-                metrics.wordCount = estimatedWordCount(in: finalText)
 
                 let performance = metrics.performanceSnapshot(
                     transcriptionTiming: transcription.timing
@@ -882,7 +880,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                         ) == nil
                             || UserDefaults.standard.bool(forKey: Defaults.smartSpacing),
                         fitCapitalization: languagePassService.selectedStyle != .casual
-                            && !dictionaryResult.preservesLeadingCapitalization
                     ),
                     target: metrics.insertionTarget
                 )
