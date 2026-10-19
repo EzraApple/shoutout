@@ -15,6 +15,7 @@ ShoutOut is a local-first macOS dictation app. Hold **Fn/Globe**, speak, and rel
 - **On your Mac.** Transcription and text cleanup run locally. No account required.
 - **Your words, tidied up.** Optional cleanup with Normal, Casual, and Formal tones.
 - **Easy to find again.** Searchable local transcription history with one-click copy.
+- **Your spelling.** A customizable dictionary for names, acronyms, and common mishearings.
 - **A little personality.** A wall-walking crab in your choice of color, or a simple Classic recording indicator.
 
 Requires **Apple Silicon and macOS 15 or later**. First setup downloads about **5 GB** of models. Onboarding walks you through Microphone, Accessibility, and Input Monitoring permissions.
@@ -32,6 +33,12 @@ make web-dev   # Start the website dev server
 ```
 
 See the [development guide](docs/development.md) for prerequisites, local QA, models, and release workflows.
+
+## Dictionary
+
+Open **Dictionary** in the app sidebar and choose **Add Entry**. Enter what ShoutOut hears under **Replace** and your preferred spelling under **Write as**. Separate multiple variations with commas or new lines. You can search, edit, delete, and test your saved entries on the same page.
+
+Replacements match whole phrases without regard to capitalization. Longer phrases win when matches overlap. Each replacement runs once, before optional AI cleanup, with every transcription engine. Cleanup can then apply your writing style, including capitalization. Your dictionary is saved locally in `dictionary.json` alongside the app’s other local data.
 
 ## License
 

@@ -5,30 +5,30 @@ import SwiftUI
 
 enum ShoutOutHomeSection: String, CaseIterable, Identifiable {
     case dashboard
-    case history
-    case permissions
-    case settings
     case insights
+    case dictionary
+    case history
+    case settings
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
         case .dashboard: return "Dashboard"
-        case .history: return "History"
-        case .permissions: return "Permissions"
-        case .settings: return "Settings"
         case .insights: return "Insights"
+        case .dictionary: return "Dictionary"
+        case .history: return "History"
+        case .settings: return "Settings"
         }
     }
 
     var systemImage: String {
         switch self {
         case .dashboard: return "rectangle.grid.2x2"
-        case .history: return "clock.arrow.circlepath"
-        case .permissions: return "checklist.checked"
-        case .settings: return "slider.horizontal.3"
         case .insights: return "chart.bar"
+        case .dictionary: return "character.book.closed"
+        case .history: return "clock.arrow.circlepath"
+        case .settings: return "slider.horizontal.3"
         }
     }
 }
@@ -44,11 +44,13 @@ struct ShoutOutHomeView: View {
     @EnvironmentObject var permissions: PermissionManager
     @EnvironmentObject var usageStats: UsageStatsStore
     @EnvironmentObject var transcriptionHistory: TranscriptionHistoryStore
+    @EnvironmentObject var dictionary: DictionaryStore
     @ObservedObject var model: ShoutOutHomeWindowModel
     @AppStorage(Defaults.crabColorVariant) private var crabColorVariant = CrabColorVariant.ocean.rawValue
     @AppStorage(Defaults.hotkeyTrigger) private var hotkeyTrigger = HotkeyTrigger.defaultTrigger.rawValue
     @AppStorage(Defaults.overlayStyle) private var overlayStyle = OverlayStyle.crab.rawValue
     @State private var isShowingDiagnostics = false
+    @State private var isOpeningPermissionSettings = false
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var isConfirmingStatsClear = false
     @State private var isConfirmingHistoryClear = false
@@ -140,14 +142,14 @@ struct ShoutOutHomeView: View {
                     switch model.selectedSection {
                     case .dashboard:
                         dashboardPage
-                    case .history:
-                        historyPage
-                    case .permissions:
-                        permissionsPage
-                    case .settings:
-                        settingsPage
                     case .insights:
                         insightsPage
+                    case .dictionary:
+                        DictionaryView(store: dictionary)
+                    case .history:
+                        historyPage
+                    case .settings:
+                        settingsPage
                     }
                 }
                 .padding(28)
@@ -158,6 +160,12 @@ struct ShoutOutHomeView: View {
             }
             .onChange(of: historySearchFocusRequest) { _, _ in
                 scroll.scrollTo("history-search", anchor: .top)
+            }
+            .task {
+                if model.selectedSection == .settings && isOpeningPermissionSettings {
+                    scroll.scrollTo("settings-permissions", anchor: .top)
+                    isOpeningPermissionSettings = false
+                }
             }
         }
         .id(model.selectedSection)
@@ -204,7 +212,8 @@ struct ShoutOutHomeView: View {
                     buttonTitle: "Review",
                     systemImage: "checkmark.seal"
                 ) {
-                    model.selectedSection = .permissions
+                    isOpeningPermissionSettings = true
+                    model.selectedSection = .settings
                 }
 
                 ActionPanel(
@@ -219,12 +228,12 @@ struct ShoutOutHomeView: View {
         }
     }
 
-    private var permissionsPage: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            PageHeader(
-                title: "Permissions",
-                subtitle: "macOS keeps these switches explicit. ShoutOut stays useful once they are granted."
-            )
+    private var permissionsSettings: some View {
+        HomeSettingSection(title: "Permissions", systemImage: "checklist.checked") {
+            Text("Allow ShoutOut to record your voice, use your shortcut, and paste text.")
+                .font(.subheadline)
+                .foregroundStyle(ShoutOutHomeTheme.muted)
+                .frame(maxWidth: .infinity, alignment: .leading)
 
             VStack(spacing: 10) {
                 PermissionChecklistRow(
@@ -283,6 +292,7 @@ struct ShoutOutHomeView: View {
                 }
                 .buttonStyle(HomeSecondaryButtonStyle())
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
@@ -402,6 +412,8 @@ struct ShoutOutHomeView: View {
             dictationStatus
             writingSettings
             personalSettings
+            permissionsSettings
+                .id("settings-permissions")
             settingsFooter
         }
         .frame(maxWidth: 760, alignment: .leading)
@@ -409,7 +421,7 @@ struct ShoutOutHomeView: View {
     }
 
     private var dictationStatus: some View {
-        HomePanel(background: Color(red: 0.83, green: 0.94, blue: 0.92)) {
+        HomePanel(background: ShoutOutHomeTheme.panelMintLight) {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(spacing: 12) {
                     Image(systemName: "waveform")
@@ -729,7 +741,7 @@ struct ShoutOutHomeView: View {
     }
 }
 
-private enum ShoutOutHomeTheme {
+enum ShoutOutHomeTheme {
     static let ink = Color(red: 0.03, green: 0.09, blue: 0.18)
     static let muted = Color(red: 0.25, green: 0.33, blue: 0.46)
     static let background = Color(red: 0.88, green: 0.93, blue: 0.97)
@@ -737,6 +749,7 @@ private enum ShoutOutHomeTheme {
     static let panel = Color(red: 0.97, green: 0.99, blue: 1.00)
     static let panelBlue = Color(red: 0.66, green: 0.84, blue: 1.00)
     static let panelMint = Color(red: 0.56, green: 0.85, blue: 0.86)
+    static let panelMintLight = Color(red: 0.83, green: 0.94, blue: 0.92)
     static let panelLilac = Color(red: 0.75, green: 0.82, blue: 1.00)
     static let coral = Color(red: 1.00, green: 0.44, blue: 0.41)
     static let teal = Color(red: 0.08, green: 0.59, blue: 0.68)
@@ -894,7 +907,7 @@ private struct HeroChip: View {
     }
 }
 
-private struct PageHeader: View {
+struct PageHeader: View {
     let title: String
     let subtitle: String
 
@@ -910,7 +923,7 @@ private struct PageHeader: View {
     }
 }
 
-private struct HomePanel<Content: View>: View {
+struct HomePanel<Content: View>: View {
     var background = ShoutOutHomeTheme.panel
     @ViewBuilder var content: Content
 
@@ -1869,7 +1882,7 @@ private struct HomeSelectionButtonStyle: ButtonStyle {
     }
 }
 
-private struct HomePrimaryButtonStyle: ButtonStyle {
+struct HomePrimaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(.caption, design: .monospaced).weight(.heavy))
@@ -1885,7 +1898,7 @@ private struct HomePrimaryButtonStyle: ButtonStyle {
     }
 }
 
-private struct HomeSecondaryButtonStyle: ButtonStyle {
+struct HomeSecondaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(.caption, design: .monospaced).weight(.heavy))

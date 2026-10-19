@@ -337,7 +337,6 @@ assert_contains "Language cleanup reason copy is compact" "$MACOS_DIR/Sources/Co
 assert_contains "Home brand mark uses colored crab" "$MACOS_DIR/Sources/Views/ShoutOutHomeView.swift" "crabColorVariant"
 assert_contains "Home brand mark uses tinted crab variants" "$MACOS_DIR/Sources/Views/ShoutOutHomeView.swift" "CrabSpriteVariants"
 assert_contains "Home crab color menu previews colors" "$MACOS_DIR/Sources/Views/ShoutOutHomeView.swift" "ColorPreviewTile"
-assert_not_contains "Home window does not expose dictionary panel" "$MACOS_DIR/Sources/Views/ShoutOutHomeView.swift" "HomeDictionaryPanel"
 assert_contains "Model picker uses plain-English choices" "$MACOS_DIR/Sources/Services/TranscriptionModelOption.swift" "Large v3 Turbo"
 assert_contains "Model picker exposes benchmark turbo candidate" "$MACOS_DIR/Sources/Services/TranscriptionModelOption.swift" "large-v3-v20240930_turbo_632MB"
 assert_contains "App delegate keeps app alive after closing windows" "$MACOS_DIR/Sources/AppDelegate.swift" "applicationShouldTerminateAfterLastWindowClosed"
