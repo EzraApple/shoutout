@@ -469,7 +469,7 @@ struct PillIndicatorView: View {
         case .processing:
             processingContent
         case .done:
-            statusIcon(symbol: "checkmark", tint: .green.opacity(0.92))
+            statusIcon(symbol: "checkmark", tint: .white.opacity(0.92))
         case .attention:
             statusIcon(symbol: "exclamationmark", tint: Color(red: 0.92, green: 0.42, blue: 0.08))
         }

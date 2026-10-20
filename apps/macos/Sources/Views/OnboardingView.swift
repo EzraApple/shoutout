@@ -534,12 +534,12 @@ private struct DoneCheckmark: View {
     var body: some View {
         Image(systemName: "checkmark")
             .font(.system(size: 26, weight: .semibold))
-            .foregroundStyle(OnboardingTheme.ink)
+            .foregroundStyle(.white)
             .frame(width: 64, height: 64)
             .onboardingPixelBox(
-                background: OnboardingTheme.panelMint,
+                background: OnboardingTheme.ink,
                 border: OnboardingTheme.ink,
-                shadow: OnboardingTheme.teal,
+                shadow: OnboardingTheme.muted,
                 shadowOffset: CGSize(width: 5, height: 5)
             )
             .scaleEffect(appeared ? 1.0 : 0.3)
@@ -558,16 +558,16 @@ private struct OnboardingPermissionBadge: View {
     var body: some View {
         HStack(spacing: 6) {
             Circle()
-                .fill(granted ? OnboardingTheme.teal : OnboardingTheme.warning)
+                .fill(granted ? .white : OnboardingTheme.warning)
                 .frame(width: 8, height: 8)
             Text(granted ? "Granted" : "Not Granted")
                 .font(.system(size: 12, weight: .heavy, design: .rounded))
-                .foregroundStyle(OnboardingTheme.ink)
+                .foregroundStyle(granted ? .white : OnboardingTheme.ink)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 7)
         .onboardingPixelBox(
-            background: granted ? OnboardingTheme.panelMint : OnboardingTheme.panel,
+            background: granted ? OnboardingTheme.ink : OnboardingTheme.panel,
             border: OnboardingTheme.ink
         )
         .animation(.easeOut(duration: 0.25), value: granted)
@@ -609,9 +609,11 @@ private struct OnboardingSummaryRow: View {
 
             Spacer()
 
-            Image(systemName: granted ? "checkmark.circle.fill" : "xmark.circle")
+            Image(systemName: granted ? "checkmark" : "xmark.circle")
                 .font(.system(size: 14))
-                .foregroundStyle(granted ? OnboardingTheme.teal : OnboardingTheme.warning)
+                .foregroundStyle(granted ? .white : OnboardingTheme.warning)
+                .frame(width: 20, height: 20)
+                .background(granted ? OnboardingTheme.ink : .clear, in: Circle())
         }
         .padding(.vertical, 6)
     }

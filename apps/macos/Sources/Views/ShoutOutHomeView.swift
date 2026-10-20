@@ -718,9 +718,9 @@ struct ShoutOutHomeView: View {
 
     private var modelStatusColor: Color {
         switch transcription.modelState {
-        case .ready: return Color(red: 0.08, green: 0.40, blue: 0.30)
+        case .ready: return ShoutOutHomeTheme.ink
         case .loading, .downloading: return .orange
-        case .error: return .red
+        case .error: return .orange
         case .unloaded: return ShoutOutHomeTheme.muted
         }
     }
@@ -1131,8 +1131,9 @@ private struct HomeCrabColorOption: View {
 
                 Image(systemName: isSelected ? "checkmark" : "arrow.right")
                     .font(.system(size: 10, weight: .heavy))
-                    .foregroundStyle(isSelected ? ShoutOutHomeTheme.coral : ShoutOutHomeTheme.muted.opacity(isHovered ? 0.75 : 0))
-                    .frame(width: 14)
+                    .foregroundStyle(isSelected ? .white : ShoutOutHomeTheme.muted.opacity(isHovered ? 0.75 : 0))
+                    .frame(width: 16, height: 16)
+                    .background(isSelected ? ShoutOutHomeTheme.ink : .clear, in: Circle())
             }
             .contentShape(Rectangle())
             .padding(.horizontal, 8)
@@ -1330,8 +1331,9 @@ private struct HomeMenuOption: View {
 
                 Image(systemName: isSelected ? "checkmark" : "arrow.right")
                     .font(.system(size: 11, weight: .heavy))
-                    .foregroundStyle(isSelected ? ShoutOutHomeTheme.coral : ShoutOutHomeTheme.muted.opacity(isHovered ? 0.75 : 0))
-                    .frame(width: 16)
+                    .foregroundStyle(isSelected ? .white : ShoutOutHomeTheme.muted.opacity(isHovered ? 0.75 : 0))
+                    .frame(width: 18, height: 18)
+                    .background(isSelected ? ShoutOutHomeTheme.ink : .clear, in: Circle())
             }
             .contentShape(Rectangle())
             .padding(.horizontal, 10)
@@ -1487,7 +1489,7 @@ private struct PermissionChecklistRow: View {
     let action: () -> Void
 
     var body: some View {
-        HomePanel(background: isGranted ? ShoutOutHomeTheme.panelMint : ShoutOutHomeTheme.panel) {
+        HomePanel {
             HStack(spacing: 14) {
                 Image(systemName: systemImage)
                     .font(.title3.weight(.bold))
@@ -1504,8 +1506,15 @@ private struct PermissionChecklistRow: View {
                 Spacer()
 
                 if isGranted {
-                    Label("Granted", systemImage: "checkmark.circle.fill")
-                        .font(.system(.caption, design: .monospaced).weight(.bold))
+                    Label {
+                        Text("Granted")
+                    } icon: {
+                        Image(systemName: "checkmark")
+                            .foregroundStyle(.white)
+                            .frame(width: 18, height: 18)
+                            .background(ShoutOutHomeTheme.ink, in: Circle())
+                    }
+                    .font(.system(.caption, design: .monospaced).weight(.bold))
                 } else {
                     Button(actionTitle, action: action)
                         .buttonStyle(HomePrimaryButtonStyle())
@@ -1544,13 +1553,13 @@ private struct TranscriptionHistoryRow: View {
                     } label: {
                         Image(systemName: didCopy ? "checkmark" : "doc.on.doc")
                             .font(.system(size: 13, weight: .heavy))
-                            .foregroundStyle(didCopy ? ShoutOutHomeTheme.ink : ShoutOutHomeTheme.muted)
+                            .foregroundStyle(didCopy ? .white : ShoutOutHomeTheme.muted)
                             .frame(width: 34, height: 30)
                             .pixelBox(
                                 background: didCopy
-                                    ? ShoutOutHomeTheme.panelMint
+                                    ? ShoutOutHomeTheme.ink
                                     : ShoutOutHomeTheme.panelBlue,
-                                shadow: didCopy ? ShoutOutHomeTheme.teal : .clear,
+                                shadow: .clear,
                                 shadowOffset: CGSize(width: didCopy ? 2 : 0, height: didCopy ? 2 : 0)
                             )
                     }
