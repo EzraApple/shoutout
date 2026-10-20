@@ -1,4 +1,5 @@
 import Foundation
+import ShoutOutCore
 
 enum HexSpeechWorkerError: LocalizedError {
     case unavailable(String)
@@ -15,10 +16,22 @@ enum HexSpeechWorkerError: LocalizedError {
 
 /// Owns one native model process. All pipe operations happen outside the main actor.
 actor HexSpeechWorkerClient {
+    struct TranscriptionResult: Sendable {
+        let text: String
+        let usedFallback: Bool
+        let wordTimings: [TranscriptWordTiming]
+    }
+
     private struct Command: Encodable {
         let op: String
         let id: String
         let audio: String?
+    }
+
+    private struct ResponseWord: Decodable {
+        let text: String
+        let startMs: Int64
+        let endMs: Int64
     }
 
     private struct Response: Decodable {
@@ -29,6 +42,23 @@ actor HexSpeechWorkerClient {
         let message: String?
         let modelSha256: String?
         let streamAvailable: Bool?
+        let words: [ResponseWord]?
+
+        private enum CodingKeys: String, CodingKey {
+            case event, id, text, source, message, modelSha256, streamAvailable, words
+        }
+
+        init(from decoder: Decoder) throws {
+            let values = try decoder.container(keyedBy: CodingKeys.self)
+            event = try values.decode(String.self, forKey: .event)
+            id = try values.decodeIfPresent(String.self, forKey: .id)
+            text = try values.decodeIfPresent(String.self, forKey: .text)
+            source = try values.decodeIfPresent(String.self, forKey: .source)
+            message = try values.decodeIfPresent(String.self, forKey: .message)
+            modelSha256 = try values.decodeIfPresent(String.self, forKey: .modelSha256)
+            streamAvailable = try values.decodeIfPresent(Bool.self, forKey: .streamAvailable)
+            words = try? values.decode([ResponseWord].self, forKey: .words)
+        }
     }
 
     private struct QueuedCommand {
@@ -118,7 +148,7 @@ actor HexSpeechWorkerClient {
         _ = try await send(op: "feed", id: id, audio: encode(samples), expectedEvent: "fed", timeout: .seconds(3))
     }
 
-    func finish(id: UUID) async throws -> (text: String, usedFallback: Bool) {
+    func finish(id: UUID) async throws -> TranscriptionResult {
         let response = try await send(op: "finish", id: id, audio: nil, expectedEvent: "result", timeout: finishTimeout)
         guard let text = response.text, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw HexSpeechWorkerError.protocolViolation("Hex stream returned empty text.")
@@ -126,18 +156,53 @@ actor HexSpeechWorkerClient {
         guard response.source == "stream" || response.source == "fallback" else {
             throw HexSpeechWorkerError.protocolViolation("Hex stream returned an invalid result source.")
         }
-        return (text, response.source == "fallback")
+        return TranscriptionResult(
+            text: text,
+            usedFallback: response.source == "fallback",
+            wordTimings: Self.wordTimings(from: response.words)
+        )
     }
 
     func cancel(id: UUID) async {
         _ = try? await send(op: "cancel", id: id, audio: nil, expectedEvent: "cancelled", timeout: .seconds(2))
     }
 
-    func transcribe(id: UUID, samples: [Float]) async throws -> String {
+    func transcribe(id: UUID, samples: [Float]) async throws -> TranscriptionResult {
         let response = try await send(
             op: "transcribe", id: id, audio: encode(samples), expectedEvent: "result", timeout: .seconds(60)
         )
-        return response.text ?? ""
+        guard response.source == "offline" else {
+            throw HexSpeechWorkerError.protocolViolation("Hex worker returned an invalid offline result source.")
+        }
+        return TranscriptionResult(
+            text: response.text ?? "",
+            usedFallback: false,
+            wordTimings: Self.wordTimings(from: response.words)
+        )
+    }
+
+    private static func wordTimings(from words: [ResponseWord]?) -> [TranscriptWordTiming] {
+        guard let words else { return [] }
+        var timings: [TranscriptWordTiming] = []
+        timings.reserveCapacity(words.count)
+        var previousStartMs: Int64 = 0
+        var previousEndMs: Int64 = 0
+        for word in words {
+            guard !word.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                  word.startMs >= previousStartMs, word.endMs >= previousEndMs,
+                  word.endMs > word.startMs, word.endMs <= 600_200 else {
+                return []
+            }
+            timings.append(TranscriptWordTiming(
+                text: word.text,
+                start: Double(word.startMs) / 1_000,
+                end: Double(word.endMs) / 1_000,
+                probability: nil
+            ))
+            previousStartMs = word.startMs
+            previousEndMs = word.endMs
+        }
+        return timings
     }
 
     func stop() {

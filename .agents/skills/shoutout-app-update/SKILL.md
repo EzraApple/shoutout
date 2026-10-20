@@ -53,7 +53,7 @@ Run the release path from the repo root:
 make release-preflight
 ./scripts/test.sh
 npm --prefix apps/web run build
-UNIVERSAL=false make release-dmg
+SHOUTOUT_DMG_HEADLESS=true UNIVERSAL=false make release-dmg
 mkdir -p apps/macos/dist/sparkle
 cp apps/web/public/releases/ShoutOut-<version>.md apps/macos/dist/sparkle/ShoutOut-<version>.md
 make blob-upload-dmg

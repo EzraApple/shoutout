@@ -1,10 +1,11 @@
 # Local trial and headless testing
 
-The local build keeps current Parakeet as the default. Settings has a **Streaming
-dictation (trial)** switch. Streaming uses Hex's pinned Parakeet Unified model
-and native Metal worker. Recordings are limited to ten minutes in this trial.
-Text cleanup uses the existing model and policy. Local trial builds disable
-automatic updates so a normal release cannot replace the trial during evaluation.
+ShoutOut 0.2.0 uses streaming dictation by default, including on upgrade. Settings
+has no engine switch. Streaming uses Hex's pinned Parakeet Unified model and
+native Metal worker, with a ten-minute recording limit. Text cleanup uses the
+existing model and policy. The legacy batch engine remains available through
+the CLI for isolated evaluations. Local trial builds disable automatic updates
+so a normal release cannot replace the trial during evaluation.
 
 Build and run the headless service from the repository root:
 
@@ -25,8 +26,13 @@ In another terminal:
 ./script/shoutout settings set streaming on
 ./script/shoutout models prepare
 ./script/shoutout transcribe /absolute/path/to/mono-16k.wav
-./script/shoutout settings set streaming off
 ```
+
+Use `settings set streaming off` only for a batch comparison, preferably with an
+isolated `SHOUTOUT_CLI_SUITE`. Set it back to `on` for normal dictation. The
+streaming download is the 731 MB speech model; terminal-ending checks reuse it.
+Cleanup downloads its own model only while enabled. Batch evaluation can still
+download its legacy models when explicitly selected.
 
 Settings include `streaming`, `cleanup`, `style`, `shortcut`, `indicator`, and
 `color`. Boolean values accept `on/off` or `true/false`. Styles are `normal`,
@@ -85,9 +91,11 @@ The app and headless host expose only a local Unix socket, with directory mode
 mutation because its outcome may be uncertain.
 
 `python3 experiments/streaming-comparison/app-trial/test_cli.py` checks offline
-settings persistence, live headless IPC, both models, silence rejection, cleanup,
+settings persistence, live headless IPC, streaming, silence rejection, cleanup,
 and paced replay against the packaged build. It uses a temporary preference
-suite and socket, and reuses the app's model caches. It opens no GUI.
+suite and socket, and reuses the app's model caches. It opens no GUI. Set
+`SHOUTOUT_TEST_LEGACY_ENGINES=1` to include the old batch model explicitly;
+the normal smoke check does not download it.
 
 To preserve existing build artifacts, set `SHOUTOUT_DIST_DIR` to an absolute output
 directory when running `apps/macos/scripts/build-app.sh`. Set `SHOUTOUT_TEST_APP`

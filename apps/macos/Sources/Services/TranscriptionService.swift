@@ -71,14 +71,6 @@ struct TranscriptionTimingSnapshot: Sendable {
 class TranscriptionService: ObservableObject {
     @Published var modelState: ModelState = .unloaded
     @Published var isDictationInProgress = false
-    @Published var streamingTrialEnabled: Bool {
-        didSet {
-            defaults.set(streamingTrialEnabled, forKey: "streamingTranscriptionEnabled")
-            if streamingTrialEnabled != oldValue {
-                selectedBackend = streamingTrialEnabled ? .hexStreaming : .parakeet
-            }
-        }
-    }
     private let streamingQueue = RecordingTranscriptionQueue()
 
     @Published var selectedBackend: TranscriptionBackend {
@@ -138,8 +130,6 @@ class TranscriptionService: ObservableObject {
     init(defaults: UserDefaults = .standard, modelsDirectory: URL = TranscriptionService.modelsDirectory) {
         self.defaults = defaults
         self.modelStorageDirectory = modelsDirectory
-        let streamingEnabled = defaults.bool(forKey: "streamingTranscriptionEnabled")
-        self.streamingTrialEnabled = streamingEnabled
         self.selectedBackend = Self.configuredBackend(defaults: defaults)
         let storedModel = defaults.string(forKey: "selectedModel")
             ?? TranscriptionModelOption.defaultID
@@ -153,7 +143,8 @@ class TranscriptionService: ObservableObject {
     }
 
     static func configuredBackend(defaults: UserDefaults) -> TranscriptionBackend {
-        if defaults.bool(forKey: "streamingTranscriptionEnabled") { return .hexStreaming }
+        if defaults.object(forKey: Defaults.streamingTranscriptionEnabled) == nil
+            || defaults.bool(forKey: Defaults.streamingTranscriptionEnabled) { return .hexStreaming }
         let stored = TranscriptionBackend(rawValue: defaults.string(forKey: Defaults.transcriptionBackend) ?? "")
             ?? .defaultBackend
         return stored != .hexStreaming && TranscriptionBackend.selectableCases.contains(stored) ? stored : .parakeet

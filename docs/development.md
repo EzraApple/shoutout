@@ -42,7 +42,7 @@ For model comparisons and frozen audio evaluations, see the [benchmark harness](
 
 ## Models and local data
 
-English transcription uses Parakeet 1.1B, with Whisper Turbo checking suspected trailing-silence hallucinations. Optional cleanup uses Llama 3.2 1B (4-bit). Setup downloads about 5 GB; both transcription models remain loaded, so startup includes Whisper initialization.
+English transcription uses the 731 MB Parakeet Unified 0.6B model and processes audio as you speak. Terminal-ending checks reuse that same native model and its word timings; the normal path does not download Parakeet 1.1B or Whisper. Optional cleanup uses Llama 3.2 1B (4-bit) and downloads only when enabled. The older engines remain available to isolated CLI evaluations and may download their own models when explicitly selected.
 
 Models and history live under `~/Library/Application Support/com.ezraapple.shoutout/`. Transcription models use `Models/`; cleanup models use `LanguageModels/`. Keep private dictation evaluation data in the Git-ignored `.local-evals/` directory.
 
@@ -56,4 +56,4 @@ Follow the [app-update workflow](../.agents/skills/shoutout-app-update/SKILL.md)
 
 The release machine needs a Developer ID Application certificate, a working notarization profile, Vercel Blob access, and a Sparkle EdDSA key. Start with `make release-preflight`. `make sparkle-public-key` prints the public key for build configuration; builds without `SPARKLE_PUBLIC_ED_KEY` have updates disabled.
 
-The workflow uses `UNIVERSAL=false make release-dmg`, `make blob-upload-dmg`, and `make sparkle-appcast`. Follow the full workflow so the downloadable DMG, appcast, website, and version metadata agree before publishing.
+The workflow uses `SHOUTOUT_DMG_HEADLESS=true UNIVERSAL=false make release-dmg`, `make blob-upload-dmg`, and `make sparkle-appcast`. Follow the full workflow so the downloadable DMG, appcast, website, and version metadata agree before publishing.

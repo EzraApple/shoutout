@@ -3,6 +3,35 @@ import XCTest
 @testable import ShoutOutCore
 
 final class SettingsMigrationTests: XCTestCase {
+    func testNewInstallsAndUpgradesAdoptStreaming() throws {
+        for previousValue: Bool? in [nil, false, true] {
+            let suite = "ShoutOut.SettingsMigrationTests.\(UUID().uuidString)"
+            let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+            defer { defaults.removePersistentDomain(forName: suite) }
+            if let previousValue {
+                defaults.set(previousValue, forKey: "streamingTranscriptionEnabled")
+            }
+
+            SettingsMigration.enableStreamingByDefault(in: defaults)
+
+            XCTAssertTrue(defaults.bool(forKey: "streamingTranscriptionEnabled"))
+        }
+    }
+
+    func testStreamingMigrationPreservesLaterDiagnosticOptOut() throws {
+        let suite = "ShoutOut.SettingsMigrationTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        SettingsMigration.enableStreamingByDefault(in: defaults)
+        defaults.set(false, forKey: "streamingTranscriptionEnabled")
+        defaults.synchronize()
+
+        let nextLaunch = try XCTUnwrap(UserDefaults(suiteName: suite))
+        SettingsMigration.enableStreamingByDefault(in: nextLaunch)
+
+        XCTAssertFalse(nextLaunch.bool(forKey: "streamingTranscriptionEnabled"))
+    }
+
     func testGlassIndicatorSurvivesStartupMigration() throws {
         let suite = "ShoutOut.SettingsMigrationTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))

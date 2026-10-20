@@ -15,9 +15,11 @@ The protocol uses newline-delimited JSON over stdin and stdout. Every non-startu
 | `{"op":"feed","id":"a","audio":"..."}` | `{"id":"a","event":"fed","status":"ok","samples":2560}` |
 | `{"op":"finish","id":"a"}` | `{"id":"a","event":"result","status":"ok","text":"...","source":"stream"}`; `source` can be `fallback` |
 | `{"op":"cancel","id":"a"}` | `{"id":"a","event":"cancelled","status":"ok"}`; an unknown ID is a harmless no-op |
-| `{"op":"transcribe","id":"b","audio":"..."}` | `{"id":"b","event":"result","status":"ok","text":"...","source":"offline"}` |
+| `{"op":"transcribe","id":"b","audio":"..."}` | `{"id":"b","event":"result","status":"ok","text":"...","source":"offline","words":[{"text":"...","startMs":0,"endMs":160}]}` |
 | Invalid request | `{"id":"...","event":"error","status":"error","message":"...","error":"..."}`; `id` is omitted when unavailable |
 
 Offline transcription matches Hex's minimum 1.5 seconds of audio plus 200 ms trailing silence for this model. It observes the model's advertised maximum audio length when chunking. The selected model currently advertises no maximum. The helper does not capture, resample, trim, normalize, or paste audio. ShoutOut must supply the 16 kHz samples it intends to transcribe. The 10-minute audio and 64 MiB JSON-line limits prevent unbounded input; the app should split or reject larger captures.
+
+Offline and fallback results include `words` with native word text and start/end times in milliseconds from the original audio. A successful stream result omits `words` because this pinned buffered stream does not populate word rows. The protocol does not report word confidence.
 
 For an app bundle, copy `build/release/hex-speech-worker` to `ShoutOut.app/Contents/Helpers/HexSpeechWorker`. Copy `ModelMetadata.json`, `THIRD_PARTY_NOTICES.md`, and `Licenses/` to `ShoutOut.app/Contents/Resources/HexSpeechWorker/`. The parent app's packaging step handles these copies and signs the nested helper with the release identity before signing the app. Launch `Contents/Helpers/HexSpeechWorker` as a child process with pipes. The executable has no bundled model and must receive the verified cache path at launch.

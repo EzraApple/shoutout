@@ -32,7 +32,7 @@ if [ -z "$VERSION" ]; then
 fi
 
 APP_NAME="ShoutOut"
-DIST_DIR="$PROJECT_DIR/dist"
+DIST_DIR="${SHOUTOUT_DIST_DIR:-$PROJECT_DIR/dist}"
 APP_BUNDLE="$DIST_DIR/$APP_NAME.app"
 DMG_FINAL="$DIST_DIR/ShoutOut-$VERSION.dmg"
 DMG_RW="$DIST_DIR/ShoutOut-$VERSION-rw.dmg"
@@ -133,10 +133,12 @@ mkdir -p "$DMG_STAGING"
 # Create DMG
 echo -e "${BLUE}Preparing DMG staging directory...${NC}"
 ditto "$APP_BUNDLE" "$DMG_STAGING/$APP_NAME.app"
-mkdir -p "$DMG_STAGING/.background"
-"$SCRIPT_DIR/render-dmg-background.swift" \
-    "$DMG_BACKGROUND" \
-    "$PROJECT_DIR/Resources/CrabSprites/idle-1.png"
+if [[ "${SHOUTOUT_DMG_HEADLESS:-false}" != "true" ]]; then
+    mkdir -p "$DMG_STAGING/.background"
+    "$SCRIPT_DIR/render-dmg-background.swift" \
+        "$DMG_BACKGROUND" \
+        "$PROJECT_DIR/Resources/CrabSprites/idle-1.png"
+fi
 
 echo -e "${BLUE}Creating writable DMG image...${NC}"
 hdiutil create \
@@ -146,33 +148,37 @@ hdiutil create \
     -format UDRW \
     "$DMG_RW"
 
-echo -e "${BLUE}Styling DMG Finder window...${NC}"
-detach_existing_app_volumes
-MOUNT_OUTPUT=$(hdiutil attach "$DMG_RW" -readwrite -noverify -noautoopen)
-MOUNT_DIR=$(echo "$MOUNT_OUTPUT" | awk -F '\t' '/\/Volumes\// {print $NF; exit}')
-if [[ -z "$MOUNT_DIR" || ! -d "$MOUNT_DIR" ]]; then
-    echo -e "${RED}Error: Could not mount writable DMG for styling.${NC}"
-    echo "$MOUNT_OUTPUT"
-    exit 1
-fi
-
-SetFile -a V "$MOUNT_DIR/.background" >/dev/null 2>&1 || true
-style_dmg_window
-
-for _ in {1..10}; do
-    if [[ -f "$MOUNT_DIR/.DS_Store" ]]; then
-        break
+if [[ "${SHOUTOUT_DMG_HEADLESS:-false}" == "true" ]]; then
+    echo -e "${BLUE}Skipping Finder window styling for headless DMG...${NC}"
+else
+    echo -e "${BLUE}Styling DMG Finder window...${NC}"
+    detach_existing_app_volumes
+    MOUNT_OUTPUT=$(hdiutil attach "$DMG_RW" -readwrite -noverify -noautoopen)
+    MOUNT_DIR=$(echo "$MOUNT_OUTPUT" | awk -F '\t' '/\/Volumes\// {print $NF; exit}')
+    if [[ -z "$MOUNT_DIR" || ! -d "$MOUNT_DIR" ]]; then
+        echo -e "${RED}Error: Could not mount writable DMG for styling.${NC}"
+        echo "$MOUNT_OUTPUT"
+        exit 1
     fi
-    sleep 0.5
-done
 
-if [[ ! -f "$MOUNT_DIR/.background/background.png" || ! -f "$MOUNT_DIR/.DS_Store" ]]; then
-    echo -e "${RED}Error: Styled DMG is missing background assets or Finder layout metadata.${NC}"
-    exit 1
+    SetFile -a V "$MOUNT_DIR/.background" >/dev/null 2>&1 || true
+    style_dmg_window
+
+    for _ in {1..10}; do
+        if [[ -f "$MOUNT_DIR/.DS_Store" ]]; then
+            break
+        fi
+        sleep 0.5
+    done
+
+    if [[ ! -f "$MOUNT_DIR/.background/background.png" || ! -f "$MOUNT_DIR/.DS_Store" ]]; then
+        echo -e "${RED}Error: Styled DMG is missing background assets or Finder layout metadata.${NC}"
+        exit 1
+    fi
+
+    sync
+    detach_dmg
 fi
-
-sync
-detach_dmg
 
 echo -e "${BLUE}Creating compressed DMG image...${NC}"
 hdiutil convert "$DMG_RW" \

@@ -13,6 +13,7 @@ enum Defaults {
     static let onboardingStep = "onboardingStep"
     static let requestPermissionsOnLaunch = "requestPermissionsOnLaunch"
     static let transcriptionBackend = "transcriptionBackend"
+    static let streamingTranscriptionEnabled = "streamingTranscriptionEnabled"
     static let appendTrailingSpace = "appendTrailingSpace"
     static let smartSpacing = "smartSpacing"
     static let hotkeyTrigger = "hotkeyTrigger"

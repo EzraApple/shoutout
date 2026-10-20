@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD as BASE64;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use transcribe_cpp::{
@@ -66,6 +66,19 @@ struct Worker {
     stream_available: bool,
     max_audio_samples: Option<usize>,
     used_ids: HashSet<String>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct OfflineWord {
+    text: String,
+    start_ms: i64,
+    end_ms: i64,
+}
+
+struct OfflineResult {
+    text: String,
+    words: Vec<OfflineWord>,
 }
 
 fn main() {
@@ -186,7 +199,7 @@ impl Worker {
                                 continue;
                             }
                             match decode_audio(&audio).and_then(|samples| self.run_offline(&samples)) {
-                                Ok(text) => write_result(output, &id, &text, "offline", None)?,
+                                Ok(result) => write_result(output, &id, &result.text, "offline", None, Some(&result.words))?,
                                 Err(error) => write_error(output, Some(&id), &error.to_string())?,
                             }
                         }
@@ -292,10 +305,10 @@ impl Worker {
                                 return Ok(());
                             }
                             match stream_text {
-                                Ok(text) => write_result(output, &id, &text, "stream", None)?,
+                                Ok(text) => write_result(output, &id, &text, "stream", None, None)?,
                                 Err(reason) if !full_audio.is_empty() => {
                                     match self.run_offline(&full_audio) {
-                                        Ok(text) => write_result(output, &id, &text, "fallback", Some(&reason))?,
+                                        Ok(result) => write_result(output, &id, &result.text, "fallback", Some(&reason), Some(&result.words))?,
                                         Err(error) => write_error(output, Some(&id), &format!("{reason}; offline fallback failed: {error}"))?,
                                     }
                                 }
@@ -323,30 +336,39 @@ impl Worker {
         }
     }
 
-    fn run_offline(&mut self, samples: &[f32]) -> AnyResult<String> {
+    fn run_offline(&mut self, samples: &[f32]) -> AnyResult<OfflineResult> {
         if samples.is_empty() { return Err("audio is empty".into()); }
         if samples.len() > MAX_AUDIO_SAMPLES { return Err("audio exceeds the 10 minute safety limit".into()); }
         let mut padded = samples.to_vec();
         padded.resize(padded.len().max(MINIMUM_AUDIO_SAMPLES) + TRAILING_SILENCE_SAMPLES, 0.0);
         let chunk_samples = self.max_audio_samples.unwrap_or(padded.len());
         let mut parts = Vec::new();
-        for chunk in padded.chunks(chunk_samples) {
+        let mut words = Vec::new();
+        for (chunk_index, chunk) in padded.chunks(chunk_samples).enumerate() {
             let mut input = chunk.to_vec();
             if padded.len() > chunk_samples {
                 input.resize(input.len().max(MINIMUM_AUDIO_SAMPLES), 0.0);
             }
-            let text = self.run_one(&input)?;
-            if !text.trim().is_empty() { parts.push(text.trim().to_string()); }
+            let transcript = self.run_one(&input)?;
+            if !transcript.text.trim().is_empty() {
+                parts.push(transcript.text.trim().to_string());
+            }
+            let offset_ms = ((chunk_index * chunk_samples) as i64 * 1_000) / SAMPLE_RATE as i64;
+            words.extend(transcript.words.into_iter().map(|word| OfflineWord {
+                text: word.text,
+                start_ms: word.t0_ms + offset_ms,
+                end_ms: word.t1_ms + offset_ms,
+            }));
         }
-        Ok(parts.join(" "))
+        Ok(OfflineResult { text: parts.join(" "), words })
     }
 
-    fn run_one(&mut self, samples: &[f32]) -> AnyResult<String> {
+    fn run_one(&mut self, samples: &[f32]) -> AnyResult<transcribe_cpp::Transcript> {
         let mut session = self.session.take().ok_or("native session is unavailable")?;
         let result = session.run(samples, &self.batch_options);
         drop(session);
         self.session = Some(self.model.session_with(&self.session_options)?);
-        Ok(result?.text)
+        Ok(result?)
     }
 
     fn restore_session(&mut self) -> AnyResult<()> {
@@ -451,9 +473,12 @@ fn write_error<W: Write>(output: &mut W, id: Option<&str>, message: &str) -> io:
     write_response(output, &value)
 }
 
-fn write_result<W: Write>(output: &mut W, id: &str, text: &str, source: &str, reason: Option<&str>) -> io::Result<()> {
+fn write_result<W: Write>(
+    output: &mut W, id: &str, text: &str, source: &str, reason: Option<&str>, words: Option<&[OfflineWord]>,
+) -> io::Result<()> {
     let mut value = json!({"id":id,"event":"result","status":"ok","text":text,"source":source});
     if let Some(reason) = reason { value["fallbackReason"] = json!(reason); }
+    if let Some(words) = words { value["words"] = json!(words); }
     write_response(output, &value)
 }
 

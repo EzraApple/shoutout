@@ -13,12 +13,13 @@ ShoutOut is a local-first macOS dictation app. Hold **Fn/Globe**, speak, and rel
 ## A few things that make it ShoutOut
 
 - **On your Mac.** Transcription and text cleanup run locally. No account required.
+- **Less waiting.** Speech recognition starts while you talk, before you release the shortcut.
 - **Your words, tidied up.** Optional cleanup with Normal, Casual, and Formal tones.
 - **Easy to find again.** Searchable local transcription history with one-click copy.
 - **Your spelling.** A customizable dictionary for names, acronyms, and common mishearings.
 - **A little personality.** A wall-walking crab in your choice of color, or a simple Classic recording indicator.
 
-Requires **Apple Silicon and macOS 15 or later**. First setup downloads about **5 GB** of models. Onboarding walks you through Microphone, Accessibility, and Input Monitoring permissions.
+Requires **Apple Silicon and macOS 15 or later**. Dictation downloads one **731 MB** speech model. Optional text cleanup downloads a separate model. Onboarding walks you through Microphone, Accessibility, and Input Monitoring permissions.
 
 ## Development
 

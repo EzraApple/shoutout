@@ -59,7 +59,8 @@ final class HexSpeechWorkerClientTests: XCTestCase {
             XCTAssertTrue(error.localizedDescription.contains("timed out"))
         }
         let result = try await client.transcribe(id: UUID(), samples: [0.1, -0.1])
-        XCTAssertEqual(result, "recovered")
+        XCTAssertEqual(result.text, "recovered")
+        XCTAssertTrue(result.wordTimings.isEmpty)
         await client.stop()
     }
 
@@ -71,10 +72,60 @@ final class HexSpeechWorkerClientTests: XCTestCase {
         let secondID = UUID()
         async let first = client.transcribe(id: firstID, samples: [0.1])
         async let second = client.transcribe(id: secondID, samples: [0.2])
-        let firstText = try await first
-        let secondText = try await second
-        XCTAssertEqual(firstText, firstID.uuidString)
-        XCTAssertEqual(secondText, secondID.uuidString)
+        let firstResult = try await first
+        let secondResult = try await second
+        XCTAssertEqual(firstResult.text, firstID.uuidString)
+        XCTAssertEqual(secondResult.text, secondID.uuidString)
+        XCTAssertTrue(firstResult.wordTimings.isEmpty)
+        XCTAssertTrue(secondResult.wordTimings.isEmpty)
+        await client.stop()
+    }
+
+    func testOfflineWordTimingsConvertMillisecondsToSeconds() async throws {
+        let fixture = try makeWorker("printf '{\"event\":\"result\",\"id\":\"%s\",\"text\":\"Please ship this. Thanks!\",\"source\":\"offline\",\"words\":[{\"text\":\"this.\",\"startMs\":200,\"endMs\":900},{\"text\":\"Thanks!\",\"startMs\":1800,\"endMs\":2100}]}\\n' \"$id\"")
+        defer { try? FileManager.default.removeItem(at: fixture.directory) }
+        let client = makeClient(fixture.worker)
+        let result = try await client.transcribe(id: UUID(), samples: [0.1])
+        XCTAssertEqual(result.text, "Please ship this. Thanks!")
+        XCTAssertFalse(result.usedFallback)
+        XCTAssertEqual(result.wordTimings.count, 2)
+        XCTAssertEqual(result.wordTimings[0].start, 0.2, accuracy: 0.0001)
+        XCTAssertEqual(result.wordTimings[0].end, 0.9, accuracy: 0.0001)
+        XCTAssertEqual(result.wordTimings[1].text, "Thanks!")
+        XCTAssertEqual(result.wordTimings[1].start, 1.8, accuracy: 0.0001)
+        XCTAssertEqual(result.wordTimings[1].end, 2.1, accuracy: 0.0001)
+        XCTAssertNil(result.wordTimings[1].probability)
+        await client.stop()
+    }
+
+    func testOverlappingWordTimingsKeepNativeEvidence() async throws {
+        let fixture = try makeWorker("printf '{\"event\":\"result\",\"id\":\"%s\",\"text\":\"Please ship this. Thanks!\",\"source\":\"offline\",\"words\":[{\"text\":\"this.\",\"startMs\":200,\"endMs\":900},{\"text\":\"Thanks!\",\"startMs\":800,\"endMs\":1000}]}\\n' \"$id\"")
+        defer { try? FileManager.default.removeItem(at: fixture.directory) }
+        let client = makeClient(fixture.worker)
+        let result = try await client.transcribe(id: UUID(), samples: [0.1])
+        XCTAssertEqual(result.wordTimings.count, 2)
+        XCTAssertEqual(result.wordTimings[1].start, 0.8, accuracy: 0.0001)
+        XCTAssertEqual(result.wordTimings[1].end, 1.0, accuracy: 0.0001)
+        await client.stop()
+    }
+
+    func testMalformedWordTimingsKeepTextWithoutTimingEvidence() async throws {
+        let fixture = try makeWorker("printf '{\"event\":\"result\",\"id\":\"%s\",\"text\":\"Please ship this. Thanks!\",\"source\":\"offline\",\"words\":[{\"text\":\"Thanks!\",\"startMs\":2100,\"endMs\":1800}]}\\n' \"$id\"")
+        defer { try? FileManager.default.removeItem(at: fixture.directory) }
+        let client = makeClient(fixture.worker)
+        let result = try await client.transcribe(id: UUID(), samples: [0.1])
+        XCTAssertEqual(result.text, "Please ship this. Thanks!")
+        XCTAssertTrue(result.wordTimings.isEmpty)
+        await client.stop()
+    }
+
+    func testInvalidWordMetadataKeepsTextWithoutTimingEvidence() async throws {
+        let fixture = try makeWorker("printf '{\"event\":\"result\",\"id\":\"%s\",\"text\":\"Please ship this. Thanks!\",\"source\":\"offline\",\"words\":[{\"text\":\"Thanks!\",\"startMs\":\"late\",\"endMs\":2100}]}\\n' \"$id\"")
+        defer { try? FileManager.default.removeItem(at: fixture.directory) }
+        let client = makeClient(fixture.worker)
+        let result = try await client.transcribe(id: UUID(), samples: [0.1])
+        XCTAssertEqual(result.text, "Please ship this. Thanks!")
+        XCTAssertTrue(result.wordTimings.isEmpty)
         await client.stop()
     }
 

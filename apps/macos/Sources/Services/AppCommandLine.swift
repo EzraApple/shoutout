@@ -1,4 +1,5 @@
 import Foundation
+import ShoutOutCore
 
 @MainActor
 enum AppCommandLine {
@@ -38,7 +39,7 @@ enum AppCommandLine {
             setenv("SHOUTOUT_REPLAY_MANIFEST", arguments[1], 1)
             setenv("SHOUTOUT_REPLAY_PACING", arguments.contains("--paced") ? "1" : "0", 1)
             let defaults = controlDefaults()
-            setenv("SHOUTOUT_REPLAY_ENGINE", defaults.bool(forKey: "streamingTranscriptionEnabled") ? "hexStreaming" : "parakeet", 1)
+            setenv("SHOUTOUT_REPLAY_ENGINE", TranscriptionService.configuredBackend(defaults: defaults) == .hexStreaming ? "hexStreaming" : "parakeet", 1)
             try await DictationReplay.run(manifest: URL(fileURLWithPath: arguments[1]), profile: defaults,
                                          modelsDirectory: modelsDirectory, languageModelsDirectory: languageModelsDirectory)
             return
@@ -117,12 +118,16 @@ enum AppCommandLine {
     }
 
     private static func controlDefaults() -> UserDefaults {
+        let defaults: UserDefaults
         if let suite = ProcessInfo.processInfo.environment["SHOUTOUT_CLI_SUITE"],
-            let defaults = UserDefaults(suiteName: suite) {
+            let privateDefaults = UserDefaults(suiteName: suite) {
+            defaults = privateDefaults
             defaults.register(defaults: [Defaults.languagePassModelCleanupVersion: 1])
-            return defaults
+        } else {
+            defaults = .standard
         }
-        return .standard
+        SettingsMigration.enableStreamingByDefault(in: defaults)
+        return defaults
     }
 
     private static func printResponse(_ response: AppControlResponse) throws {

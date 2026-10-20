@@ -10,7 +10,7 @@ enum TranscriptionBackend: String, CaseIterable, Hashable, Identifiable, Sendabl
 
     var id: String { rawValue }
 
-    static let defaultBackend: TranscriptionBackend = .parakeet
+    static let defaultBackend: TranscriptionBackend = .hexStreaming
 
     static var selectableCases: [TranscriptionBackend] {
         var backends: [TranscriptionBackend] = [.appleSpeech]
@@ -28,7 +28,7 @@ enum TranscriptionBackend: String, CaseIterable, Hashable, Identifiable, Sendabl
         case .whisperKit:
             return "WhisperKit"
         case .hexStreaming:
-            return "Parakeet streaming (trial)"
+            return "Parakeet streaming"
         case .parakeet:
             return "Parakeet English"
         case .appleSpeech:
@@ -43,7 +43,7 @@ enum TranscriptionBackend: String, CaseIterable, Hashable, Identifiable, Sendabl
         case .whisperKit:
             return "Best local model control and often strongest quality; requires a download and more startup time."
         case .hexStreaming:
-            return "Experimental local streaming. Processes speech while you talk; requires a 731 MB model download."
+            return "Local English transcription that processes speech while you talk; requires a 731 MB model download."
         case .parakeet:
             return "Fast local English transcription. About 5 GB of models, including Whisper for checking uncertain endings."
         case .appleSpeech:

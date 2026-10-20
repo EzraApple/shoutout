@@ -30,6 +30,7 @@ if let manifest = ProcessInfo.processInfo.environment["SHOUTOUT_REPLAY_MANIFEST"
 }
 
 SettingsMigration.removeRetiredOverrides(from: .standard)
+SettingsMigration.enableStreamingByDefault(in: .standard)
 let app = NSApplication.shared
 let delegate = AppDelegate()
 app.delegate = delegate

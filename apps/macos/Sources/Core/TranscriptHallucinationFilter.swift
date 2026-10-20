@@ -4,9 +4,9 @@ public struct TranscriptWordTiming: Equatable, Sendable {
     public let text: String
     public let start: TimeInterval
     public let end: TimeInterval
-    public let probability: Float
+    public let probability: Float?
 
-    public init(text: String, start: TimeInterval, end: TimeInterval, probability: Float) {
+    public init(text: String, start: TimeInterval, end: TimeInterval, probability: Float? = nil) {
         self.text = text
         self.start = start
         self.end = end
@@ -103,8 +103,15 @@ public enum TranscriptHallucinationFilter {
             return passthrough
         }
 
-        let gap = max(0, firstSuffixWord.start - precedingWord.end)
-        let meanProbability = suffixWords.map(\.probability).reduce(0, +) / Float(suffixWords.count)
+        let probabilities = suffixWords.compactMap(\.probability).filter { $0.isFinite && (0...1).contains($0) }
+        let meanProbability = probabilities.count == suffixWords.count
+            ? probabilities.reduce(0, +) / Float(probabilities.count)
+            : nil
+        let precedingEnd = meanProbability == nil
+            ? precedingSpeechEnd(word: precedingWord, before: firstSuffixWord.start,
+                audioSamples: audioSamples, sampleRate: sampleRate, minimumSilence: terminalGapThreshold)
+            : precedingWord.end
+        let gap = max(0, firstSuffixWord.start - precedingEnd)
         let suffixSignal = signal(
             samples: audioSamples,
             sampleRate: sampleRate,
@@ -114,8 +121,8 @@ public enum TranscriptHallucinationFilter {
         let precedingSignal = signal(
             samples: audioSamples,
             sampleRate: sampleRate,
-            start: max(0, precedingWord.end - 0.6),
-            end: precedingWord.end
+            start: max(0, precedingEnd - 0.6),
+            end: precedingEnd
         )
 
         let acousticallyQuiet =
@@ -123,7 +130,7 @@ public enum TranscriptHallucinationFilter {
             && suffixSignal.peak <= max(0.008, precedingSignal.peak * 0.60)
         let shouldRemove =
             gap >= terminalGapThreshold
-            && (meanProbability <= terminalLowConfidenceThreshold || acousticallyQuiet)
+            && (meanProbability.map { $0 <= terminalLowConfidenceThreshold } == true || acousticallyQuiet)
 
         return TerminalHallucinationCleanup(
             text: shouldRemove ? textMatch.prefix : text,
@@ -208,4 +215,19 @@ public enum TranscriptHallucinationFilter {
             alphanumericCharacterCount: alphanumericCharacterCount
         )
     }
+}
+
+private func precedingSpeechEnd(
+    word: TranscriptWordTiming, before suffixStart: TimeInterval,
+    audioSamples: [Float], sampleRate: Double, minimumSilence: TimeInterval
+) -> TimeInterval {
+    let lower = min(max(Int(word.start * sampleRate), 0), audioSamples.count)
+    let upper = min(max(Int(min(word.end, suffixStart) * sampleRate), lower), audioSamples.count)
+    guard lower < upper else { return word.end }
+    let speech = AudioSignalAnalysis.trimmingTrailingSilence(
+        from: Array(audioSamples[lower..<upper]), sampleRate: sampleRate,
+        minimumTrailingSilence: minimumSilence, preservedTail: 0.1, windowDuration: 0.05
+    )
+    guard !speech.isEmpty else { return word.end }
+    return min(word.end, Double(lower + speech.count) / sampleRate)
 }

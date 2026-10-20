@@ -293,7 +293,7 @@ assert_contains "Transcription returns result shape" "$MACOS_DIR/Sources/Service
 assert_contains "Transcription records timing snapshot" "$MACOS_DIR/Sources/Services/TranscriptionService.swift" "TranscriptionTimingSnapshot"
 assert_contains "Transcription supports backend selection" "$MACOS_DIR/Sources/Services/TranscriptionService.swift" "selectedBackend"
 assert_contains "Transcription uses the shared default" "$MACOS_DIR/Sources/Services/TranscriptionService.swift" "\\?\\? \\.defaultBackend"
-assert_contains "English Parakeet is the default" "$MACOS_DIR/Sources/Services/TranscriptionBackend.swift" "defaultBackend: TranscriptionBackend = \\.parakeet"
+assert_contains "Streaming Parakeet is the default" "$MACOS_DIR/Sources/Services/TranscriptionBackend.swift" "defaultBackend: TranscriptionBackend = \\.hexStreaming"
 assert_contains "Transcription has swappable engine protocol" "$MACOS_DIR/Sources/Services/TranscriptionBackend.swift" "protocol TranscriptionEngine"
 assert_contains "Transcription exposes Apple Dictation backend" "$MACOS_DIR/Sources/Services/TranscriptionBackend.swift" "appleDictation"
 assert_contains "Transcription auto-routes long Apple sessions" "$MACOS_DIR/Sources/Services/TranscriptionService.swift" "transcription autoswitch backend=appleDictation"

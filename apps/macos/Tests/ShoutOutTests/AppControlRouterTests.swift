@@ -4,6 +4,19 @@ import XCTest
 
 @MainActor
 final class AppControlRouterTests: XCTestCase {
+    func testNewSettingsUseStreamingInServiceAndOfflineStatus() async throws {
+        let suite = "ShoutOut.CLI.Tests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        let service = TranscriptionService(defaults: defaults)
+        let response = await AppControlRouter(defaults: defaults).handle(AppControlRequest(command: "status"))
+
+        XCTAssertEqual(service.selectedBackend, .hexStreaming)
+        XCTAssertEqual(response.values["engine"], "hexStreaming")
+        XCTAssertEqual(response.values["streaming"], "true")
+    }
+
     func testSettingsPersistAndSelectStreamingOnNextLaunch() async throws {
         let suite = "ShoutOut.CLI.Tests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
@@ -14,22 +27,20 @@ final class AppControlRouterTests: XCTestCase {
         XCTAssertTrue(defaults.bool(forKey: "streamingTranscriptionEnabled"))
         let service = TranscriptionService(defaults: defaults)
         XCTAssertEqual(service.selectedBackend, .hexStreaming)
-        XCTAssertTrue(service.streamingTrialEnabled)
         let off = await router.handle(AppControlRequest(command: "settings.set", key: "streaming", value: "off", path: nil))
         XCTAssertTrue(off.ok)
         let nextLaunch = TranscriptionService(defaults: defaults)
         XCTAssertEqual(nextLaunch.selectedBackend, .parakeet)
-        XCTAssertFalse(nextLaunch.streamingTrialEnabled)
     }
 
-    func testDisabledTrialCannotRestoreStoredHexBackend() throws {
+    func testDisabledStreamingCannotRestoreStoredHexBackend() throws {
         let suite = "ShoutOut.CLI.Tests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
         defaults.set("hexStreaming", forKey: Defaults.transcriptionBackend)
+        defaults.set(false, forKey: Defaults.streamingTranscriptionEnabled)
         let service = TranscriptionService(defaults: defaults)
         XCTAssertEqual(service.selectedBackend, .parakeet)
-        XCTAssertFalse(service.streamingTrialEnabled)
     }
 
     func testOfflineStatusPreservesConfiguredNonStreamingBackend() async throws {
@@ -37,6 +48,7 @@ final class AppControlRouterTests: XCTestCase {
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
         defaults.set("whisperkit", forKey: Defaults.transcriptionBackend)
+        defaults.set(false, forKey: Defaults.streamingTranscriptionEnabled)
         let response = await AppControlRouter(defaults: defaults).handle(AppControlRequest(command: "status"))
         XCTAssertTrue(response.ok)
         XCTAssertEqual(response.values["engine"], "whisperkit")
@@ -75,12 +87,13 @@ final class AppControlRouterTests: XCTestCase {
         let suite = "ShoutOut.CLI.Tests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set(true, forKey: Defaults.streamingTranscriptionEnabled)
         let service = TranscriptionService(defaults: defaults)
         service.isDictationInProgress = true
         let router = AppControlRouter(defaults: defaults, transcription: service)
-        let response = await router.handle(AppControlRequest(command: "settings.set", key: "streaming", value: "on", path: nil))
+        let response = await router.handle(AppControlRequest(command: "settings.set", key: "streaming", value: "off", path: nil))
         XCTAssertFalse(response.ok)
-        XCTAssertFalse(defaults.bool(forKey: "streamingTranscriptionEnabled"))
-        XCTAssertEqual(service.selectedBackend, .parakeet)
+        XCTAssertTrue(defaults.bool(forKey: Defaults.streamingTranscriptionEnabled))
+        XCTAssertEqual(service.selectedBackend, .hexStreaming)
     }
 }

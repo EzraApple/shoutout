@@ -68,7 +68,8 @@ final class AppControlRouter {
 
     private func settingsSnapshot() -> [String: String] {
         [
-            "streaming": String(defaults.bool(forKey: "streamingTranscriptionEnabled")),
+            "streaming": String((transcription?.selectedBackend
+                ?? TranscriptionService.configuredBackend(defaults: defaults)) == .hexStreaming),
             "cleanup": String(defaults.object(forKey: Defaults.languagePassEnabled) == nil
                 || defaults.bool(forKey: Defaults.languagePassEnabled)),
             "style": defaults.string(forKey: Defaults.languagePassStyle) ?? LanguagePassStyle.defaultStyle.rawValue,
@@ -86,11 +87,11 @@ final class AppControlRouter {
         switch key {
         case "streaming":
             let enabled = try boolean(value)
-            defaults.set(enabled, forKey: "streamingTranscriptionEnabled")
-            defaults.set((enabled ? TranscriptionBackend.hexStreaming : .parakeet).rawValue,
-                         forKey: Defaults.transcriptionBackend)
-            if let transcription, transcription.streamingTrialEnabled != enabled {
-                transcription.streamingTrialEnabled = enabled
+            let backend: TranscriptionBackend = enabled ? .hexStreaming : .parakeet
+            defaults.set(enabled, forKey: Defaults.streamingTranscriptionEnabled)
+            defaults.set(backend.rawValue, forKey: Defaults.transcriptionBackend)
+            if let transcription, transcription.selectedBackend != backend {
+                transcription.selectedBackend = backend
                 Task { await transcription.loadModel() }
             }
         case "cleanup":

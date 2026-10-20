@@ -17,7 +17,6 @@ final class HexStreamingTranscriptionEngine: StreamingTranscriptionEngine {
 
     private let modelsDirectory: URL
     private let workerURL: URL
-    private let verificationEngine: WhisperKitTranscriptionEngine
     private var worker: HexSpeechWorkerClient?
     private var activeStreams: Set<UUID> = []
     private var generation = 0
@@ -26,10 +25,6 @@ final class HexStreamingTranscriptionEngine: StreamingTranscriptionEngine {
         self.modelsDirectory = modelsDirectory
         self.workerURL = workerURL ?? Bundle.main.bundleURL
             .appendingPathComponent("Contents/Helpers/HexSpeechWorker")
-        verificationEngine = WhisperKitTranscriptionEngine(
-            modelIdentifier: TranscriptionModelOption.benchmarkTurboID,
-            modelsDirectory: modelsDirectory
-        )
     }
 
     func load(updateState: @escaping @MainActor (ModelState) -> Void) async throws {
@@ -40,7 +35,6 @@ final class HexStreamingTranscriptionEngine: StreamingTranscriptionEngine {
         let progress = HexModelProgressRelay(updateState: updateState)
         var startingWorker: HexSpeechWorkerClient?
         do {
-            async let verificationReady: Void = verificationEngine.load(updateState: { _ in })
             let modelURL = try await HexModelDownloader.prepare(
                 in: modelsDirectory,
                 repository: Self.repository,
@@ -59,7 +53,6 @@ final class HexStreamingTranscriptionEngine: StreamingTranscriptionEngine {
             )
             startingWorker = worker
             try await worker.start()
-            try await verificationReady
             try Task.checkCancellation()
             guard generation == loadGeneration else { throw CancellationError() }
             self.worker = worker
@@ -68,7 +61,6 @@ final class HexStreamingTranscriptionEngine: StreamingTranscriptionEngine {
         } catch {
             progress.finish()
             if let startingWorker { await startingWorker.stop() }
-            verificationEngine.unload()
             throw error
         }
     }
@@ -107,7 +99,8 @@ final class HexStreamingTranscriptionEngine: StreamingTranscriptionEngine {
                 let result = try await worker.finish(id: id)
                 try Task.checkCancellation()
                 return try await verifyIfNeeded(EngineTranscriptionResult(
-                    rawText: result.text, fallbackCount: result.usedFallback ? 1 : 0
+                    rawText: result.text, wordTimings: result.wordTimings,
+                    fallbackCount: result.usedFallback ? 1 : 0
                 ), audioSamples: audioSamples)
             } catch is CancellationError {
                 throw CancellationError()
@@ -118,10 +111,9 @@ final class HexStreamingTranscriptionEngine: StreamingTranscriptionEngine {
             RuntimeLog.write("hex stream unavailable fallback id=\(id)")
         }
         // A fresh command ID avoids reusing a stream ID after a worker restart.
-        let text = try await worker.transcribe(id: UUID(), samples: audioSamples)
-        return try await verifyIfNeeded(
-            EngineTranscriptionResult(rawText: text, fallbackCount: 1),
-            audioSamples: audioSamples
+        let result = try await worker.transcribe(id: UUID(), samples: audioSamples)
+        return EngineTranscriptionResult(
+            rawText: result.text, wordTimings: result.wordTimings, fallbackCount: 1
         )
     }
 
@@ -134,10 +126,9 @@ final class HexStreamingTranscriptionEngine: StreamingTranscriptionEngine {
     func transcribe(audioSamples: [Float]) async throws -> EngineTranscriptionResult {
         guard audioSamples.count <= Self.maximumSamples else { throw TranscriptionError.recordingTooLong }
         guard let worker else { throw TranscriptionError.modelNotReady }
-        let text = try await worker.transcribe(id: UUID(), samples: audioSamples)
-        return try await verifyIfNeeded(
-            EngineTranscriptionResult(rawText: text, fallbackCount: 0),
-            audioSamples: audioSamples
+        let result = try await worker.transcribe(id: UUID(), samples: audioSamples)
+        return EngineTranscriptionResult(
+            rawText: result.text, wordTimings: result.wordTimings, fallbackCount: 0
         )
     }
 
@@ -146,20 +137,25 @@ final class HexStreamingTranscriptionEngine: StreamingTranscriptionEngine {
         activeStreams.removeAll()
         if let worker { Task { await worker.stop() } }
         worker = nil
-        verificationEngine.unload()
     }
 
     private func verifyIfNeeded(
         _ result: EngineTranscriptionResult, audioSamples: [Float]
     ) async throws -> EngineTranscriptionResult {
-        guard TranscriptHallucinationFilter.requiresWordTimingVerification(for: result.rawText) else {
+        guard result.wordTimings.isEmpty,
+            TranscriptHallucinationFilter.requiresWordTimingVerification(for: result.rawText),
+            let worker else {
             return result
         }
-        RuntimeLog.write("transcription verification backend=hexStreaming verifier=whisperkit")
+        RuntimeLog.write("transcription verification backend=hexStreaming verifier=hex-native")
         do {
-            var verified = try await verificationEngine.transcribe(audioSamples: audioSamples)
-            verified.fallbackCount = (verified.fallbackCount ?? 0) + (result.fallbackCount ?? 0) + 1
-            return verified
+            let verified = try await worker.transcribe(id: UUID(), samples: audioSamples)
+            guard !verified.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                !verified.wordTimings.isEmpty else { return result }
+            var timedResult = result
+            timedResult.wordTimings = verified.wordTimings
+            timedResult.fallbackCount = (result.fallbackCount ?? 0) + 1
+            return timedResult
         } catch is CancellationError {
             throw CancellationError()
         } catch {

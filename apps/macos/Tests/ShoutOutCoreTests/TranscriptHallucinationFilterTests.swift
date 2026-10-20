@@ -207,6 +207,77 @@ final class TranscriptHallucinationFilterTests: XCTestCase {
         XCTAssertFalse(cleanup.removed)
     }
 
+    func testKeepsAudiblePausedEndingWithoutConfidence() {
+        let text = "Please ship this. Thank you."
+        let cleanup = TranscriptHallucinationFilter.removingTerminalSilenceHallucination(
+            from: text,
+            wordTimings: [
+                .init(text: "this.", start: 0.2, end: 0.8),
+                .init(text: "Thank", start: 1.8, end: 2.0),
+                .init(text: "you.", start: 2.0, end: 2.2),
+            ],
+            audioSamples: Array(repeating: 0.1, count: 3_000),
+            sampleRate: 1_000
+        )
+
+        XCTAssertEqual(cleanup.text, text)
+        XCTAssertFalse(cleanup.removed)
+        XCTAssertNil(cleanup.meanProbability)
+    }
+
+    func testRemovesQuietPausedEndingWithoutConfidence() {
+        let cleanup = TranscriptHallucinationFilter.removingTerminalSilenceHallucination(
+            from: "Please ship this. Thank you.",
+            wordTimings: [
+                .init(text: "this.", start: 0.2, end: 0.8),
+                .init(text: "Thank", start: 1.8, end: 2.0),
+                .init(text: "you.", start: 2.0, end: 2.2),
+            ],
+            audioSamples: Array(repeating: 0.1, count: 800) + Array(repeating: 0, count: 2_200),
+            sampleRate: 1_000
+        )
+
+        XCTAssertEqual(cleanup.text, "Please ship this.")
+        XCTAssertTrue(cleanup.removed)
+        XCTAssertNil(cleanup.meanProbability)
+    }
+
+    func testRemovesUnspokenEndingWhenNativeWordSpansThePause() {
+        let cleanup = TranscriptHallucinationFilter.removingTerminalSilenceHallucination(
+            from: "Please ship this. Thank you.",
+            wordTimings: [
+                .init(text: "this.", start: 0.2, end: 2.0),
+                .init(text: "Thank", start: 2.0, end: 2.2),
+                .init(text: "you.", start: 2.2, end: 2.4),
+            ],
+            audioSamples: Array(repeating: 0.1, count: 800) + Array(repeating: 0, count: 2_200),
+            sampleRate: 1_000
+        )
+
+        XCTAssertEqual(cleanup.text, "Please ship this.")
+        XCTAssertTrue(cleanup.removed)
+        XCTAssertGreaterThan(cleanup.gapSeconds ?? 0, 0.65)
+    }
+
+    func testKeepsSpokenEndingWhenNativeWordSpansThePause() {
+        var samples = Array(repeating: Float(0.1), count: 800) + Array(repeating: Float(0), count: 2_200)
+        for index in 2_000..<2_400 { samples[index] = 0.1 }
+        let text = "Please ship this. Thank you."
+        let cleanup = TranscriptHallucinationFilter.removingTerminalSilenceHallucination(
+            from: text,
+            wordTimings: [
+                .init(text: "this.", start: 0.2, end: 2.0),
+                .init(text: "Thank", start: 2.0, end: 2.2),
+                .init(text: "you.", start: 2.2, end: 2.4),
+            ],
+            audioSamples: samples, sampleRate: 1_000
+        )
+
+        XCTAssertEqual(cleanup.text, text)
+        XCTAssertFalse(cleanup.removed)
+        XCTAssertGreaterThan(cleanup.gapSeconds ?? 0, 0.65)
+    }
+
     func testKeepsCandidateWhenWordTimestampsAreUnavailable() {
         let text = "Please ship this. Thank you."
         let cleanup = TranscriptHallucinationFilter.removingTerminalSilenceHallucination(

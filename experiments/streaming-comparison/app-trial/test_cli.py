@@ -33,6 +33,9 @@ def main():
         return response
 
     try:
+        initial = command('status')
+        assert initial['values']['engine'] == 'hexStreaming', initial
+        assert initial['values']['streaming'] == 'true', initial
         assert command('settings', 'set', 'streaming', 'on')['values']['engine'] == 'hexStreaming'
         # A private suite without a socket must stay offline, even if the GUI owns its default socket.
         private_environment = dict(environment)
@@ -62,7 +65,10 @@ def main():
             assert command('status')['values']['engine'] == 'parakeet'
             speech = HERE / 'fixtures/01-save-file.wav'
             silence = HERE / 'fixtures/control-silence.wav'
-            for engine, enabled in [('parakeet', 'off'), ('hexStreaming', 'on')]:
+            engines = [('hexStreaming', 'on')]
+            if os.environ.get('SHOUTOUT_TEST_LEGACY_ENGINES') == '1':
+                engines.insert(0, ('parakeet', 'off'))
+            for engine, enabled in engines:
                 command('settings', 'set', 'streaming', enabled)
                 ready = command('models', 'prepare')
                 assert ready['values']['modelState'] == 'ready', ready
@@ -84,8 +90,7 @@ def main():
                 assert len(rows) == 1 and rows[0]['status'] == 'completed', rows
                 assert rows[0]['paced'] and rows[0]['rawText'], rows
                 print(engine, 'settings, model preparation, file transcription, silence and paced replay passed', flush=True)
-            command('settings', 'set', 'streaming', 'off')
-            assert command('status')['values']['engine'] == 'parakeet'
+            assert command('status')['values']['engine'] == 'hexStreaming'
         print('Isolated offline settings and private IPC passed; no GUI was launched.', flush=True)
     finally:
         if process is not None:
