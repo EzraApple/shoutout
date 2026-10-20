@@ -21,9 +21,9 @@ function setupDemo(root: HTMLElement, framesReady: Promise<unknown>) {
   const image = root.querySelector<HTMLImageElement>("[data-crab-frame]")!;
   const viewport = root.matches("[data-demo-viewport]")
     ? root : root.querySelector<HTMLElement>("[data-demo-viewport]")!;
-  const play = root.querySelector<HTMLButtonElement>("[data-demo-play]")!;
-  const pause = root.querySelector<HTMLButtonElement>("[data-demo-pause]")!;
-  const status = root.querySelector<HTMLElement>("[data-demo-status]")!;
+  const play = root.querySelector<HTMLButtonElement>("[data-demo-play]");
+  const pause = root.querySelector<HTMLButtonElement>("[data-demo-pause]");
+  const status = root.querySelector<HTMLElement>("[data-demo-status]");
   const outputs = root.querySelectorAll<HTMLElement>("[data-demo-output]");
   const bars = root.querySelectorAll<HTMLElement>("[data-level-bar]");
   const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
@@ -51,7 +51,7 @@ function setupDemo(root: HTMLElement, framesReady: Promise<unknown>) {
   function setPhase(phase: string, message: string) {
     if (root.dataset.demoPhase === phase) return false;
     root.dataset.demoPhase = phase;
-    status.textContent = message;
+    if (status) status.textContent = message;
     return true;
   }
 
@@ -81,8 +81,10 @@ function setupDemo(root: HTMLElement, framesReady: Promise<unknown>) {
       }
     } else {
       elapsed = null;
-      play.disabled = false;
-      play.textContent = "Replay dictation";
+      if (play) {
+        play.disabled = false;
+        play.textContent = "Replay dictation";
+      }
       setPhase("walking", reducedMotion.matches ? "Ready" : "Ready · walking along the edge");
     }
   }
@@ -123,15 +125,15 @@ function setupDemo(root: HTMLElement, framesReady: Promise<unknown>) {
     }
   }
 
-  play.disabled = true;
+  if (play) play.disabled = true;
   framesReady.then(() => {
     ready = true;
-    play.disabled = false;
+    if (play) play.disabled = false;
     schedule();
   }).catch(() => {
-    status.textContent = "Preview couldn't load. Refresh to try again.";
+    if (status) status.textContent = "Preview couldn't load. Refresh to try again.";
   });
-  play.addEventListener("click", () => {
+  play?.addEventListener("click", () => {
     elapsed = 0;
     lastBarUpdate = 0;
     play.disabled = true;
@@ -143,23 +145,24 @@ function setupDemo(root: HTMLElement, framesReady: Promise<unknown>) {
     schedule();
   });
   function syncPause() {
+    if (!pause) return;
     pause.setAttribute("aria-pressed", String(paused));
     pause.textContent = paused ? "Resume motion" : "Pause motion";
   }
-  pause.addEventListener("click", () => {
+  pause?.addEventListener("click", () => {
     paused = !paused;
     syncPause();
     schedule();
   });
   function syncMotionPreference() {
-    pause.hidden = reducedMotion.matches;
+    if (pause) pause.hidden = reducedMotion.matches;
     if (reducedMotion.matches) {
       paused = false;
       offset = 0;
       crab.style.setProperty("--crab-offset", "0px");
       setFrame("idle-1");
     }
-    if (elapsed === null) status.textContent = reducedMotion.matches ? "Ready" : "Ready · walking along the edge";
+    if (elapsed === null && status) status.textContent = reducedMotion.matches ? "Ready" : "Ready · walking along the edge";
     syncPause();
     schedule();
   }
