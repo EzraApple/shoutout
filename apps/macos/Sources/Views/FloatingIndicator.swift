@@ -68,14 +68,18 @@ private enum CrabAnimationTiming {
     static let processingSpinDuration = 0.54
 }
 
-enum ClassicOverlayLayout {
-    static let size = CGSize(width: 42, height: 146)
-    static let screenEdgeInset: CGFloat = 2
+enum PillOverlayLayout {
+    static let contentSize = CGSize(width: 34, height: 116)
+    static let paintOutset: CGFloat = 3
+    static let size = CGSize(width: contentSize.width + paintOutset * 2, height: contentSize.height)
+    static let screenEdgeInset: CGFloat = 4
+    static let panelScreenInset = screenEdgeInset - paintOutset
 }
 
 enum OverlayStyle: String, Sendable {
     case crab
     case capsule
+    case glass
     case off
 }
 
@@ -292,9 +296,9 @@ struct AppOverlayView: View {
         case .crab:
             CrabOverlayView(state: state, height: crabHeight)
                 .frame(width: CrabOverlayLayout.width, height: crabHeight)
-        case .capsule:
-            ClassicIndicatorView(state: state, onCancel: onCancel, onCommit: onCommit)
-                .frame(width: ClassicOverlayLayout.size.width, height: ClassicOverlayLayout.size.height)
+        case .capsule, .glass:
+            PillIndicatorView(style: style, state: state, onCancel: onCancel, onCommit: onCommit)
+                .frame(width: PillOverlayLayout.size.width, height: PillOverlayLayout.size.height)
         case .off:
             EmptyView()
                 .frame(width: 1, height: 1)
@@ -307,6 +311,9 @@ final class IndicatorOverlayModel: ObservableObject {
     @Published var style: OverlayStyle
     @Published var state: IndicatorState
     @Published var crabHeight: CGFloat
+#if DEBUG
+    @Published var previewReduceMotion: Bool?
+#endif
     var onCancel: (() -> Void)?
     var onCommit: (() -> Void)?
 
@@ -350,60 +357,104 @@ struct IndicatorOverlayHostView: View {
             onCancel: model.onCancel,
             onCommit: model.onCommit
         )
+#if DEBUG
+        .environment(\.classicPreviewReduceMotion, model.previewReduceMotion)
+#endif
     }
 }
 
-struct ClassicIndicatorView: View {
+#if DEBUG
+private struct ClassicPreviewReduceMotionKey: EnvironmentKey {
+    static let defaultValue: Bool? = nil
+}
+
+extension EnvironmentValues {
+    var classicPreviewReduceMotion: Bool? {
+        get { self[ClassicPreviewReduceMotionKey.self] }
+        set { self[ClassicPreviewReduceMotionKey.self] = newValue }
+    }
+}
+#endif
+
+struct PillIndicatorView: View {
+    let style: OverlayStyle
     let state: IndicatorState
     var onCancel: (() -> Void)?
     var onCommit: (() -> Void)?
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var displayedSpeechLevel: CGFloat = 0
-    @State private var processingRotation = 0.0
+    @AppStorage(Defaults.crabColorVariant) private var crabColorVariant = CrabColorVariant.ocean.rawValue
+    @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
+#if DEBUG
+    @Environment(\.classicPreviewReduceMotion) private var previewReduceMotion
+#endif
+    @State private var recordingWaveform = ClassicWaveform()
+
+    private var reduceMotion: Bool {
+#if DEBUG
+        if let previewReduceMotion { return previewReduceMotion }
+#endif
+        return systemReduceMotion
+    }
 
     var body: some View {
         ZStack(alignment: .trailing) {
-            classicGlass
+            classicSurface
             statusContent
                 .frame(width: surfaceSize.width, height: surfaceSize.height)
                 .id(visualKind)
-                .transition(.opacity.combined(with: .scale(scale: 0.92)))
+                .transition(.opacity)
         }
         .frame(
-            width: ClassicOverlayLayout.size.width,
-            height: ClassicOverlayLayout.size.height,
+            width: PillOverlayLayout.contentSize.width,
+            height: PillOverlayLayout.contentSize.height,
             alignment: .trailing
         )
+        .padding(.horizontal, PillOverlayLayout.paintOutset)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(accessibilityLabel)
         .help(accessibilityLabel)
-        .animation(.spring(response: 0.32, dampingFraction: 0.86), value: visualKind)
-        .animation(.spring(response: 0.36, dampingFraction: 0.88), value: surfaceSize)
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.08), value: visualKind)
+        .animation(
+            reduceMotion ? nil : .timingCurve(0.16, 1, 0.3, 1, duration: 0.16),
+            value: surfaceSize
+        )
         .onAppear {
-            syncDisplayedSpeechLevel(animated: false)
+            recordingWaveform.recordLevel(recordingTargetLevel, at: ProcessInfo.processInfo.systemUptime)
         }
-        .onChange(of: recordingTargetSpeechLevel) { _, _ in
-            syncDisplayedSpeechLevel(animated: true)
+        .onChange(of: recordingTargetLevel) { _, level in
+            recordingWaveform.recordLevel(level, at: ProcessInfo.processInfo.systemUptime)
         }
-        .onChange(of: visualKind) { _, _ in
-            syncDisplayedSpeechLevel(animated: true)
+        .onChange(of: state.isRecording) { _, isRecording in
+            if !isRecording { recordingWaveform = ClassicWaveform() }
         }
-        .task(id: state.isProcessing) {
-            await animateProcessingRing()
+        .transaction { transaction in
+            if reduceMotion { transaction.disablesAnimations = true }
         }
     }
 
-    private var classicGlass: some View {
-        RoundedRectangle(cornerRadius: surfaceSize.width / 2, style: .continuous)
-            .fill(.ultraThinMaterial)
+    @ViewBuilder
+    private var classicSurface: some View {
+        if style == .glass {
+            GlassIndicatorSurface(
+                size: surfaceSize,
+                accent: recordingAccent,
+                isProcessing: state.isProcessing,
+                reduceMotion: reduceMotion
+            )
+        } else {
+            matteSurface
+        }
+    }
+
+    private var matteSurface: some View {
+        Capsule(style: .circular)
+            .fill(Color(white: 0.075).opacity(0.96))
             .overlay {
-                RoundedRectangle(cornerRadius: surfaceSize.width / 2, style: .continuous)
-                    .fill(Color.black.opacity(0.42))
+                Capsule(style: .circular)
+                    .stroke(Color.white.opacity(0.13), lineWidth: 0.6)
             }
-            .overlay {
-                RoundedRectangle(cornerRadius: surfaceSize.width / 2, style: .continuous)
-                    .stroke(Color.white.opacity(0.18), lineWidth: 0.8)
-            }
-            .shadow(color: .black.opacity(0.24), radius: 14, y: 6)
+            .shadow(color: .black.opacity(0.18), radius: 4, y: 2)
             .frame(width: surfaceSize.width, height: surfaceSize.height)
+
     }
 
     @ViewBuilder
@@ -416,7 +467,7 @@ struct ClassicIndicatorView: View {
         case .recording(_, let mode):
             recordingContent(mode: mode)
         case .processing:
-            processingRing
+            processingContent
         case .done:
             statusIcon(symbol: "checkmark", tint: .green.opacity(0.92))
         case .attention:
@@ -425,136 +476,136 @@ struct ClassicIndicatorView: View {
     }
 
     private func recordingContent(mode: IndicatorRecordingMode) -> some View {
-        VStack(spacing: mode == .handsFree ? 8 : 0) {
+        VStack(spacing: mode == .handsFree ? 5 : 0) {
             if mode == .handsFree {
-                overlayActionButton(symbol: "xmark", tint: .white.opacity(0.88), action: onCancel)
+                overlayActionButton(symbol: "checkmark", label: "Finish dictation", action: onCommit)
+                    .transition(.opacity)
             }
 
-            recordingBars(speechLevel: displayedSpeechLevel)
+            recordingBars
 
             if mode == .handsFree {
-                overlayActionButton(symbol: "checkmark", tint: .white.opacity(0.9), action: onCommit)
+                overlayActionButton(symbol: "xmark", label: "Cancel dictation", action: onCancel)
+                    .transition(.opacity)
             }
         }
         .frame(width: surfaceSize.width, height: surfaceSize.height)
     }
 
-    private func recordingBars(speechLevel: CGFloat) -> some View {
-        VStack(spacing: 3) {
-            ForEach(0..<9, id: \.self) { index in
-                Capsule()
-                    .fill(Color.white.opacity(0.84))
-                    .frame(width: recordingBarWidth(for: index, speechLevel: speechLevel), height: 3)
-                    .animation(.easeOut(duration: 0.12), value: speechLevel)
+    private var recordingBars: some View {
+        let accent = recordingAccent
+        return Group {
+            if reduceMotion {
+                Image(systemName: "mic.fill")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.9))
+            } else {
+                TimelineView(.animation(minimumInterval: 1.0 / 60, paused: !state.isRecording)) { timeline in
+                    let time = ProcessInfo.processInfo.systemUptime + timeline.date.timeIntervalSinceNow
+                    let baseWidths = state.isRecording
+                        ? recordingWaveform.sampleBarWidths(at: time)
+                        : Array(repeating: CGFloat(2.5), count: 7)
+                    let widths = baseWidths
+                    Canvas { context, size in
+                        let height: CGFloat = 2.5
+                        let spacing: CGFloat = 2.5
+                        let totalHeight = CGFloat(widths.count) * height + CGFloat(widths.count - 1) * spacing
+                        for (index, width) in widths.enumerated() {
+                            let rect = CGRect(
+                                x: (size.width - width) / 2,
+                                y: (size.height - totalHeight) / 2 + CGFloat(index) * (height + spacing),
+                                width: width,
+                                height: height
+                            )
+                            context.fill(
+                                Path(roundedRect: rect, cornerRadius: height / 2),
+                                with: .color(
+                                    (abs(index - widths.count / 2) <= 1
+                                        ? accent : .white).opacity(0.92)
+                                )
+                            )
+                        }
+                    }
+                }
             }
         }
-        .frame(width: 24, height: 58)
+        .frame(width: 18, height: 36)
+        .accessibilityHidden(true)
     }
 
-    private func recordingBarWidth(for index: Int, speechLevel: CGFloat) -> CGFloat {
-        let basePattern: [CGFloat] = [4, 8, 6, 10, 7, 9, 4, 8, 5]
-        let responsePattern: [CGFloat] = [0.48, 0.92, 0.62, 1.00, 0.72, 0.86, 0.44, 0.78, 0.58]
-        let base = basePattern[index % basePattern.count]
-        let gain = min(max(speechLevel, 0), 1)
-        let response = responsePattern[index % responsePattern.count]
-        let levelTexture = sin(CGFloat(index) * 1.73 + gain * 5.4) * (1.1 + gain * 1.1)
-        return min(max(base + gain * (4 + response * 14) + levelTexture, 3), 27)
+    private var recordingAccent: Color {
+        let variant = CrabColorVariant(rawValue: crabColorVariant) ?? .ocean
+        let color = NSColor(variant.swatchColor).blended(withFraction: 0.72, of: .white) ?? .white
+        return Color(nsColor: color)
     }
 
-    private var recordingTargetSpeechLevel: CGFloat {
+    private var recordingTargetLevel: Float {
         if case .recording(let level, _) = state {
-            return visualSpeechLevel(from: level)
+            return level
         }
         return 0
     }
 
-    private func syncDisplayedSpeechLevel(animated: Bool) {
-        let target = recordingTargetSpeechLevel
-        let duration = target > displayedSpeechLevel ? 0.14 : 0.28
-        let update = {
-            displayedSpeechLevel = target
-        }
-
-        if animated, !reduceMotion {
-            withAnimation(.easeOut(duration: duration)) {
-                update()
-            }
-        } else {
-            update()
-        }
-    }
-
-    private func visualSpeechLevel(from level: Float) -> CGFloat {
-        let clampedLevel = min(max(CGFloat(level), 0), 1)
-        let noiseFloor: CGFloat = 0.006
-        let speechCeiling: CGFloat = 0.30
-
-        let normalized = min(max((clampedLevel - noiseFloor) / (speechCeiling - noiseFloor), 0), 1)
-        return pow(normalized, 0.88)
-    }
-
     private func statusIcon(symbol: String, tint: Color) -> some View {
         Image(systemName: symbol)
-            .font(.system(size: 16, weight: .bold))
+            .font(.system(size: 12, weight: .semibold))
             .foregroundStyle(tint)
     }
 
-    private var processingRing: some View {
-        Circle()
-            .trim(from: 0.16, to: 0.86)
-            .stroke(
-                Color.white.opacity(0.88),
-                style: StrokeStyle(lineWidth: 2.4, lineCap: .round)
-            )
-            .frame(width: 17, height: 17)
-            .rotationEffect(.degrees(processingRotation))
-            .animation(
-                .linear(duration: CrabAnimationTiming.processingSpinDuration),
-                value: processingRotation
-            )
+    @ViewBuilder
+    private var processingContent: some View {
+        if style != .glass { processingRing }
     }
 
-    private func animateProcessingRing() async {
-        processingRotation = 0
-        guard state.isProcessing, !reduceMotion else {
-            return
+    private var processingRing: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 60, paused: reduceMotion)) { timeline in
+            let time = ProcessInfo.processInfo.systemUptime + timeline.date.timeIntervalSinceNow
+            let phase = reduceMotion ? 0 : time.truncatingRemainder(dividingBy: 0.9) / 0.9
+            Circle()
+                .trim(from: 0.16, to: 0.86)
+                .stroke(
+                    Color.white.opacity(0.9),
+                    style: StrokeStyle(lineWidth: 1.6, lineCap: .round)
+                )
+                .frame(width: 12, height: 12)
+                .rotationEffect(.degrees(phase * 360))
         }
-
-        while !Task.isCancelled {
-            processingRotation += 360
-            try? await Task.sleep(nanoseconds: CrabAnimationTiming.processingPulseDelay)
-        }
+        .accessibilityHidden(true)
     }
 
     private func overlayActionButton(
         symbol: String,
-        tint: Color,
+        label: String,
         action: (() -> Void)?
     ) -> some View {
         Button {
             action?()
         } label: {
             Image(systemName: symbol)
-                .font(.system(size: 10, weight: .bold))
-                .foregroundStyle(tint)
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.9))
                 .frame(width: 20, height: 20)
-                .background(Circle().fill(Color.white.opacity(0.14)))
+                .background(Circle().fill(Color.white.opacity(0.07)))
+                .frame(width: 24, height: 24)
+                .contentShape(Circle())
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(label)
+        .help(label)
     }
 
     private var surfaceSize: CGSize {
         switch state {
         case .idle:
-            return CGSize(width: 14, height: 44)
+            return CGSize(width: 8, height: 30)
         case .armed:
-            return CGSize(width: 34, height: 86)
+            return CGSize(width: 26, height: 64)
         case .recording(_, .hold):
-            return CGSize(width: 34, height: 86)
+            return CGSize(width: 26, height: 64)
         case .recording(_, .handsFree):
-            return CGSize(width: 34, height: 132)
+            return CGSize(width: 26, height: 96)
         case .processing, .done, .attention:
-            return CGSize(width: 34, height: 48)
+            return CGSize(width: 26, height: style == .glass ? 26 : 34)
         }
     }
 
@@ -563,9 +614,9 @@ struct ClassicIndicatorView: View {
         case .idle:
             return "idle"
         case .armed:
-            return "recording-hold"
-        case .recording(_, let mode):
-            return "recording-\(mode)"
+            return "recording"
+        case .recording:
+            return "recording"
         case .processing:
             return "processing"
         case .done:

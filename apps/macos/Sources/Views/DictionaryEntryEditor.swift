@@ -30,7 +30,7 @@ struct DictionaryEntryEditor: View {
 
             VStack(alignment: .leading, spacing: 8) {
                 Text("Replace").font(.headline)
-                TextField("rep low, reply low", text: $aliasesText, axis: .vertical)
+                TextField("web site, web-site", text: $aliasesText, axis: .vertical)
                     .lineLimit(3...5)
                     .textFieldStyle(.plain)
                     .padding(12)
@@ -45,7 +45,7 @@ struct DictionaryEntryEditor: View {
 
             VStack(alignment: .leading, spacing: 8) {
                 Text("Write as").font(.headline)
-                TextField("Replo", text: $phrase)
+                TextField("website", text: $phrase)
                     .textFieldStyle(.plain)
                     .padding(12)
                     .background(ShoutOutHomeTheme.panel)
