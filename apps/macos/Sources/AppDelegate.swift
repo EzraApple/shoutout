@@ -1111,7 +1111,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func shouldIgnoreIndicatorMouseEvents(style: OverlayStyle, state: IndicatorState) -> Bool {
-        guard style == .capsule else { return true }
+        guard style == .capsule || style == .glass else { return true }
         if case .recording(_, .handsFree) = state {
             return false
         }
@@ -1121,7 +1121,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private func finishIndicator() {
         let idleState = currentIdleIndicatorState()
         currentIndicatorState = idleState
-        if currentOverlayStyle == .crab || currentOverlayStyle == .capsule {
+        if currentOverlayStyle != .off {
             showIndicator(state: idleState)
         } else {
             dismissIndicator()
@@ -1199,10 +1199,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     private var currentOverlayStyle: OverlayStyle {
 #if DEBUG
-        if classicPreview != nil { return .capsule }
+        if let classicPreview { return classicPreview.style }
 #endif
-        return UserDefaults.standard.string(forKey: Defaults.overlayStyle) == OverlayStyle.capsule.rawValue
-            ? .capsule : .crab
+        let savedStyle = UserDefaults.standard.string(forKey: Defaults.overlayStyle)
+        if savedStyle == OverlayStyle.glass.rawValue { return .glass }
+        return savedStyle == OverlayStyle.capsule.rawValue ? .capsule : .crab
     }
 
     private var modelIsReadyForOverlay: Bool {
@@ -1304,22 +1305,22 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 width: CrabOverlayLayout.width,
                 height: crabHeight
             )
-        case .capsule:
+        case .capsule, .glass:
             guard let screen = NSScreen.main else {
                 return NSRect(
                     x: 0,
                     y: 0,
-                    width: ClassicOverlayLayout.size.width,
-                    height: ClassicOverlayLayout.size.height
+                    width: PillOverlayLayout.size.width,
+                    height: PillOverlayLayout.size.height
                 )
             }
             let screenFrame = screen.visibleFrame
             return NSRect(
-                x: screenFrame.maxX - ClassicOverlayLayout.size.width
-                    - ClassicOverlayLayout.screenEdgeInset,
-                y: screenFrame.midY - ClassicOverlayLayout.size.height / 2,
-                width: ClassicOverlayLayout.size.width,
-                height: ClassicOverlayLayout.size.height
+                x: screenFrame.maxX - PillOverlayLayout.size.width
+                    - PillOverlayLayout.screenEdgeInset,
+                y: screenFrame.midY - PillOverlayLayout.size.height / 2,
+                width: PillOverlayLayout.size.width,
+                height: PillOverlayLayout.size.height
             )
         case .off:
             return NSRect(x: 0, y: 0, width: 1, height: 1)
@@ -1381,8 +1382,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         switch style {
         case .crab:
             return CGSize(width: CrabOverlayLayout.width, height: crabHeight)
-        case .capsule:
-            return ClassicOverlayLayout.size
+        case .capsule, .glass:
+            return PillOverlayLayout.size
         case .off:
             return CGSize(width: 1, height: 1)
         }
@@ -1399,7 +1400,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         switch style {
         case .crab:
             positionCrabAtScreenEdge()
-        case .capsule:
+        case .capsule, .glass:
             positionClassicAtScreenRight()
         case .off:
             break
@@ -1425,9 +1426,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private func positionClassicAtScreenRight() {
         guard let panel = indicatorPanel, let screen = NSScreen.main else { return }
 
-        let contentSize = ClassicOverlayLayout.size
+        let contentSize = PillOverlayLayout.size
         let screenFrame = screen.visibleFrame
-        let x = screenFrame.maxX - contentSize.width - ClassicOverlayLayout.screenEdgeInset
+        let x = screenFrame.maxX - contentSize.width - PillOverlayLayout.screenEdgeInset
         let y = screenFrame.midY - contentSize.height / 2
 
         panel.setFrame(

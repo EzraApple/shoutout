@@ -68,7 +68,7 @@ private enum CrabAnimationTiming {
     static let processingSpinDuration = 0.54
 }
 
-enum ClassicOverlayLayout {
+enum PillOverlayLayout {
     static let size = CGSize(width: 34, height: 116)
     static let screenEdgeInset: CGFloat = 4
 }
@@ -76,6 +76,7 @@ enum ClassicOverlayLayout {
 enum OverlayStyle: String, Sendable {
     case crab
     case capsule
+    case glass
     case off
 }
 
@@ -292,9 +293,9 @@ struct AppOverlayView: View {
         case .crab:
             CrabOverlayView(state: state, height: crabHeight)
                 .frame(width: CrabOverlayLayout.width, height: crabHeight)
-        case .capsule:
-            ClassicIndicatorView(state: state, onCancel: onCancel, onCommit: onCommit)
-                .frame(width: ClassicOverlayLayout.size.width, height: ClassicOverlayLayout.size.height)
+        case .capsule, .glass:
+            PillIndicatorView(style: style, state: state, onCancel: onCancel, onCommit: onCommit)
+                .frame(width: PillOverlayLayout.size.width, height: PillOverlayLayout.size.height)
         case .off:
             EmptyView()
                 .frame(width: 1, height: 1)
@@ -364,7 +365,7 @@ private struct ClassicPreviewReduceMotionKey: EnvironmentKey {
     static let defaultValue: Bool? = nil
 }
 
-private extension EnvironmentValues {
+extension EnvironmentValues {
     var classicPreviewReduceMotion: Bool? {
         get { self[ClassicPreviewReduceMotionKey.self] }
         set { self[ClassicPreviewReduceMotionKey.self] = newValue }
@@ -372,10 +373,12 @@ private extension EnvironmentValues {
 }
 #endif
 
-struct ClassicIndicatorView: View {
+struct PillIndicatorView: View {
+    let style: OverlayStyle
     let state: IndicatorState
     var onCancel: (() -> Void)?
     var onCommit: (() -> Void)?
+    @AppStorage(Defaults.crabColorVariant) private var crabColorVariant = CrabColorVariant.ocean.rawValue
     @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
 #if DEBUG
     @Environment(\.classicPreviewReduceMotion) private var previewReduceMotion
@@ -398,8 +401,8 @@ struct ClassicIndicatorView: View {
                 .transition(.opacity)
         }
         .frame(
-            width: ClassicOverlayLayout.size.width,
-            height: ClassicOverlayLayout.size.height,
+            width: PillOverlayLayout.size.width,
+            height: PillOverlayLayout.size.height,
             alignment: .trailing
         )
         .accessibilityElement(children: .contain)
@@ -424,7 +427,21 @@ struct ClassicIndicatorView: View {
         }
     }
 
+    @ViewBuilder
     private var classicSurface: some View {
+        if style == .glass {
+            GlassIndicatorSurface(
+                size: surfaceSize,
+                accent: recordingAccent,
+                isProcessing: state.isProcessing,
+                reduceMotion: reduceMotion
+            )
+        } else {
+            matteSurface
+        }
+    }
+
+    private var matteSurface: some View {
         Capsule(style: .circular)
             .fill(Color(white: 0.075).opacity(0.96))
             .overlay {
@@ -433,6 +450,7 @@ struct ClassicIndicatorView: View {
             }
             .shadow(color: .black.opacity(0.18), radius: 4, y: 2)
             .frame(width: surfaceSize.width, height: surfaceSize.height)
+
     }
 
     @ViewBuilder
@@ -445,7 +463,7 @@ struct ClassicIndicatorView: View {
         case .recording(_, let mode):
             recordingContent(mode: mode)
         case .processing:
-            processingRing
+            processingContent
         case .done:
             statusIcon(symbol: "checkmark", tint: .green.opacity(0.92))
         case .attention:
@@ -471,7 +489,8 @@ struct ClassicIndicatorView: View {
     }
 
     private var recordingBars: some View {
-        Group {
+        let accent = recordingAccent
+        return Group {
             if reduceMotion {
                 Image(systemName: "mic.fill")
                     .font(.system(size: 13, weight: .medium))
@@ -479,9 +498,10 @@ struct ClassicIndicatorView: View {
             } else {
                 TimelineView(.animation(minimumInterval: 1.0 / 60, paused: !state.isRecording)) { timeline in
                     let time = ProcessInfo.processInfo.systemUptime + timeline.date.timeIntervalSinceNow
-                    let widths = state.isRecording
+                    let baseWidths = state.isRecording
                         ? recordingWaveform.sampleBarWidths(at: time)
                         : Array(repeating: CGFloat(2.5), count: 7)
+                    let widths = baseWidths
                     Canvas { context, size in
                         let height: CGFloat = 2.5
                         let spacing: CGFloat = 2.5
@@ -495,7 +515,10 @@ struct ClassicIndicatorView: View {
                             )
                             context.fill(
                                 Path(roundedRect: rect, cornerRadius: height / 2),
-                                with: .color(.white.opacity(0.92))
+                                with: .color(
+                                    (abs(index - widths.count / 2) <= 1
+                                        ? accent : .white).opacity(0.92)
+                                )
                             )
                         }
                     }
@@ -504,6 +527,12 @@ struct ClassicIndicatorView: View {
         }
         .frame(width: 18, height: 36)
         .accessibilityHidden(true)
+    }
+
+    private var recordingAccent: Color {
+        let variant = CrabColorVariant(rawValue: crabColorVariant) ?? .ocean
+        let color = NSColor(variant.swatchColor).blended(withFraction: 0.72, of: .white) ?? .white
+        return Color(nsColor: color)
     }
 
     private var recordingTargetLevel: Float {
@@ -517,6 +546,11 @@ struct ClassicIndicatorView: View {
         Image(systemName: symbol)
             .font(.system(size: 12, weight: .semibold))
             .foregroundStyle(tint)
+    }
+
+    @ViewBuilder
+    private var processingContent: some View {
+        if style != .glass { processingRing }
     }
 
     private var processingRing: some View {
@@ -567,7 +601,7 @@ struct ClassicIndicatorView: View {
         case .recording(_, .handsFree):
             return CGSize(width: 26, height: 96)
         case .processing, .done, .attention:
-            return CGSize(width: 26, height: 34)
+            return CGSize(width: 26, height: style == .glass ? 26 : 34)
         }
     }
 

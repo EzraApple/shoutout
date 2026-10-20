@@ -40,7 +40,7 @@ struct ClassicWaveform {
         return weights.enumerated().map { index, weight in
             let delay = Double(abs(index - weights.count / 2)) * 0.03
             let level = sampleLevel(at: time - delay)
-            let restingWidth = 3 + (sin(time * 2.4 + Double(index) * 1.1) + 1) * 0.5
+            let restingWidth = 3 + (sin(time * 5.2 + Double(index) * 1.1) + 1) * 0.7
             return restingWidth + (18 - restingWidth) * weight * level
         }
     }

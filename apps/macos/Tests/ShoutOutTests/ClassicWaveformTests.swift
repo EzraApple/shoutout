@@ -10,7 +10,7 @@ final class ClassicWaveformTests: XCTestCase {
         waveform.recordLevel(0, at: 0.1)
         XCTAssertEqual(waveform.sampleLevel(at: 0.1), beforeRelease, accuracy: 0.00001)
         XCTAssertLessThan(waveform.sampleLevel(at: 0.4), 0.05)
-        XCTAssertTrue(waveform.sampleBarWidths(at: 1).allSatisfy { $0 < 4.01 })
+        XCTAssertTrue(waveform.sampleBarWidths(at: 1).allSatisfy { $0 < 4.41 })
     }
 
     func testEnvelopeDoesNotDependOnPublicationFrequency() {
@@ -58,7 +58,7 @@ final class ClassicWaveformTests: XCTestCase {
         let first = waveform.sampleBarWidths(at: 10)
         let second = waveform.sampleBarWidths(at: 10.5)
         XCTAssertNotEqual(first, second)
-        XCTAssertTrue((first + second).allSatisfy { (3...4).contains($0) })
+        XCTAssertTrue((first + second).allSatisfy { (3...4.4).contains($0) })
         XCTAssertEqual(waveform.sampleLevel(at: .nan), 0)
         XCTAssertEqual(waveform.sampleBarWidths(at: .nan), Array(repeating: 2.5, count: 7))
     }

@@ -992,7 +992,7 @@ assert_contains "Crab processing spinner rotates continuously" "$MACOS_DIR/Sourc
 assert_contains "Wall boom frames use generated sprite sheet" "$REPO_ROOT/scripts/sync-mascot-assets.py" "GENERATED_WALL_RECORDING_SHEET"
 assert_not_contains "Wall boom frames avoid procedural pose overlay" "$REPO_ROOT/scripts/sync-mascot-assets.py" "WALL_BOOM_POSES"
 assert_not_contains "Wall boom frames avoid reveal-mask animation" "$REPO_ROOT/scripts/sync-mascot-assets.py" "slide_reveal_overlay"
-assert_contains "Classic overlay has compact layout" "$MACOS_DIR/Sources/Views/FloatingIndicator.swift" "ClassicOverlayLayout"
+assert_contains "Classic overlay has compact layout" "$MACOS_DIR/Sources/Views/FloatingIndicator.swift" "PillOverlayLayout"
 assert_contains "Classic overlay has idle nub" "$MACOS_DIR/Sources/Views/FloatingIndicator.swift" "CGSize\\(width: 8, height: 30\\)"
 assert_contains "Classic overlay responds to audio level" "$MACOS_DIR/Sources/Views/FloatingIndicator.swift" "recordingWaveform.recordLevel"
 assert_contains "Classic overlay sits on right edge" "$MACOS_DIR/Sources/AppDelegate.swift" "positionClassicAtScreenRight"

@@ -17,7 +17,7 @@ make run
 
 For repeated QA, `make restart-local` rebuilds, replaces `~/Applications/ShoutOut.app`, and reopens it with onboarding marked complete. It preserves dictation history. Use `make install-local` instead when the app should request permissions on launch. Permission and paste debugging are covered in [Troubleshooting](../TROUBLESHOOTING.md).
 
-A debug bundle launched with `SHOUTOUT_CLASSIC_PREVIEW=1` opens an isolated Classic overlay check. It uses the real right-edge panel, with controls for each state, a repeatable audio trace, and Reduce Motion. It skips capture, hotkeys, models, permissions, and the updater. Use a separate bundle identifier for the preview. Close the control window to inspect the floating panel; choose Open ShoutOut from the app menu to reopen the controls.
+A debug bundle launched with `SHOUTOUT_CLASSIC_PREVIEW=1` compares the complete Glass and Classic flows with a repeatable audio trace and Reduce Motion. It also uses the real right-edge panel, selectable as Glass or Classic. It skips capture, hotkeys, models, permissions, and the updater. Use a separate bundle identifier for the preview. Close the control window to inspect the floating panel; choose Open ShoutOut from the app menu to reopen the controls.
 
 ## Website
 
