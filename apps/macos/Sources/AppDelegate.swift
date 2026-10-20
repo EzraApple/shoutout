@@ -278,11 +278,25 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var updaterHasStarted = false
     private var shortcutUnavailableMessage: String?
     private var lastLoggedRecordingLevelAt: Date?
-    private var displayedClassicRecordingLevel: Float = 0
+    private var latestRecordingLevel: Float = 0
     private var permissionChangeObserver: NSObjectProtocol?
+
+#if DEBUG
+    private var classicPreview: ClassicOverlayPreview?
+#endif
 
     func applicationDidFinishLaunching(_ notification: Notification) {
 #if DEBUG
+        if ProcessInfo.processInfo.environment["SHOUTOUT_CLASSIC_PREVIEW"] != nil {
+            setupMainMenu()
+            classicPreview = ClassicOverlayPreview { [weak self] state, reduceMotion in
+                guard let self else { return }
+                self.showIndicator(state: state)
+                self.indicatorOverlayModel?.previewReduceMotion = reduceMotion
+            }
+            classicPreview?.show()
+            return
+        }
         if ProcessInfo.processInfo.environment["SHOUTOUT_DICTIONARY_PREVIEW"] != nil {
             setupMainMenu()
             showMainWindow(section: .dictionary)
@@ -521,7 +535,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         activeDictationMetrics?.inputMode = inputMode
-        updateIndicator(state: .recording(level: displayedClassicRecordingLevel, mode: recordingIndicatorMode))
+        updateIndicator(state: .recording(level: latestRecordingLevel, mode: recordingIndicatorMode))
         guard !recordingIsCommitted else { return }
         recordingIsCommitted = true
         activeDictationMetrics?.recordingCommittedAt = Date()
@@ -567,12 +581,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             recordingStartedAt = Date()
             appState = .recording
             recordingIsCommitted = commitImmediately
-            displayedClassicRecordingLevel = 0
+            latestRecordingLevel = 0
             let elapsedMs = Int(Date().timeIntervalSince(startRequestedAt) * 1000)
             activeDictationMetrics?.markRecordingStarted()
             RuntimeLog.write("record started elapsedMs=\(elapsedMs)")
             refreshMenuBarIcon()
-            showIndicator(state: .recording(level: displayedClassicRecordingLevel, mode: recordingIndicatorMode))
+            showIndicator(state: .recording(level: latestRecordingLevel, mode: recordingIndicatorMode))
             if commitImmediately {
                 activeDictationMetrics?.recordingCommittedAt = Date()
                 RuntimeLog.write("record committed")
@@ -586,8 +600,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 .sink { [weak self] level in
                     guard let self else { return }
                     self.logRecordingLevel(level)
-                    let overlayLevel = self.displayLevelForRecordingOverlay(rawLevel: level)
-                    self.updateIndicator(state: .recording(level: overlayLevel, mode: self.recordingIndicatorMode))
+                    self.latestRecordingLevel = level
+                    self.updateIndicator(state: .recording(level: level, mode: self.recordingIndicatorMode))
                 }
         } catch {
             recordingStartedAt = nil
@@ -653,7 +667,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         guard audioRecorder.isRecording else { return }
         audioLevelCancellable?.cancel()
         audioLevelCancellable = nil
-        displayedClassicRecordingLevel = 0
+        latestRecordingLevel = 0
 
         let recordedSamples = audioRecorder.stopRecording()
         let samples = AudioSignalAnalysis.trimmingTrailingSilence(
@@ -725,7 +739,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         longFormWarmupTask = nil
         audioLevelCancellable?.cancel()
         audioLevelCancellable = nil
-        displayedClassicRecordingLevel = 0
+        latestRecordingLevel = 0
 
         let samples = audioRecorder.stopRecording()
         let recordingDuration = max(
@@ -964,30 +978,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         RuntimeLog.write("record level=\(String(format: "%.3f", level))")
     }
 
-    private func displayLevelForRecordingOverlay(rawLevel: Float) -> Float {
-        guard currentOverlayStyle == .capsule else {
-            return rawLevel
-        }
-
-        let target = min(max(rawLevel, 0), 1)
-        let delta = target - displayedClassicRecordingLevel
-        let response: Float
-        if delta >= 0 {
-            response = 0.48
-        } else if abs(delta) < 0.025 {
-            response = 0.06
-        } else {
-            response = 0.20
-        }
-        displayedClassicRecordingLevel += delta * response
-
-        if displayedClassicRecordingLevel < 0.004, target < 0.004 {
-            displayedClassicRecordingLevel = 0
-        }
-
-        return displayedClassicRecordingLevel
-    }
-
     // MARK: - Floating Indicator
 
     private func observeModelState() {
@@ -1036,9 +1026,21 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         writeOverlaySnapshotIfRequested(style: overlayStyle, state: state, crabHeight: crabHeight)
 
         let onCancel: () -> Void = { [weak self] in
+#if DEBUG
+            if let preview = self?.classicPreview {
+                preview.cancel()
+                return
+            }
+#endif
             _ = self?.discardActiveRecording(reason: "cancelled")
         }
         let onCommit: () -> Void = { [weak self] in
+#if DEBUG
+            if let preview = self?.classicPreview {
+                preview.finish()
+                return
+            }
+#endif
             _ = self?.stopRecordingAndTranscribe()
         }
 
@@ -1196,11 +1198,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private var currentOverlayStyle: OverlayStyle {
-        UserDefaults.standard.string(forKey: Defaults.overlayStyle) == OverlayStyle.capsule.rawValue
+#if DEBUG
+        if classicPreview != nil { return .capsule }
+#endif
+        return UserDefaults.standard.string(forKey: Defaults.overlayStyle) == OverlayStyle.capsule.rawValue
             ? .capsule : .crab
     }
 
     private var modelIsReadyForOverlay: Bool {
+#if DEBUG
+        if classicPreview != nil { return true }
+#endif
         if ProcessInfo.processInfo.environment["SHOUTOUT_OVERLAY_PREVIEW"] != nil {
             return true
         }
@@ -1869,6 +1877,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func showMainWindow(section: ShoutOutHomeSection) {
+#if DEBUG
+        if let classicPreview {
+            classicPreview.show()
+            return
+        }
+#endif
         homeWindowModel.selectedSection = section
 
         if mainWindow == nil {
