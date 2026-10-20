@@ -1,8 +1,10 @@
+import { indicatorTimeline } from "./indicator-timeline";
+
 const reply = "I'll send the notes after lunch.";
 const recordingStart = 2400;
-const recordingStop = recordingStart + 2608;
-const transcriptionEnd = recordingStart + 3884;
-const pasteTime = transcriptionEnd + 500;
+const recordingStop = recordingStart + indicatorTimeline.recordingEnd;
+const transcriptionEnd = recordingStart + indicatorTimeline.processingEnd;
+const pasteTime = recordingStart + indicatorTimeline.completeEnd;
 const cycleDuration = 12600;
 const steps = [
   { until: 1400, name: "typing" },

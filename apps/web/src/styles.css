@@ -1853,6 +1853,7 @@ p {
   border-radius: 50%;
   background: #15202d;
   opacity: 0;
+  transition: opacity 80ms ease-out;
 }
 .demo-processing::after {
   content: "";
@@ -1956,16 +1957,20 @@ p {
 [data-demo-phase="listening"] .classic-bars { opacity: 1; }
 .classic-bars span:nth-child(n+3):nth-child(-n+5) { background: #c1ccdc; }
 .demo-classic .demo-processing { z-index: 1; top: 26px; right: 7px; width: 12px; height: 12px; background: transparent; }
-[data-demo-phase="outro"] .demo-classic .demo-processing { opacity: 1; }
+[data-demo-phase="outro"] .native-spinner { opacity: 1; }
 .native-spinner::after { content: none; }
-.native-spinner svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.native-spinner svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  animation: demo-spin var(--spinner-duration, 540ms) linear infinite;
+  animation-play-state: paused;
+}
 .demo-classic .native-spinner { --spinner-duration: 900ms; }
 .crab-indicator .native-spinner { top: 24px; right: 24px; width: 51px; height: 51px; background: rgb(0 0 0 / 68%); }
-[data-demo-phase="processing"][data-demo-running="true"] .native-spinner svg,
-[data-demo-phase="outro"][data-demo-running="true"] .demo-classic .native-spinner svg {
-  animation: demo-spin var(--spinner-duration, 540ms) linear infinite;
-}
-.classic-check { position: absolute; z-index: 1; inset: 0; display: grid; place-items: center; color: #32c957; opacity: 0; }
+[data-demo-running="true"] .native-spinner svg { animation-play-state: running; }
+.classic-check { position: absolute; z-index: 1; inset: 0; display: grid; place-items: center; color: #32c957; opacity: 0; transition: opacity 80ms ease-out; }
 .classic-check svg { width: 12px; height: 12px; }
 [data-demo-phase="done"] .classic-check { opacity: 1; }
 
@@ -1977,6 +1982,9 @@ p {
   width: 28px;
   height: 28px;
   opacity: 0;
+  transition: opacity 80ms ease-out;
+  animation: demo-spin 1.15s linear infinite;
+  animation-play-state: paused;
 }
 
 .glass-loading-rim::after {
@@ -2002,10 +2010,7 @@ p {
 
 [data-demo-phase="outro"] .glass-loading-rim,
 [data-demo-phase="processing"] .glass-loading-rim { opacity: 1; }
-[data-demo-phase="outro"][data-demo-running="true"] .glass-loading-rim,
-[data-demo-phase="processing"][data-demo-running="true"] .glass-loading-rim {
-  animation: demo-spin 1.15s linear infinite;
-}
+[data-demo-running="true"] .glass-loading-rim { animation-play-state: running; }
 
 @media (prefers-reduced-motion: reduce) {
   .message-thread .message-typing, .message-thread .message-received,
@@ -2013,13 +2018,11 @@ p {
   .message-send, .demo-complete { transition: none; }
   .message-typing .typing-dots span { animation: none; }
   [data-message-focused="true"] .message-caret { animation: none; }
-  .demo-crab, .demo-classic, .classic-bars, .classic-bars span { transition: none; }
+  .demo-crab, .demo-classic, .classic-bars, .classic-bars span,
+  .demo-processing, .classic-check, .glass-loading-rim { transition: none; }
   .demo-classic::before { transition: none; }
-  [data-demo-phase="outro"][data-demo-running="true"] .glass-loading-rim,
-  [data-demo-phase="processing"][data-demo-running="true"] .glass-loading-rim,
-  [data-demo-phase="processing"][data-demo-running="true"] .demo-processing::after,
-  [data-demo-phase="processing"][data-demo-running="true"] .native-spinner svg,
-  [data-demo-phase="outro"][data-demo-running="true"] .demo-classic .native-spinner svg { animation: none; }
+  .glass-loading-rim, .native-spinner svg,
+  [data-demo-phase="processing"][data-demo-running="true"] .demo-processing::after { animation: none; }
 }
 
 @media (max-width: 680px) {

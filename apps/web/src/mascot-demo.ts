@@ -1,10 +1,11 @@
 import { createMessageLoop } from "./message-loop";
 import { sampleIndicatorBarWidths } from "./indicator-waveform";
+import { indicatorMotion, indicatorTimeline } from "./indicator-timeline";
 
 const frameURL = (name: string) => `/assets/mascot/wall/${name}.png`;
 const frameNames = [
   ...Array.from({ length: 4 }, (_, index) => `idle-${index + 1}`),
-  ...Array.from({ length: 6 }, (_, index) => `recording-intro-${index + 1}`),
+  ...Array.from({ length: indicatorMotion.microphoneFrameCount }, (_, index) => `recording-intro-${index + 1}`),
   "recording-hold",
 ];
 
@@ -26,8 +27,9 @@ function setupDemo(root: HTMLElement, framesReady: Promise<unknown>) {
     ? root : root.querySelector<HTMLElement>("[data-demo-viewport]")!;
   const bars = root.querySelectorAll<HTMLElement>("[data-level-bar]");
   const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
-  const messageLoop = createMessageLoop(root);
+  const messageLoop = root.hasAttribute("data-message-loop") ? createMessageLoop(root) : null;
   const stationaryCrab = root.hasAttribute("data-demo-stationary");
+  let indicatorElapsed = 0;
   let ready = false;
   let visible = false;
   let frameRequest = 0;
@@ -51,22 +53,27 @@ function setupDemo(root: HTMLElement, framesReady: Promise<unknown>) {
   }
 
   function renderPlayback(time: number) {
-    if (time < 408) {
+    if (time < indicatorTimeline.microphoneOpenEnd) {
       setPhase("intro");
-      setFrame(`recording-intro-${Math.min(6, Math.floor(time / 68) + 1)}`);
-    } else if (time < 2608) {
+      const frame = Math.floor(time / indicatorMotion.microphoneOpenFrame) + 1;
+      setFrame(`recording-intro-${frame}`);
+    } else if (time < indicatorTimeline.recordingEnd) {
       setPhase("listening");
       setFrame("recording-hold");
-    } else if (time < 2884) {
+    } else if (time < indicatorTimeline.microphoneCloseEnd) {
       setPhase("outro");
-      setFrame(`recording-intro-${Math.max(1, 6 - Math.floor((time - 2608) / 46))}`);
-    } else if (time < 3884) {
+      const elapsed = time - indicatorTimeline.recordingEnd;
+      const frame = indicatorMotion.microphoneFrameCount - Math.floor(elapsed / indicatorMotion.microphoneCloseFrame);
+      setFrame(`recording-intro-${frame}`);
+    } else if (time < indicatorTimeline.processingEnd) {
       setFrame("idle-1");
       setPhase("processing");
-    } else {
+    } else if (time < indicatorTimeline.completeEnd) {
       setPhase("done");
+    } else {
+      setPhase("closing");
     }
-    if (time < 2608 && bars.length) {
+    if (time < indicatorTimeline.recordingEnd && bars.length) {
       const widths = sampleIndicatorBarWidths(time);
       bars.forEach((bar, index) => {
         bar.style.transform = `scaleX(${widths[index % widths.length] / 18})`;
@@ -89,11 +96,17 @@ function setupDemo(root: HTMLElement, framesReady: Promise<unknown>) {
     }
   }
 
+  function advancePlayback(delta: number): number | null {
+    if (messageLoop) return messageLoop.advance(delta);
+    indicatorElapsed = (indicatorElapsed + delta) % indicatorTimeline.cycleEnd;
+    return indicatorElapsed < indicatorTimeline.closingEnd ? indicatorElapsed : null;
+  }
+
   function tick(time: number) {
     frameRequest = 0;
     const delta = previousTime ? Math.min(time - previousTime, 100) : 0;
     previousTime = time;
-    const recordingTime = messageLoop.advance(delta);
+    const recordingTime = advancePlayback(delta);
     if (recordingTime !== null) {
       renderPlayback(recordingTime);
     } else {
@@ -120,10 +133,11 @@ function setupDemo(root: HTMLElement, framesReady: Promise<unknown>) {
     ready = true;
     schedule();
   }).catch(() => {
-    messageLoop.reset(true);
+    messageLoop?.reset(true);
   });
   function syncMotionPreference() {
-    messageLoop.reset(reducedMotion.matches);
+    indicatorElapsed = 0;
+    messageLoop?.reset(reducedMotion.matches);
     setPhase("walking");
     if (reducedMotion.matches) {
       offset = 0;
