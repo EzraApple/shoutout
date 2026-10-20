@@ -15,7 +15,7 @@ enum AppCommandLine {
               --cli serve
 
             Settings: streaming/cleanup on|off; style normal|casual|formal;
-            indicator crab|classic; shortcut/color accept the app's stored IDs.
+            indicator crab|classic|glass; shortcut/color accept the app's stored IDs.
             Commands use the running app when available. Otherwise settings persist
             for its next launch and audio commands run without windows or text insertion.
             serve hosts the same commands headlessly; use it while the GUI app is closed.

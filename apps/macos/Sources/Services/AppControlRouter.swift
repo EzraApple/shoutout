@@ -106,8 +106,11 @@ final class AppControlRouter {
             guard HotkeyTrigger(rawValue: value) != nil else { throw invalid("Unknown shortcut: \(value)") }
             defaults.set(value, forKey: Defaults.hotkeyTrigger)
         case "indicator":
-            guard ["crab", "classic", "capsule"].contains(value) else { throw invalid("Indicator must be crab or classic.") }
-            defaults.set(value == "classic" ? "capsule" : value, forKey: Defaults.overlayStyle)
+            let raw = value == "classic" ? OverlayStyle.capsule.rawValue : value
+            guard let style = OverlayStyle(rawValue: raw), style != .off else {
+                throw invalid("Indicator must be crab, classic, or glass.")
+            }
+            defaults.set(style.rawValue, forKey: Defaults.overlayStyle)
         case "color":
             guard CrabColorVariant(rawValue: value) != nil else { throw invalid("Unknown crab color: \(value)") }
             defaults.set(value, forKey: Defaults.crabColorVariant)

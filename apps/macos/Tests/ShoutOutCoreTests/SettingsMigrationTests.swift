@@ -3,6 +3,21 @@ import XCTest
 @testable import ShoutOutCore
 
 final class SettingsMigrationTests: XCTestCase {
+    func testGlassIndicatorSurvivesStartupMigration() throws {
+        let suite = "ShoutOut.SettingsMigrationTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set("glass", forKey: "overlayStyle")
+        defaults.set(true, forKey: "streamingTranscriptionEnabled")
+        defaults.synchronize()
+
+        let nextLaunch = try XCTUnwrap(UserDefaults(suiteName: suite))
+        SettingsMigration.removeRetiredOverrides(from: nextLaunch)
+
+        XCTAssertEqual(nextLaunch.string(forKey: "overlayStyle"), "glass")
+        XCTAssertTrue(nextLaunch.bool(forKey: "streamingTranscriptionEnabled"))
+    }
+
     func testRetiredOverridesResetWithoutChangingPersonalPreferences() throws {
         let suite = "ShoutOut.SettingsMigrationTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))

@@ -12,7 +12,8 @@ import uuid
 
 ROOT = Path(__file__).resolve().parents[3]
 HERE = Path(__file__).resolve().parent
-BINARY = ROOT / 'apps/macos/dist/ShoutOut.app/Contents/MacOS/ShoutOut'
+APP_BUNDLE = Path(os.environ.get('SHOUTOUT_TEST_APP', str(ROOT / 'apps/macos/dist/ShoutOut.app')))
+BINARY = APP_BUNDLE / 'Contents/MacOS/ShoutOut'
 
 
 def main():
@@ -43,6 +44,8 @@ def main():
         command('settings', 'set', 'style', 'invalid', success=False)
         assert command('settings', 'get', 'style')['values']['style'] == 'standard'
         command('settings', 'set', 'cleanup', 'on')
+        for indicator, stored in [('crab', 'crab'), ('classic', 'capsule'), ('glass', 'glass')]:
+            assert command('settings', 'set', 'indicator', indicator)['values']['indicator'] == stored
         assert not socket.exists()
 
         with (directory / 'host.log').open('w') as log:

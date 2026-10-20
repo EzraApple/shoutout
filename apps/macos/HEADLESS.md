@@ -30,7 +30,7 @@ In another terminal:
 
 Settings include `streaming`, `cleanup`, `style`, `shortcut`, `indicator`, and
 `color`. Boolean values accept `on/off` or `true/false`. Styles are `normal`,
-`casual`, and `formal`. Indicators are `crab` and `classic`; shortcut and color
+`casual`, and `formal`. Indicators are `crab`, `classic`, and `glass`; shortcut and color
 values use the IDs returned by `settings get`. A setting change cannot unload
 an engine during dictation. Model preparation waits for loading to finish.
 
@@ -78,3 +78,7 @@ mutation because its outcome may be uncertain.
 settings persistence, live headless IPC, both models, silence rejection, cleanup,
 and paced replay against the packaged build. It uses a temporary preference
 suite and socket, and reuses the app's model caches. It opens no GUI.
+
+To preserve existing build artifacts, set `SHOUTOUT_DIST_DIR` to an absolute output
+directory when running `apps/macos/scripts/build-app.sh`. Set `SHOUTOUT_TEST_APP`
+to the resulting `.app` path when running the CLI smoke test.

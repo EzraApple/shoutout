@@ -53,6 +53,24 @@ final class AppControlRouterTests: XCTestCase {
         XCTAssertEqual(defaults.string(forKey: Defaults.languagePassStyle), "casual")
     }
 
+    func testIndicatorStylesPersistWithoutChangingTheTranscriptionEngine() async throws {
+        let suite = "ShoutOut.CLI.Tests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set(true, forKey: "streamingTranscriptionEnabled")
+        let router = AppControlRouter(defaults: defaults)
+        for (value, expected) in [("crab", "crab"), ("classic", "capsule"), ("glass", "glass")] {
+            let response = await router.handle(AppControlRequest(command: "settings.set", key: "indicator", value: value))
+            XCTAssertTrue(response.ok)
+            XCTAssertEqual(response.values["indicator"], expected)
+            XCTAssertEqual(defaults.string(forKey: Defaults.overlayStyle), expected)
+            XCTAssertEqual(response.values["engine"], "hexStreaming")
+        }
+        let invalid = await router.handle(AppControlRequest(command: "settings.set", key: "indicator", value: "off"))
+        XCTAssertFalse(invalid.ok)
+        XCTAssertEqual(defaults.string(forKey: Defaults.overlayStyle), "glass")
+    }
+
     func testSettingsCannotUnloadAnEngineDuringDictation() async throws {
         let suite = "ShoutOut.CLI.Tests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))

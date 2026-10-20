@@ -5,7 +5,7 @@ public enum SettingsMigration {
     /// Run before constructing services; the app registers their default values.
     public static func removeRetiredOverrides(from defaults: UserDefaults) {
         if let style = defaults.string(forKey: "overlayStyle"),
-            style != "crab", style != "capsule" {
+            style != "crab", style != "capsule", style != "glass" {
             defaults.removeObject(forKey: "overlayStyle")
         }
         for key in [
