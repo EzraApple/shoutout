@@ -441,7 +441,25 @@ struct ShoutOutHomeView: View {
                 if let progress = transcription.modelState.startupProgress,
                     !transcription.modelState.isReady {
                     ModelProgressBar(progress: progress, height: 6)
-                    Text("Preparing your local models. First setup downloads about 5 GB.")
+                    Text(transcription.streamingTrialEnabled
+                        ? "Preparing streaming dictation and its shared verification model."
+                        : "Preparing your local models. First setup downloads about 5 GB.")
+                        .font(.caption)
+                        .foregroundStyle(ShoutOutHomeTheme.muted)
+                }
+                Divider()
+                HomeToggleRow(
+                    title: "Streaming dictation (trial)",
+                    detail: "Process speech while you talk, for recordings up to 10 minutes. Turn off to return to current Parakeet. Text cleanup stays the same.",
+                    systemImage: "waveform.path",
+                    isOn: $transcription.streamingTrialEnabled
+                )
+                .disabled(transcription.isDictationInProgress)
+                .onChange(of: transcription.streamingTrialEnabled) { _, _ in
+                    Task { await transcription.loadModel() }
+                }
+                if transcription.isDictationInProgress {
+                    Text("Finish dictating before switching engines.")
                         .font(.caption)
                         .foregroundStyle(ShoutOutHomeTheme.muted)
                 }

@@ -21,6 +21,12 @@ private final class AudioSampleCollector: @unchecked Sendable {
         lock.unlock()
     }
 
+    func read(from offset: Int) -> [Float] {
+        lock.lock()
+        defer { lock.unlock() }
+        return Array(samples.dropFirst(offset))
+    }
+
     func drain() -> [Float] {
         lock.lock()
         let result = Array(samples)
@@ -48,6 +54,8 @@ class AudioRecorder: ObservableObject {
     private var audioEngine: AVAudioEngine?
     private let collector = AudioSampleCollector()
     private var levelPollTimer: Timer?
+    private var publishedSamples = 0
+    var onSamples: (([Float]) -> Void)?
 
     func startRecording() throws {
         guard !isRecording else { return }
@@ -73,6 +81,7 @@ class AudioRecorder: ObservableObject {
         }
 
         collector.reset()
+        publishedSamples = 0
 
         Self.installAudioTap(
             on: inputNode,
@@ -100,6 +109,7 @@ class AudioRecorder: ObservableObject {
             guard let self else { return }
             Task { @MainActor in
                 self.audioLevel = self.collector.latestLevel
+                self.publishSamples()
             }
         }
     }
@@ -114,10 +124,32 @@ class AudioRecorder: ObservableObject {
             stopAudioEngine(audioEngine)
         }
         audioEngine = nil
+        publishSamples()
         isRecording = false
         audioLevel = 0
 
         return collector.drain()
+    }
+
+    func startReplay() {
+        precondition(!isRecording)
+        collector.reset()
+        publishedSamples = 0
+        isRecording = true
+    }
+
+    func appendReplaySamples(_ samples: [Float]) {
+        precondition(isRecording && audioEngine == nil)
+        collector.append(samples, level: 0)
+        publishSamples()
+    }
+
+    private func publishSamples() {
+        guard let onSamples else { return }
+        let samples = collector.read(from: publishedSamples)
+        guard !samples.isEmpty else { return }
+        publishedSamples += samples.count
+        onSamples(samples)
     }
 
     /// Minimum number of samples for a valid recording (0.2s at 16kHz).

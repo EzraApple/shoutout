@@ -4,6 +4,7 @@ import ShoutOutCore
 enum TranscriptionBackend: String, CaseIterable, Hashable, Identifiable, Sendable {
     case whisperKit = "whisperkit"
     case parakeet = "parakeet"
+    case hexStreaming = "hexStreaming"
     case appleSpeech = "appleSpeech"
     case appleDictation = "appleDictation"
 
@@ -18,7 +19,7 @@ enum TranscriptionBackend: String, CaseIterable, Hashable, Identifiable, Sendabl
             backends.append(.appleDictation)
         }
 #endif
-        backends.append(contentsOf: [.parakeet, .whisperKit])
+        backends.append(contentsOf: [.parakeet, .whisperKit, .hexStreaming])
         return backends
     }
 
@@ -26,6 +27,8 @@ enum TranscriptionBackend: String, CaseIterable, Hashable, Identifiable, Sendabl
         switch self {
         case .whisperKit:
             return "WhisperKit"
+        case .hexStreaming:
+            return "Parakeet streaming (trial)"
         case .parakeet:
             return "Parakeet English"
         case .appleSpeech:
@@ -39,6 +42,8 @@ enum TranscriptionBackend: String, CaseIterable, Hashable, Identifiable, Sendabl
         switch self {
         case .whisperKit:
             return "Best local model control and often strongest quality; requires a download and more startup time."
+        case .hexStreaming:
+            return "Experimental local streaming. Processes speech while you talk; requires a 731 MB model download."
         case .parakeet:
             return "Fast local English transcription. About 5 GB of models, including Whisper for checking uncertain endings."
         case .appleSpeech:
@@ -56,7 +61,7 @@ enum TranscriptionBackend: String, CaseIterable, Hashable, Identifiable, Sendabl
             return "Balanced"
         case .whisperKit:
             return "Slower start"
-        case .parakeet:
+        case .parakeet, .hexStreaming:
             return "Fast inference"
         }
     }
@@ -69,7 +74,7 @@ enum TranscriptionBackend: String, CaseIterable, Hashable, Identifiable, Sendabl
             return "Better"
         case .whisperKit:
             return "Best control"
-        case .parakeet:
+        case .parakeet, .hexStreaming:
             return "High English accuracy"
         }
     }
@@ -82,7 +87,7 @@ enum TranscriptionBackend: String, CaseIterable, Hashable, Identifiable, Sendabl
         switch self {
         case .appleSpeech, .appleDictation:
             return true
-        case .whisperKit, .parakeet:
+        case .whisperKit, .parakeet, .hexStreaming:
             return false
         }
     }
@@ -107,4 +112,12 @@ protocol TranscriptionEngine {
     func load(updateState: @escaping @MainActor (ModelState) -> Void) async throws
     func transcribe(audioSamples: [Float]) async throws -> EngineTranscriptionResult
     func unload()
+}
+
+@MainActor
+protocol StreamingTranscriptionEngine: TranscriptionEngine {
+    func startStreaming(id: UUID) async throws
+    func feedStreaming(id: UUID, samples: [Float]) async throws
+    func finishStreaming(id: UUID, audioSamples: [Float]) async throws -> EngineTranscriptionResult
+    func cancelStreaming(id: UUID) async
 }

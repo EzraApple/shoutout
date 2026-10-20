@@ -131,8 +131,25 @@ mkdir -p "$APP_BUNDLE/Contents/Frameworks"
 # Copy binary
 cp "$BUILD_DIR/$EXECUTABLE_NAME" "$APP_BUNDLE/Contents/MacOS/$EXECUTABLE_NAME"
 
+# Build and bundle the optional streaming engine before signing the app.
+if [ "$UNIVERSAL" = "true" ]; then
+    Native/HexSpeechWorker/build.sh --universal
+else
+    Native/HexSpeechWorker/build.sh --arm64-only
+fi
+mkdir -p "$APP_BUNDLE/Contents/Helpers" "$APP_BUNDLE/Contents/Resources/HexSpeechWorker"
+cp Native/HexSpeechWorker/build/release/hex-speech-worker "$APP_BUNDLE/Contents/Helpers/HexSpeechWorker"
+cp Native/HexSpeechWorker/build/release/ModelMetadata.json Native/HexSpeechWorker/build/release/THIRD_PARTY_NOTICES.md \
+    "$APP_BUNDLE/Contents/Resources/HexSpeechWorker/"
+cp -R Native/HexSpeechWorker/build/release/Licenses "$APP_BUNDLE/Contents/Resources/HexSpeechWorker/"
+
 # Copy Info.plist
 cp "Resources/Info.plist" "$APP_BUNDLE/Contents/"
+if [ "${SHOUTOUT_LOCAL_TRIAL:-false}" = "true" ]; then
+    plutil -insert ShoutOutLocalTrial -bool true "$APP_BUNDLE/Contents/Info.plist"
+    plutil -replace CFBundleName -string "ShoutOut Trial" "$APP_BUNDLE/Contents/Info.plist"
+    plutil -replace CFBundleDisplayName -string "ShoutOut Trial" "$APP_BUNDLE/Contents/Info.plist"
+fi
 
 # Stamp the bundle with traceable build metadata. Release scripts may override
 # SHOUTOUT_VERSION / SHOUTOUT_BUILD from the environment.
@@ -266,6 +283,8 @@ sign_framework_inside_out() {
 if [[ -n "${CODE_SIGN_IDENTITY:-}" ]]; then
     echo -e "${BLUE}Code signing with identity: $CODE_SIGN_IDENTITY${NC}"
 
+    sign_developer_id "$APP_BUNDLE/Contents/Helpers/HexSpeechWorker"
+
     # Sign inside-out: nested bundles first, then the main app
     for RESOURCE_BUNDLE_PATH in "$APP_BUNDLE/Contents/Resources"/*.bundle; do
         if [ ! -d "$RESOURCE_BUNDLE_PATH" ]; then
@@ -331,6 +350,7 @@ if [[ -n "${CODE_SIGN_IDENTITY:-}" ]]; then
     fi
 else
     # Ad-hoc sign for local use
+    sign_adhoc "$APP_BUNDLE/Contents/Helpers/HexSpeechWorker"
     echo -e "${YELLOW}No CODE_SIGN_IDENTITY set. Ad-hoc signing for local use...${NC}"
 
     for RESOURCE_BUNDLE_PATH in "$APP_BUNDLE/Contents/Resources"/*.bundle; do

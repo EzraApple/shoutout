@@ -17,6 +17,7 @@ enum AppUpdaterConfiguration {
     }
 
     static var isConfigured: Bool {
+        guard Bundle.main.object(forInfoDictionaryKey: "ShoutOutLocalTrial") as? Bool != true else { return false }
         guard let publicKey,
             !publicKey.isEmpty,
             let feedURL = URL(string: feedURLString),
@@ -28,6 +29,9 @@ enum AppUpdaterConfiguration {
     }
 
     static var statusText: String {
+        if Bundle.main.object(forInfoDictionaryKey: "ShoutOutLocalTrial") as? Bool == true {
+            return "Local trial; automatic updates disabled"
+        }
         if isConfigured {
             return "Automatic updates enabled"
         }

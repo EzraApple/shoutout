@@ -1,0 +1,15 @@
+[package]
+name = "native-hex-benchmark"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+hound = "3.5.1"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+sha2 = "0.10"
+transcribe-cpp = "=0.2.4"
+
+[profile.release]
+debug = false
+strip = true

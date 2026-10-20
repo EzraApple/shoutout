@@ -81,7 +81,7 @@ final class LanguagePassService: ObservableObject {
     @Published var modelState: ModelState = .unloaded
     @Published var selectedModelID: String {
         didSet {
-            UserDefaults.standard.set(selectedModelID, forKey: Defaults.languagePassModel)
+            defaults.set(selectedModelID, forKey: Defaults.languagePassModel)
             if selectedModelID != oldValue {
                 unload()
                 if isEnabled {
@@ -92,7 +92,7 @@ final class LanguagePassService: ObservableObject {
     }
     @Published var isEnabled: Bool {
         didSet {
-            UserDefaults.standard.set(isEnabled, forKey: Defaults.languagePassEnabled)
+            defaults.set(isEnabled, forKey: Defaults.languagePassEnabled)
             RuntimeLog.write("languagePass enabled=\(isEnabled)")
             if isEnabled {
                 warmUpIfEnabled()
@@ -103,7 +103,7 @@ final class LanguagePassService: ObservableObject {
     }
     @Published var selectedStyle: LanguagePassStyle {
         didSet {
-            UserDefaults.standard.set(selectedStyle.rawValue, forKey: Defaults.languagePassStyle)
+            defaults.set(selectedStyle.rawValue, forKey: Defaults.languagePassStyle)
             RuntimeLog.write("languagePass style=\(selectedStyle.rawValue)")
         }
     }
@@ -111,6 +111,8 @@ final class LanguagePassService: ObservableObject {
 
     let availableModels = LanguagePassModelOption.all.map(\.id)
 
+    private let defaults: UserDefaults
+    private let modelStorageDirectory: URL
     private var modelContainer: ModelContainer?
     private var loadTask: Task<ModelContainer, Error>?
     private var loadGeneration = 0
@@ -134,25 +136,27 @@ final class LanguagePassService: ObservableObject {
         LanguagePassModelOption.option(for: selectedModelID)
     }
 
-    init() {
-        let storedModel = UserDefaults.standard.string(forKey: Defaults.languagePassModel)
+    init(defaults: UserDefaults = .standard, modelsDirectory: URL = LanguagePassService.modelsDirectory) {
+        self.defaults = defaults
+        self.modelStorageDirectory = modelsDirectory
+        let storedModel = defaults.string(forKey: Defaults.languagePassModel)
         if storedModel == LanguagePassModelOption.legacyDefaultID
             || storedModel == LanguagePassModelOption.previousDefaultID
         {
             self.selectedModelID = LanguagePassModelOption.defaultID
-            UserDefaults.standard.set(LanguagePassModelOption.defaultID, forKey: Defaults.languagePassModel)
+            defaults.set(LanguagePassModelOption.defaultID, forKey: Defaults.languagePassModel)
         } else {
             self.selectedModelID = storedModel ?? LanguagePassModelOption.defaultID
         }
 
-        if UserDefaults.standard.object(forKey: Defaults.languagePassEnabled) == nil {
+        if defaults.object(forKey: Defaults.languagePassEnabled) == nil {
             self.isEnabled = true
         } else {
-            self.isEnabled = UserDefaults.standard.bool(forKey: Defaults.languagePassEnabled)
+            self.isEnabled = defaults.bool(forKey: Defaults.languagePassEnabled)
         }
 
         self.selectedStyle = LanguagePassStyle(
-            storedValue: UserDefaults.standard.string(forKey: Defaults.languagePassStyle)
+            storedValue: defaults.string(forKey: Defaults.languagePassStyle)
         )
 
         cleanupRetiredModelsIfNeeded()
@@ -160,7 +164,6 @@ final class LanguagePassService: ObservableObject {
     }
 
     private func cleanupRetiredModelsIfNeeded() {
-        let defaults = UserDefaults.standard
         guard defaults.integer(forKey: Defaults.languagePassModelCleanupVersion) < Self.modelCleanupVersion else {
             return
         }
@@ -176,7 +179,7 @@ final class LanguagePassService: ObservableObject {
     }
 
     private func deleteCachedModelIfPresent(modelID: String) -> Bool {
-        let url = Self.cachedModelDirectory(for: modelID)
+        let url = cachedModelDirectory(for: modelID)
         var isDirectory: ObjCBool = false
         guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory),
             isDirectory.boolValue
@@ -194,8 +197,8 @@ final class LanguagePassService: ObservableObject {
         }
     }
 
-    private static func cachedModelDirectory(for modelID: String) -> URL {
-        modelID.split(separator: "/").reduce(modelsDirectory.appendingPathComponent("models")) { url, component in
+    private func cachedModelDirectory(for modelID: String) -> URL {
+        modelID.split(separator: "/").reduce(modelStorageDirectory.appendingPathComponent("models")) { url, component in
             url.appendingPathComponent(String(component))
         }
     }
@@ -221,7 +224,7 @@ final class LanguagePassService: ObservableObject {
         let generation = loadGeneration
         let modelID = selectedModelID
         let downloader = SwiftTransformersHubDownloader(
-            hub: HubApi(downloadBase: Self.modelsDirectory)
+            hub: HubApi(downloadBase: modelStorageDirectory)
         )
         let tokenizerLoader = SwiftTransformersTokenizerLoader()
 

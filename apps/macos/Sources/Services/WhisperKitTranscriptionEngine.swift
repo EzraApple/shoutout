@@ -51,6 +51,7 @@ final class WhisperKitTranscriptionEngine: TranscriptionEngine {
         updateState(.loading)
         let kit = try await WhisperKit(
             modelFolder: modelFolder.path,
+            tokenizerFolder: modelsDirectory.appendingPathComponent("Tokenizers"),
             verbose: false,
             prewarm: true,
             load: true,

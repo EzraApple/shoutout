@@ -70,9 +70,20 @@ struct TranscriptionTimingSnapshot: Sendable {
 @MainActor
 class TranscriptionService: ObservableObject {
     @Published var modelState: ModelState = .unloaded
+    @Published var isDictationInProgress = false
+    @Published var streamingTrialEnabled: Bool {
+        didSet {
+            defaults.set(streamingTrialEnabled, forKey: "streamingTranscriptionEnabled")
+            if streamingTrialEnabled != oldValue {
+                selectedBackend = streamingTrialEnabled ? .hexStreaming : .parakeet
+            }
+        }
+    }
+    private let streamingQueue = RecordingTranscriptionQueue()
+
     @Published var selectedBackend: TranscriptionBackend {
         didSet {
-            UserDefaults.standard.set(selectedBackend.rawValue, forKey: Defaults.transcriptionBackend)
+            defaults.set(selectedBackend.rawValue, forKey: Defaults.transcriptionBackend)
             if selectedBackend != oldValue {
                 activeEngine?.unload()
                 activeEngine = nil
@@ -87,7 +98,7 @@ class TranscriptionService: ObservableObject {
     }
     @Published var selectedModel: String {
         didSet {
-            UserDefaults.standard.set(selectedModel, forKey: "selectedModel")
+            defaults.set(selectedModel, forKey: "selectedModel")
             if selectedModel != oldValue, selectedBackend == .whisperKit {
                 activeEngine?.unload()
                 activeEngine = nil
@@ -99,6 +110,8 @@ class TranscriptionService: ObservableObject {
     let availableModels = TranscriptionModelOption.all.map(\.id)
     let availableBackends = TranscriptionBackend.selectableCases
 
+    private let defaults: UserDefaults
+    private let modelStorageDirectory: URL
     private var activeEngine: TranscriptionEngine?
     private var appleDictationEngine: TranscriptionEngine?
     private var appleDictationEngineIsReady = false
@@ -122,21 +135,28 @@ class TranscriptionService: ObservableObject {
         return ByteCountFormatter.string(fromByteCount: Int64(bytes), countStyle: .file)
     }
 
-    init() {
-        let backendRaw = UserDefaults.standard.string(forKey: Defaults.transcriptionBackend)
-        let storedBackend = TranscriptionBackend(rawValue: backendRaw ?? "") ?? .defaultBackend
-        self.selectedBackend = TranscriptionBackend.selectableCases.contains(storedBackend)
-            ? storedBackend
-            : .appleSpeech
-        let storedModel = UserDefaults.standard.string(forKey: "selectedModel")
+    init(defaults: UserDefaults = .standard, modelsDirectory: URL = TranscriptionService.modelsDirectory) {
+        self.defaults = defaults
+        self.modelStorageDirectory = modelsDirectory
+        let streamingEnabled = defaults.bool(forKey: "streamingTranscriptionEnabled")
+        self.streamingTrialEnabled = streamingEnabled
+        self.selectedBackend = Self.configuredBackend(defaults: defaults)
+        let storedModel = defaults.string(forKey: "selectedModel")
             ?? TranscriptionModelOption.defaultID
         let normalizedModel = TranscriptionModelOption.all.contains { $0.id == storedModel }
             ? storedModel
             : TranscriptionModelOption.defaultID
         self.selectedModel = normalizedModel
         if normalizedModel != storedModel {
-            UserDefaults.standard.set(normalizedModel, forKey: "selectedModel")
+            defaults.set(normalizedModel, forKey: "selectedModel")
         }
+    }
+
+    static func configuredBackend(defaults: UserDefaults) -> TranscriptionBackend {
+        if defaults.bool(forKey: "streamingTranscriptionEnabled") { return .hexStreaming }
+        let stored = TranscriptionBackend(rawValue: defaults.string(forKey: Defaults.transcriptionBackend) ?? "")
+            ?? .defaultBackend
+        return stored != .hexStreaming && TranscriptionBackend.selectableCases.contains(stored) ? stored : .parakeet
     }
 
     var activeModelIdentifier: String {
@@ -145,6 +165,8 @@ class TranscriptionService: ObservableObject {
         }
 
         switch selectedBackend {
+        case .hexStreaming:
+            return HexStreamingTranscriptionEngine.identifier
         case .parakeet:
             return ParakeetTranscriptionEngine.identifier
         case .whisperKit:
@@ -245,7 +267,7 @@ class TranscriptionService: ObservableObject {
         try await transcribeWithTiming(audioSamples: audioSamples).result
     }
 
-    func transcribeWithTiming(audioSamples: [Float]) async throws
+    func transcribeWithTiming(audioSamples: [Float], recording: RecordingTranscription? = nil) async throws
         -> (result: DictationResult, timing: TranscriptionTimingSnapshot)
     {
         RuntimeLog.write(
@@ -253,11 +275,21 @@ class TranscriptionService: ObservableObject {
         )
         // Wait for the selected engine, or the long-form Apple engine when a recording needs it.
         let modelWaitStart = Date()
-        let engine = try await engineForTranscription(audioSamples: audioSamples)
+        let engine: TranscriptionEngine
+        if let capturedEngine = recording?.engine {
+            engine = capturedEngine
+        } else {
+            engine = try await engineForTranscription(audioSamples: audioSamples)
+        }
         let modelWaitMs = Self.elapsedMilliseconds(since: modelWaitStart)
 
         let engineStart = Date()
-        let engineResult = try await engine.transcribe(audioSamples: audioSamples)
+        let engineResult: EngineTranscriptionResult
+        if let finalization = recording?.finalization {
+            engineResult = try await finalization.value
+        } else {
+            engineResult = try await engine.transcribe(audioSamples: audioSamples)
+        }
         let engineWallMs = Self.elapsedMilliseconds(since: engineStart)
         let terminalCleanup = TranscriptHallucinationFilter.removingTerminalSilenceHallucination(
             from: engineResult.rawText,
@@ -280,8 +312,8 @@ class TranscriptionService: ObservableObject {
             )
         }
         let postProcessingOptions = TextPostProcessingOptions(
-            removeFillerWords: UserDefaults.standard.object(forKey: "removeFillerWords") == nil
-                || UserDefaults.standard.bool(forKey: "removeFillerWords"),
+            removeFillerWords: defaults.object(forKey: "removeFillerWords") == nil
+                || defaults.bool(forKey: "removeFillerWords"),
             applySpokenCommands: true,
             collapseWhitespace: true
         )
@@ -307,6 +339,22 @@ class TranscriptionService: ObservableObject {
         RuntimeLog.write("transcription postprocessed rawLength=\(rawText.count) finalLength=\(finalText.count)")
         RuntimeLog.write("transcription timing \(timing.logFields)")
         return (DictationResult(rawText: rawText, finalText: finalText), timing)
+    }
+
+    func beginRecording() -> RecordingTranscription {
+        streamingQueue.begin(engine: modelState.isReady ? activeEngine as? StreamingTranscriptionEngine : nil)
+    }
+
+    func appendRecordingSamples(_ samples: [Float], recording: RecordingTranscription) {
+        streamingQueue.append(samples, to: recording)
+    }
+
+    func finishRecording(_ recording: RecordingTranscription, audioSamples: [Float]) {
+        streamingQueue.finish(recording, audioSamples: audioSamples)
+    }
+
+    func cancelRecording(_ recording: RecordingTranscription) {
+        streamingQueue.cancel(recording)
     }
 
     func prepareLongFormEngineIfNeeded() async {
@@ -340,14 +388,16 @@ class TranscriptionService: ObservableObject {
 
     private func makeEngine(for backend: TranscriptionBackend) -> TranscriptionEngine {
         switch backend {
+        case .hexStreaming:
+            return HexStreamingTranscriptionEngine(modelsDirectory: modelStorageDirectory)
         case .parakeet:
             return ParakeetTranscriptionEngine(
-                modelsDirectory: Self.modelsDirectory
+                modelsDirectory: modelStorageDirectory
             )
         case .whisperKit:
             return WhisperKitTranscriptionEngine(
                 modelIdentifier: selectedModel,
-                modelsDirectory: Self.modelsDirectory
+                modelsDirectory: modelStorageDirectory
             )
         case .appleSpeech:
             return AppleSpeechTranscriptionEngine()
@@ -454,6 +504,7 @@ extension FileManager {
 }
 
 enum TranscriptionError: LocalizedError {
+    case recordingTooLong
     case modelNotReady
     case modelLoadFailed(String)
     case engineUnavailable(String)
@@ -462,6 +513,7 @@ enum TranscriptionError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
+        case .recordingTooLong: return "Streaming trial recordings must be under 10 minutes."
         case .modelNotReady: return "Transcription model is not ready"
         case .modelLoadFailed(let msg): return "Model failed to load: \(msg)"
         case .engineUnavailable(let msg): return msg

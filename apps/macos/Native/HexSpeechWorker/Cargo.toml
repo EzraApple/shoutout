@@ -1,0 +1,16 @@
+[package]
+name = "hex-speech-worker"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+
+[dependencies]
+base64 = "0.22"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+sha2 = "0.10"
+transcribe-cpp = "=0.2.4"
+
+[profile.release]
+debug = false
+strip = true

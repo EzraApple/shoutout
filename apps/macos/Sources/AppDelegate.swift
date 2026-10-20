@@ -253,6 +253,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var appState: AppState = .idle
     private var recordingStartedAt: Date?
     private var recordingIsCommitted = false
+    private var recordingTranscription: RecordingTranscription?
+    private var controlServer: AppControlSocket?
     private var pendingTranscriptionCount = 0
     private var nextTranscriptionSessionID = 0
     private var latestTranscriptionSessionID = 0
@@ -310,6 +312,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             Defaults.languagePassStyle: LanguagePassStyle.defaultStyle.rawValue,
             "removeFillerWords": true,
         ])
+
+        startControlServer()
 
         let overlayPreviewState = requestedOverlayPreviewState()
         let shouldShowOnboarding = overlayPreviewState == nil
@@ -387,6 +391,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        controlServer?.stop()
         RuntimeLog.write("app terminate")
         if let permissionChangeObserver {
             NotificationCenter.default.removeObserver(permissionChangeObserver)
@@ -493,6 +498,25 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         permissions.openFirstMissingPermissionPane()
     }
 
+    private func startControlServer() {
+        let router = AppControlRouter(
+            transcription: transcriptionService, cleanup: languagePassService, dictionary: dictionaryStore,
+            settingsChanged: { [weak self] key in
+                if key == "shortcut" { self?.restartHotkey() }
+                if key == "indicator" || key == "color" { self?.refreshOverlay() }
+            }
+        )
+        let server = AppControlSocket(path: AppControlSocket.defaultPath) { request in
+            await router.handle(request)
+        }
+        do {
+            try server.start()
+            controlServer = server
+        } catch {
+            RuntimeLog.write("local control unavailable error=\(error)")
+        }
+    }
+
     // MARK: - Recording Flow
 
     private func startPendingRecording() {
@@ -564,6 +588,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         do {
             try audioRecorder.startRecording()
+            let recording = transcriptionService.beginRecording()
+            recordingTranscription = recording
+            audioRecorder.onSamples = { [weak self] samples in
+                self?.transcriptionService.appendRecordingSamples(samples, recording: recording)
+            }
             recordingStartedAt = Date()
             appState = .recording
             recordingIsCommitted = commitImmediately
@@ -656,6 +685,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         displayedClassicRecordingLevel = 0
 
         let recordedSamples = audioRecorder.stopRecording()
+        audioRecorder.onSamples = nil
+        let recording = recordingTranscription
+        recordingTranscription = nil
         let samples = AudioSignalAnalysis.trimmingTrailingSilence(
             from: recordedSamples,
             sampleRate: AudioRecorder.sampleRate
@@ -678,7 +710,21 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             "record stopped samples=\(recordedSamples.count) trimmedSamples=\(samples.count) heldDuration=\(String(format: "%.2f", heldRecordingDuration)) transcriptionDuration=\(String(format: "%.2f", recordingDuration))"
         )
 
+        if recording?.engine?.backend == .hexStreaming,
+            recordedSamples.count > HexStreamingTranscriptionEngine.maximumSamples {
+            if let recording { transcriptionService.cancelRecording(recording) }
+            refreshMenuBarIcon()
+            activeDictationMetrics?.log(status: "recordingTooLong")
+            activeDictationMetrics = nil
+            showTranscriptionResultIndicator(
+                .attention(message: "Streaming trial: 10 minute limit"),
+                durationNanoseconds: 3_000_000_000
+            )
+            return
+        }
+
         guard samples.count >= AudioRecorder.minimumSamples else {
+            if let recording { transcriptionService.cancelRecording(recording) }
             refreshMenuBarIcon()
             finishIndicator()
             activeDictationMetrics?.log(status: "noAudio")
@@ -693,6 +739,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         )
 
         guard signal.hasSustainedSpeechLikeAudio(sampleRate: AudioRecorder.sampleRate) else {
+            if let recording { transcriptionService.cancelRecording(recording) }
             refreshMenuBarIcon()
             finishIndicator()
             activeDictationMetrics?.log(status: "silent")
@@ -703,6 +750,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
+        if let recording { transcriptionService.finishRecording(recording, audioSamples: samples) }
         var metrics = activeDictationMetrics ?? DictationLatencyMetrics()
         metrics.sampleCount = samples.count
         metrics.recordingDuration = recordingDuration
@@ -713,7 +761,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             samples: samples,
             recordingDuration: recordingDuration,
             signal: signal,
-            metrics: metrics
+            metrics: metrics,
+            recording: recording
         )
     }
 
@@ -727,6 +776,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         audioLevelCancellable = nil
         displayedClassicRecordingLevel = 0
 
+        audioRecorder.onSamples = nil
+        if let recordingTranscription { transcriptionService.cancelRecording(recordingTranscription) }
+        recordingTranscription = nil
         let samples = audioRecorder.stopRecording()
         let recordingDuration = max(
             Date().timeIntervalSince(recordingStartedAt ?? Date()),
@@ -751,7 +803,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         samples: [Float],
         recordingDuration: TimeInterval,
         signal: AudioSignalAnalysis,
-        metrics: DictationLatencyMetrics
+        metrics: DictationLatencyMetrics,
+        recording: RecordingTranscription?
     ) {
         nextTranscriptionSessionID += 1
         let sessionID = nextTranscriptionSessionID
@@ -772,7 +825,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 samples: samples,
                 recordingDuration: recordingDuration,
                 signal: signal,
-                metrics: metrics
+                metrics: metrics,
+                recording: recording
             )
         }
         transcriptionTasks[sessionID] = task
@@ -783,7 +837,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         samples: [Float],
         recordingDuration: TimeInterval,
         signal: AudioSignalAnalysis,
-        metrics initialMetrics: DictationLatencyMetrics
+        metrics initialMetrics: DictationLatencyMetrics,
+        recording: RecordingTranscription?
     ) async {
         if Task.isCancelled { return }
         var metrics = initialMetrics
@@ -806,7 +861,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             // transcribe() waits for the model if it's still loading.
             let transcription = try await transcribeWithTimeout(
                 samples: samples,
-                recordingDuration: recordingDuration
+                recordingDuration: recordingDuration,
+                recording: recording
             )
             let result = transcription.result
             metrics.transcriptionCompletedAt = Date()
@@ -845,6 +901,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     rawText: result.rawText,
                     baseText: correctedText
                 )
+                guard !Task.isCancelled, sessionID == latestTranscriptionSessionID else {
+                    metrics.log(status: "staleAfterCleanup", transcriptionTiming: transcription.timing)
+                    return
+                }
                 let finalText = languagePassResult.finalText
                 metrics.applyLanguagePass(languagePassResult)
 
@@ -895,6 +955,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             metrics.transcriptionCompletedAt = Date()
             metrics.log(status: "failed")
             RuntimeLog.write("transcription failed session=\(sessionID) error=\(error)")
+            guard !Task.isCancelled, sessionID == latestTranscriptionSessionID else { return }
             showTranscriptionResultIndicator(
                 .attention(message: "Transcription failed"),
                 durationNanoseconds: 1_200_000_000
@@ -904,7 +965,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func transcribeWithTimeout(
         samples: [Float],
-        recordingDuration: TimeInterval
+        recordingDuration: TimeInterval,
+        recording: RecordingTranscription?
     ) async throws -> (result: DictationResult, timing: TranscriptionTimingSnapshot) {
         let timeoutSeconds = transcriptionTimeoutSeconds(for: recordingDuration)
         let timeoutNanoseconds = UInt64(timeoutSeconds) * 1_000_000_000
@@ -917,7 +979,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
             let transcriptionTask = Task { @MainActor in
                 do {
-                    let result = try await service.transcribeWithTiming(audioSamples: samples)
+                    let result = try await service.transcribeWithTiming(audioSamples: samples, recording: recording)
                     gate.resume(.success(result))
                 } catch {
                     gate.resume(.failure(error))
@@ -1192,6 +1254,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func refreshMenuBarIcon() {
+        transcriptionService.isDictationInProgress = audioRecorder.isRecording || pendingTranscriptionCount > 0
         updateMenuBarIcon(state: visibleAppState)
     }
 

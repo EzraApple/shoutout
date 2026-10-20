@@ -37,12 +37,12 @@ run_with_speech_analyzer_toolchain() {
 }
 
 run_swift_tests() {
-  if (cd "$MACOS_DIR" && swift test); then
+  if (cd "$MACOS_DIR" && swift test --enable-xctest); then
     return
   fi
 
   if [[ -n "$SPEECH_ANALYZER_DEVELOPER_DIR" ]]; then
-    (cd "$MACOS_DIR" && DEVELOPER_DIR="$SPEECH_ANALYZER_DEVELOPER_DIR" swift test)
+    (cd "$MACOS_DIR" && DEVELOPER_DIR="$SPEECH_ANALYZER_DEVELOPER_DIR" swift test --enable-xctest)
     return
   fi
 

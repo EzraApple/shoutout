@@ -18,6 +18,7 @@ final class SettingsMigrationTests: XCTestCase {
         defaults.set("capsule", forKey: "overlayStyle")
         defaults.set("rightOption", forKey: "hotkeyTrigger")
         defaults.set(true, forKey: "hasCompletedOnboarding")
+        defaults.set(true, forKey: "streamingTranscriptionEnabled")
 
         SettingsMigration.removeRetiredOverrides(from: defaults)
         SettingsMigration.removeRetiredOverrides(from: defaults)
@@ -32,5 +33,6 @@ final class SettingsMigrationTests: XCTestCase {
         XCTAssertEqual(defaults.string(forKey: "overlayStyle"), "capsule")
         XCTAssertEqual(defaults.string(forKey: "hotkeyTrigger"), "rightOption")
         XCTAssertTrue(defaults.bool(forKey: "hasCompletedOnboarding"))
+        XCTAssertTrue(defaults.bool(forKey: "streamingTranscriptionEnabled"))
     }
 }

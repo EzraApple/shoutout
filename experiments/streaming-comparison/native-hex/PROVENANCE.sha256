@@ -1,0 +1,12 @@
+3de32a95964d6ab65a16d30bc111b983c434588ee78348eb187ef0ed9ecfc020  experiments/streaming-comparison/native-hex/Cargo.toml
+39d2eb400474189a36ce35c249025fd0e1cc7d25e7e41234dfd1f49700326e3e  experiments/streaming-comparison/native-hex/Cargo.lock
+6d676a8b86995316a404af72db31a4273a97b1bdaab5ad189e272729b57bfd73  experiments/streaming-comparison/native-hex/src/main.rs
+a730a7b7e42fb4ac71415190d895c81b3eba0508c655202b2d03f500f664060d  experiments/streaming-comparison/.build/native-hex/hex-source/Cargo.toml
+5e2b70f1ab0bedcdacc66cf7bb5eb2792044a49a955d4f370b2575b9108c7922  experiments/streaming-comparison/.build/native-hex/hex-source/gguf_session.rs
+4c28bbae75b0a73e9635f405fc6b0db1ff957ea0ccd9f05e7bb754cdc7cb0491  experiments/streaming-comparison/.build/native-hex/hex-source/parakeet.rs
+76203211a94a92652bb96cb4221853a61a45dc5c5ec122fe288d8531f3b0f761  experiments/streaming-comparison/.build/native-hex/hex-source/transcription.rs
+acb0cdad5dae933ed63dd33bd062567d570092a0963a0a268a1dcb47885e021b  experiments/streaming-comparison/.build/native-hex/hex-source/transcription_engine.rs
+5242496d77446c979c1eea3996b9a946e078a62261dff55d9f2b28a200ea9f65  experiments/streaming-comparison/.build/native-hex/hex-source/transcription_models.rs
+2b45e66a99dd1515e8709c46c1d00fc719e393ca6d838cf51898cd52a31adb27  experiments/streaming-comparison/.build/native-hex/hex-source/dictation.rs
+46955385c42f4ea94b06841b2ed8aae1ec23ad3604f783c999b19ec96934ca8a  experiments/streaming-comparison/.build/native-hex/target/release/native-hex-benchmark
+4b50b6dd862bf6e346929aaf4f5eaacec003bfa3f56462d6c874b41ef2f38795  experiments/streaming-comparison/.build/native-hex/model/parakeet-unified-en-0.6b-Q8_0.gguf

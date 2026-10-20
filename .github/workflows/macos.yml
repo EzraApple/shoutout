@@ -43,7 +43,7 @@ jobs:
           swift --version
 
       - name: Run Swift tests
-        run: cd apps/macos && swift test
+        run: cd apps/macos && swift test --enable-xctest
 
   swift-build:
     name: Swift package build
@@ -71,6 +71,8 @@ jobs:
         run: |
           xcode-select -p
           swift --version
+
+      - uses: dtolnay/rust-toolchain@stable
 
       - name: Build app bundle
         run: cd apps/macos && UNIVERSAL=false SKIP_NOTARIZE=true ./scripts/build-app.sh

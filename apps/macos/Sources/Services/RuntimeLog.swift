@@ -4,6 +4,10 @@ enum RuntimeLog {
     private static let queue = DispatchQueue(label: "com.ezraapple.shoutout.runtime-log")
 
     static let logURL: URL = {
+        if ProcessInfo.processInfo.environment["SHOUTOUT_REPLAY_MANIFEST"] != nil,
+            let output = ProcessInfo.processInfo.environment["SHOUTOUT_REPLAY_OUTPUT"] {
+            return URL(fileURLWithPath: output).appendingPathExtension("runtime.log")
+        }
         let library = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask).first!
         return library
             .appendingPathComponent("Logs")
@@ -14,7 +18,11 @@ enum RuntimeLog {
     static func write(_ message: String) {
         let line = "\(Date()) \(message)\n"
         queue.async {
-            print(line, terminator: "")
+            if ProcessInfo.processInfo.arguments.contains("--cli") {
+                try? FileHandle.standardError.write(contentsOf: Data(line.utf8))
+            } else {
+                print(line, terminator: "")
+            }
 
             do {
                 try FileManager.default.createDirectory(
