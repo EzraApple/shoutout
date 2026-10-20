@@ -141,10 +141,10 @@ private struct ClassicPreviewControls: View {
                 ForEach([OverlayStyle.glass, .capsule], id: \.rawValue) { style in
                     VStack(spacing: 12) {
                         Text(style == .glass ? "Glass" : "Classic").font(.headline)
-                        Text(style == .glass ? "Glass circle · moving border" : "Dark pill · spinner").font(.caption).foregroundStyle(.secondary)
+                        Text(style == .glass ? "Glass circle · fading edge" : "Dark pill · spinner").font(.caption).foregroundStyle(.secondary)
                         AppOverlayView(style: style, state: model.indicatorState, crabHeight: 240)
                             .scaleEffect(2)
-                            .frame(width: 68, height: 232)
+                            .frame(width: PillOverlayLayout.size.width * 2, height: PillOverlayLayout.size.height * 2)
                             .padding(.vertical, 8)
                     }
                     .frame(maxWidth: .infinity)

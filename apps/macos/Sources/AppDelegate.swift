@@ -1317,7 +1317,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             let screenFrame = screen.visibleFrame
             return NSRect(
                 x: screenFrame.maxX - PillOverlayLayout.size.width
-                    - PillOverlayLayout.screenEdgeInset,
+                    - PillOverlayLayout.panelScreenInset,
                 y: screenFrame.midY - PillOverlayLayout.size.height / 2,
                 width: PillOverlayLayout.size.width,
                 height: PillOverlayLayout.size.height
@@ -1428,7 +1428,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         let contentSize = PillOverlayLayout.size
         let screenFrame = screen.visibleFrame
-        let x = screenFrame.maxX - contentSize.width - PillOverlayLayout.screenEdgeInset
+        let x = screenFrame.maxX - contentSize.width - PillOverlayLayout.panelScreenInset
         let y = screenFrame.midY - contentSize.height / 2
 
         panel.setFrame(

@@ -69,8 +69,11 @@ private enum CrabAnimationTiming {
 }
 
 enum PillOverlayLayout {
-    static let size = CGSize(width: 34, height: 116)
+    static let contentSize = CGSize(width: 34, height: 116)
+    static let paintOutset: CGFloat = 3
+    static let size = CGSize(width: contentSize.width + paintOutset * 2, height: contentSize.height)
     static let screenEdgeInset: CGFloat = 4
+    static let panelScreenInset = screenEdgeInset - paintOutset
 }
 
 enum OverlayStyle: String, Sendable {
@@ -401,10 +404,11 @@ struct PillIndicatorView: View {
                 .transition(.opacity)
         }
         .frame(
-            width: PillOverlayLayout.size.width,
-            height: PillOverlayLayout.size.height,
+            width: PillOverlayLayout.contentSize.width,
+            height: PillOverlayLayout.contentSize.height,
             alignment: .trailing
         )
+        .padding(.horizontal, PillOverlayLayout.paintOutset)
         .accessibilityElement(children: .contain)
         .accessibilityLabel(accessibilityLabel)
         .help(accessibilityLabel)
