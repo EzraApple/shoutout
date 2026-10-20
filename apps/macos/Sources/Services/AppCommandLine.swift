@@ -6,6 +6,7 @@ enum AppCommandLine {
         guard let command = arguments.first, command != "help", command != "--help" else {
             print("""
             ShoutOut headless commands:
+              --cli capabilities
               --cli status
               --cli settings get [streaming|cleanup|style|shortcut|indicator|color]
               --cli settings set KEY VALUE
@@ -20,6 +21,12 @@ enum AppCommandLine {
             for its next launch and audio commands run without windows or text insertion.
             serve hosts the same commands headlessly; use it while the GUI app is closed.
             """)
+            return
+        }
+        if arguments == ["capabilities"] {
+            try printResponse(AppControlResponse(ok: true, message: nil,
+                values: ["replaySchemaVersion": "2", "dictionarySnapshots": "true", "perClipErrors": "true"],
+                text: nil, rawText: nil))
             return
         }
         if command == "replay" {

@@ -1,5 +1,40 @@
 # App-path replay trial
 
+## Paired private batch comparison
+
+Run `./script/shoutout-compare` from the repository root to compare ShoutOut's
+Parakeet and Hex streaming engines on the same generated audio.
+The command reads the current cleanup and style settings, copies the local
+dictionary, and runs headless replay in isolated settings suites. It does not
+change the running app's settings. Results default to a new private directory
+under `~/Library/Application Support/com.ezraapple.shoutout/comparisons/`.
+
+The runner uses `--app /path/to/ShoutOut.app` when given, then
+`SHOUTOUT_COMPARE_APP`, then `.local-evals/batch-comparison-candidate/ShoutOut.app`
+if present, then the installed app. It always reads the installed app's current
+cleanup and style. Use `--manifest /path/to/manifest.json`,
+`--folder /path/to/audio`, or `--history` to select
+audio. `--history` synthesizes local speech from selected prior dictation text;
+it cannot recover or measure the original speech. `--history-count 18` changes
+its target count. A manifest can be a fixture array or `{ "fixtures": [...] }`.
+Each fixture needs a `path`; `name` and `reference` are optional. The folder
+input accepts common audio formats. `--dictionary /path/to/dictionary.json`
+overrides the current local dictionary snapshot.
+The selected app must advertise replay schema version 2 in `--cli capabilities`;
+the runner stops with a build/`--app` hint when an older build cannot expose
+the requested stages.
+
+The runner converts every source to one mono 16 kHz WAV, records its SHA-256,
+and passes that same file to both engines. Quality replays run concurrently.
+Paced latency replays run one at a time in alternating engine order; the default
+subset spans four durations and includes the longest clip. Use `--skip-latency`,
+`--latency-limit N`, or `--latency-rounds N` to change that work. Each replay
+starts with an unscored warmup. `run.json` records the profile, fixture hashes,
+phase outputs, errors, and completion status. Logs and partial JSON outputs stay
+in the private output directory if a process fails or times out. The HTML report
+shows each pipeline stage and timing. File replay does not measure physical
+microphone capture, keyboard release, paste, or battery use.
+
 `generate_fixtures.py` creates a fresh local speech set with macOS `say`, then
 converts it to mono 16 kHz signed PCM with `ffmpeg`. It writes fixed references,
 voice and environment metadata, per-file sample counts, durations, and SHA-256
@@ -32,8 +67,10 @@ audio review, not conclusive model errors.
 The packaged app has an early headless entry point, before `NSApplication` is
 created. `DictationReplay` feeds WAV samples through the production
 `AudioRecorder` collector, `RecordingTranscriptionQueue`, trim/speech gates,
-`TranscriptionService` filters, dictionary replacement with no custom entries,
-and the unchanged `LanguagePassService` cleanup policy. It writes final text
+`TranscriptionService` filters, dictionary replacement, and the unchanged
+`LanguagePassService` cleanup policy. Direct replay uses no custom entries by
+default; `SHOUTOUT_REPLAY_DICTIONARY` can supply a frozen dictionary JSON snapshot,
+as the paired runner does automatically. It writes final text
 and timings to JSON. It never starts a microphone tap, installs hotkeys,
 inserts text, or writes dictation history.
 

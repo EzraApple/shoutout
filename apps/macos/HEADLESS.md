@@ -60,6 +60,16 @@ python3 experiments/streaming-comparison/app-trial/run_comparison.py
 python3 experiments/streaming-comparison/app-trial/summarize.py
 ```
 
+For paired batches with every intermediate stage, run
+`./script/shoutout-compare --history`. It samples local transcription text,
+synthesizes new audio locally, freezes the cleanup style and dictionary, and
+compares both engines. It also accepts `--folder` or `--manifest`. The report
+includes audio, raw recognition, dictionary text, cleanup candidates, final text,
+failures, and timing. Personal text and generated audio stay in a private local
+output directory. The diagnostic app must support replay schema 2; the runner
+can use a separate comparison build without replacing the running app. See the
+[batch guide](../../experiments/streaming-comparison/app-trial/README.md).
+
 TTS references describe intended words. Review names and numeric/URL formatting
 alongside WER. Quiet and noisy copies reuse the two original long passages.
 
