@@ -146,10 +146,10 @@ struct DictionaryView: View {
             Text("Add words ShoutOut mishears and the spelling you want instead.")
                 .foregroundStyle(ShoutOutHomeTheme.muted)
             HStack(spacing: 12) {
-                Text("rep low")
+                Text("web site")
                     .foregroundStyle(ShoutOutHomeTheme.muted)
                 Image(systemName: "arrow.right")
-                Text("Replo").fontWeight(.semibold)
+                Text("website").fontWeight(.semibold)
             }
             .padding(12)
             .background(ShoutOutHomeTheme.panelBlue.opacity(0.35))
@@ -211,7 +211,7 @@ struct DictionaryView: View {
                 Text("Test your saved replacements. Writing style is applied afterward.")
                     .font(.subheadline)
                     .foregroundStyle(ShoutOutHomeTheme.muted)
-                TextField("For example: open rep low", text: $previewText, axis: .vertical)
+                TextField("For example: open the web site", text: $previewText, axis: .vertical)
                     .lineLimit(2...4)
                     .textFieldStyle(.plain)
                     .padding(12)

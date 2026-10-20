@@ -540,21 +540,24 @@ struct ShoutOutHomeView: View {
                 HomeStringMenu(
                     selection: $overlayStyle,
                     choices: [
-                        HomeStringChoice(value: OverlayStyle.crab.rawValue, title: "Crab"),
+                        HomeStringChoice(value: OverlayStyle.glass.rawValue, title: "Glass"),
                         HomeStringChoice(value: OverlayStyle.capsule.rawValue, title: "Classic"),
+                        HomeStringChoice(value: OverlayStyle.crab.rawValue, title: "Crab"),
                     ],
                     width: 176
                 ) { (NSApp.delegate as? AppDelegate)?.refreshOverlay() }
             }
             Divider()
-            if overlayStyle == OverlayStyle.crab.rawValue {
-                HomeControlRow(title: "Crab color", systemImage: "paintpalette") {
-                    HomeCrabColorMenu(selection: $crabColorVariant, width: 176) {
-                        (NSApp.delegate as? AppDelegate)?.refreshOverlay()
-                    }
+            HomeControlRow(
+                title: "App theme",
+                detail: "Used by your crab, app icon, and indicator accents.",
+                systemImage: "paintpalette"
+            ) {
+                HomeCrabColorMenu(selection: $crabColorVariant, width: 176) {
+                    (NSApp.delegate as? AppDelegate)?.refreshOverlay()
                 }
-                Divider()
             }
+            Divider()
             HomeToggleRow(title: "Launch at login", systemImage: "arrow.right.circle", isOn: $launchAtLogin)
                 .onChange(of: launchAtLogin) { _, newValue in
                     do {
@@ -1080,6 +1083,8 @@ private struct HomeCrabColorMenu: View {
             HomeCrabColorMenuLabel(variant: selectedVariant, isOpen: isOpen, width: width)
         }
         .buttonStyle(.plain)
+        .accessibilityLabel("App theme")
+        .accessibilityValue(selectedVariant.displayName)
         .disabled(isDisabled)
         .opacity(isDisabled ? 0.55 : 1)
         .squarePopover(isPresented: $isOpen) {
