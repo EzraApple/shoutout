@@ -27,7 +27,7 @@ function setupDemo(root: HTMLElement, framesReady: Promise<unknown>) {
   const bars = root.querySelectorAll<HTMLElement>("[data-level-bar]");
   const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
   const messageLoop = createMessageLoop(root);
-  const crawlWhileProcessing = root.hasAttribute("data-demo-crawl");
+  const stationaryCrab = root.hasAttribute("data-demo-stationary");
   let ready = false;
   let visible = false;
   let frameRequest = 0;
@@ -61,7 +61,7 @@ function setupDemo(root: HTMLElement, framesReady: Promise<unknown>) {
       setPhase("outro");
       setFrame(`recording-intro-${Math.max(1, 6 - Math.floor((time - 2608) / 46))}`);
     } else if (time < 3884) {
-      if (!crawlWhileProcessing || root.dataset.demoPhase !== "processing") setFrame("idle-1");
+      setFrame("idle-1");
       setPhase("processing");
     } else {
       setPhase("done");
@@ -96,10 +96,10 @@ function setupDemo(root: HTMLElement, framesReady: Promise<unknown>) {
     const recordingTime = messageLoop.advance(delta);
     if (recordingTime !== null) {
       renderPlayback(recordingTime);
-      if (crawlWhileProcessing && recordingTime >= 2884) walkCrab(delta);
     } else {
       setPhase("walking");
-      walkCrab(delta);
+      if (stationaryCrab) setFrame("idle-1");
+      else walkCrab(delta);
     }
     schedule();
   }
@@ -133,6 +133,7 @@ function setupDemo(root: HTMLElement, framesReady: Promise<unknown>) {
     schedule();
   }
   new ResizeObserver(([entry]) => {
+    if (stationaryCrab) return;
     travel = Math.min(72, Math.max(0, (entry.contentRect.height - crab.offsetHeight) / 2 - 16));
     offset = Math.max(-travel, Math.min(travel, offset));
     crab.style.setProperty("--crab-offset", `${offset}px`);

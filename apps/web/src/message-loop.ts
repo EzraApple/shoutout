@@ -19,16 +19,12 @@ const steps = [
 
 export function createMessageLoop(root: HTMLElement) {
   const draft = root.querySelector<HTMLElement>("[data-message-draft]");
-  const outputs = root.querySelectorAll<HTMLElement>("[data-demo-output]");
   let elapsed = 0;
 
   function renderStep(name: typeof steps[number]["name"], still = false) {
     root.dataset.messageStep = name;
     root.dataset.messageFocused = String(!still && name !== "typing" && name !== "received" && name !== "reset");
     if (draft) draft.textContent = name === "composing" || name === "sending" ? reply : "";
-    const text = name === "composing" || name === "sending" || name === "sent" || name === "reset"
-      ? reply : "Your words appear here.";
-    outputs.forEach((output) => { output.textContent = text; });
   }
 
   return {
