@@ -387,9 +387,12 @@ def _metric_html(metrics: dict, phase: str) -> str:
             return f'{stage["wer"] * 100:.2f}% · {stage["errors"]}/{stage["words"]} words · {stage["clips"]} clips' if stage["wer"] is not None else "N/A · no scored reference words"
         statuses = ", ".join(f"{escape(key)} {count}" for key, count in sorted(item["statuses"].items()))
         timing = f'{item["medianStopToSinkMs"]:.1f} ms ({item["timedClips"]} clips)' if item["medianStopToSinkMs"] is not None else "N/A"
+        timing_html = (f'<p><b>Median completed stop → local sink</b> {timing}</p>'
+                       if phase == "latency" else
+                       '<p class="muted">Speed is measured in the serial, paced section below.</p>')
         blocks.append(f'<div class="metric"><h3>{ENGINE_LABELS[engine]}</h3>'
                       f'<p><b>Raw ASR WER</b> {wer(raw)}</p><p><b>Final lexical WER</b> {wer(final)}</p>'
-                      f'<p><b>Median completed stop → local sink</b> {timing}</p>'
+                      f'{timing_html}'
                       f'<p><b>Rows</b> {statuses or "none"}; no reference: {item["withoutReference"]}</p></div>')
     return "".join(blocks)
 
