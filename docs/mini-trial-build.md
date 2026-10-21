@@ -32,12 +32,6 @@ The same release candidate includes the Input Monitoring onboarding fix from `83
 
 The onboarding release build and six rendered flows with simulated macOS permission APIs passed. Evidence is in the private `.local-evals/input-monitoring/verification.json` and `build.log`. A fresh macOS permission reset and grant flow remains unverified. The installed trial was not replaced or restarted for this fix.
 
-Before the public update:
-
-1. Bundle and activate Mini in the normal release build. The current release builder and production default still use Llama; a successful trial build does not change them.
-2. Migrate existing cleanup-model and tone preferences to the single light-cleanup path. Preserve the user's cleanup on/off choice, dictionary, shortcut, and history. Old tone values must not trigger a tone rewrite, capitalization pass, or Llama download in the Mini release.
-3. Check the upgraded app's settings, dictionary preview, history labels, startup, and paste behavior with old Normal, Casual, Formal, and cleanup-off preferences. Retain old model attribution in historical entries; do not reinterpret old results as Mini results.
-   Include the onboarding fix in these checks: fresh Accessibility grant, denied Input Monitoring, a later grant, existing access, skipped Accessibility, and resumed setup. Keep simulated-flow evidence separate from a fresh macOS permission grant test.
-4. Publish the matching app, download metadata, and website copy together. Do not deploy the new website while its download still delivers the tone-rewrite app.
+The normal 0.3.0 release candidate now bundles and selects Mini too. It migrates old cleanup-model and tone choices while keeping the cleanup toggle and personal data. See [release preparation](mini-release-prep.md) for the normal build, verification evidence, and publication boundary. The separate trial identity and disabled updater remain useful for isolated testing.
 
 Keep experimental formatting or a future tone layer separate from this update. No such controls or features are promised in the prepared website copy.

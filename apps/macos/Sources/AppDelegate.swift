@@ -953,7 +953,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                             forKey: Defaults.smartSpacing
                         ) == nil
                             || UserDefaults.standard.bool(forKey: Defaults.smartSpacing),
-                        fitCapitalization: languagePassService.selectedStyle != .casual
+                        fitCapitalization: !languagePassService.usesMiniEditor
+                            && languagePassService.selectedStyle != .casual
                     ),
                     target: metrics.insertionTarget
                 )

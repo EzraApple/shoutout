@@ -111,6 +111,7 @@ final class LanguagePassService: ObservableObject {
     }
     @Published var selectedStyle: LanguagePassStyle {
         didSet {
+            guard miniModelDirectory == nil else { return }
             if persistsSettings {
                 defaults.set(selectedStyle.rawValue, forKey: Defaults.languagePassStyle)
             }
@@ -385,8 +386,7 @@ final class LanguagePassService: ObservableObject {
         let startedAt = Date()
         let modelID = MiniCleanupEngine.modelID
         guard isEnabled else {
-            return .passthrough(baseText, enabled: false, modelID: modelID,
-                                fallbackReason: "disabled")
+            return .passthrough(baseText, enabled: false, fallbackReason: "disabled")
         }
         guard !baseText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return .passthrough(baseText, enabled: true, modelID: modelID,
@@ -702,7 +702,7 @@ final class LanguagePassService: ObservableObject {
                 "changed=\(result.changed)",
                 "wallMs=\(result.wallMs.map(String.init) ?? "na")",
                 "model=\(result.modelID ?? "none")",
-                "style=\(selectedStyle.rawValue)",
+                "style=\(usesMiniEditor ? "none" : selectedStyle.rawValue)",
                 "fallback=\(result.fallbackReason ?? "none")",
                 "inputChars=\(inputMetrics.characters)",
                 "inputWords=\(inputMetrics.words)",

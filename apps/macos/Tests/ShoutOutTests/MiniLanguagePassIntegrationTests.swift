@@ -41,6 +41,8 @@ final class MiniLanguagePassIntegrationTests: XCTestCase {
         XCTAssertTrue(result.finalText == source)
         XCTAssertFalse(result.enabled)
         XCTAssertEqual(result.fallbackReason, "disabled")
+        XCTAssertNil(result.modelID)
+        XCTAssertNil(result.styleRawValue)
         let after = keys.map { UserDefaults.standard.object(forKey: $0).map { String(describing: $0) } }
         XCTAssertEqual(before, after)
     }

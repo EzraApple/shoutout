@@ -8,7 +8,7 @@
 
 ShoutOut is a local-first macOS dictation app. Hold **Fn/Globe**, speak, and release to paste into your current app. Double-tap for hands-free recording.
 
-This branch contains the unreleased Mini cleanup trial. The website changes here are prepared for that update; the public app and website have not been changed.
+This branch prepares the unreleased 0.3.0 update with Mini cleanup as the default. The website changes here are prepared for that update; the public app and website have not been changed.
 
 [Website & download](https://shoutout.sh) · [Development](docs/development.md) · [Troubleshooting](TROUBLESHOOTING.md)
 
@@ -19,9 +19,9 @@ This branch contains the unreleased Mini cleanup trial. The website changes here
 - **Light cleanup.** Optional filler removal that keeps your wording and spoken tone.
 - **Easy to find again.** Searchable local transcription history with one-click copy.
 - **Your spelling.** A customizable dictionary for names, acronyms, and common mishearings.
-- **A little personality.** A wall-walking crab in your choice of color, or a simple Classic recording indicator.
+- **A little personality.** A wall-walking crab in your choice of color, or a Glass or Classic recording indicator.
 
-Requires **Apple Silicon and macOS 15 or later**. Dictation downloads one **731 MB** speech model. The Mini trial includes its small cleanup model. Onboarding walks you through Microphone, Accessibility, and Input Monitoring permissions.
+Requires **Apple Silicon and macOS 15 or later**. Dictation downloads one **731 MB** speech model. The app bundles its small cleanup model. Onboarding walks you through Microphone, Accessibility, and Input Monitoring permissions.
 
 ## Development
 

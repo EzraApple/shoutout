@@ -4,7 +4,7 @@
 
 Use an Apple Silicon Mac with macOS 15 or later, Xcode with the Metal toolchain, and Swift 6.2 or newer. Check `swift --version` before building; the app’s deployment target remains macOS 15.
 
-The asset build also needs Python 3 and Pillow. From the repository root:
+The asset build also needs Python 3 and Pillow. The app builder requires `MINI_CLEANUP_ASSET_DIR` to point to the frozen Mini export containing `mini-fixed256.mlpackage`, `vocab.txt`, and `tokenizer-config.json`. It verifies their pinned hashes before building and copies only those three assets. See [release preparation](mini-release-prep.md). From the repository root:
 
 ```sh
 python3 -m venv .venv
@@ -42,7 +42,7 @@ For model comparisons and frozen audio evaluations, see the [benchmark harness](
 
 ## Models and local data
 
-English transcription uses the 731 MB Parakeet Unified 0.6B model and processes audio as you speak. Terminal-ending checks reuse that same native model and its word timings; the normal path does not download Parakeet 1.1B or Whisper. The existing public app uses Llama 3.2 1B (4-bit) for optional cleanup. The unreleased [Mini trial](mini-trial-build.md) instead bundles a small native KEEP/DELETE model and preserves the words it retains. It does not offer tone rewrites. The normal release builder still selects the existing Llama path; see the coordinated release steps before publishing Mini or its website changes. Older engines remain available to isolated CLI evaluations and may download their own models when explicitly selected.
+English transcription uses the 731 MB Parakeet Unified 0.6B model and processes audio as you speak. Terminal-ending checks reuse that same native model and its word timings; the normal path does not download Parakeet 1.1B or Whisper. The prepared 0.3.0 app bundles the frozen Mini KEEP/DELETE model for optional cleanup and preserves the words it retains. It has one Text cleanup toggle and no tone rewrites. The normal app, CLI, and replay all select Mini. Existing cleanup on/off choices survive the one-time model and tone migration. Old history entries keep their original model and tone attribution. The public 0.2.0 app still uses Llama until this coordinated update is published. Older engines remain available to isolated CLI evaluations and may download their own models when explicitly selected.
 
 Models and history live under `~/Library/Application Support/com.ezraapple.shoutout/`. Transcription models use `Models/`; cleanup models use `LanguageModels/`. Keep private dictation evaluation data in the Git-ignored `.local-evals/` directory.
 

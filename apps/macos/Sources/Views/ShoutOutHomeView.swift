@@ -1651,7 +1651,8 @@ private struct TranscriptionHistoryRow: View {
     }
 
     private var cleanupStatusText: String {
-        if entry.languagePassModel == MiniCleanupConfiguration.modelID {
+        if entry.languagePassModel == MiniCleanupConfiguration.modelID,
+           entry.languagePassFallbackReason != "disabled" {
             return entry.languagePassAccepted == true
                 ? (cleanupDidChange ? "Light cleanup" : "Unchanged") : "Cleanup skipped"
         }
@@ -1663,7 +1664,8 @@ private struct TranscriptionHistoryRow: View {
     }
 
     private var cleanupReasonText: String {
-        if entry.languagePassModel == MiniCleanupConfiguration.modelID {
+        if entry.languagePassModel == MiniCleanupConfiguration.modelID,
+           entry.languagePassFallbackReason != "disabled" {
             return entry.languagePassAccepted == true
                 ? (cleanupDidChange ? "Selected words removed" : "No edit made")
                 : "Original kept"

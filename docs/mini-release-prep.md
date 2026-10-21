@@ -1,0 +1,31 @@
+# Mini release preparation
+
+This branch prepares ShoutOut 0.3.0 (build 21). It includes current main, the Mini cleanup default, the settings migration, the Input Monitoring onboarding fix, and matching website copy. It has not been published.
+
+## App behavior
+
+The app, headless file transcription, and replay all use the bundled Mini KEEP/DELETE editor. It removes selected source words and retains the remaining spelling, capitalization, punctuation, and order. It does not run the old Llama output validator, tone formatter, or mechanical cleanup after Mini. Text insertion still handles spacing around the cursor. Model load or inference failure keeps the original text.
+
+A one-time settings migration removes the old cleanup-model and tone choices. It preserves Text cleanup on/off, shortcuts, indicator choice, dictionary, and history. Old history keeps its original model and tone attribution. It does not delete old model caches or download a replacement cleanup model.
+
+The onboarding fix from `839e22e` is included. After Accessibility is granted, setup resolves Input Monitoring access and skips its page if access is available. Missing access leaves that page available without automatically opening System Settings.
+
+## Local build
+
+Set `MINI_CLEANUP_ASSET_DIR` to the frozen export containing only the three required model assets. The builder checks their pinned hashes before clearing an old build. It stages only `mini-fixed256.mlpackage`, `vocab.txt`, and `tokenizer-config.json`; other files in the export directory are never bundled.
+
+```sh
+MINI_CLEANUP_ASSET_DIR=/absolute/path/to/frozen-export \
+SHOUTOUT_SKIP_ENV=true SKIP_NOTARIZE=true UNIVERSAL=false \
+apps/macos/scripts/build-app.sh
+```
+
+`SHOUTOUT_SKIP_ENV=true` skips release credentials in `.env`. Supply the existing public `SPARKLE_PUBLIC_ED_KEY` explicitly to configure the updater in a local candidate. Signing and notarization remain separate release steps. A locally verified ad-hoc build is not a notarized distributable.
+
+## Verification and publication boundary
+
+Local evidence is in `.local-evals/mini-release-prep-2026-10-21/`. Checks cover the release Swift tests, migration, the 168 authorized development cases through the production factory, pinned bundled assets, packaged CLI behavior, website build and rendered layout, and release version consistency. The final model test remains untouched.
+
+The six previously rendered onboarding scenarios used simulated macOS permission APIs. The underlying permission manager and onboarding view are unchanged from that verified fix and are compiled into this candidate. A fresh macOS account permission grant flow remains unverified; real permissions are not reset during release preparation.
+
+The download handlers, local download paths, and release notes are staged for 0.3.0. The public appcast still points to the published 0.2.0 artifact. Do not deploy this website by itself: sign and notarize the candidate, upload the matching app, generate the signed appcast, update production download configuration, and publish the coordinated app and website only after release approval. No upload, push, deploy, install, or running-app replacement is part of this preparation.
