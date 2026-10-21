@@ -28,11 +28,16 @@ The model source and output paths are local to this Mac. If the installed base a
 
 The current trial has a single Text cleanup toggle and no tone chooser. The website source on this branch describes that behavior. It is not deployed. Historical release notes retain the behavior of their dated versions.
 
+The same release candidate includes the Input Monitoring onboarding fix from `839e22e`. After Accessibility is granted, setup resolves Input Monitoring access and skips its page when access is already available. If access is still missing, the page remains without automatically opening System Settings. Resuming setup and granting access later also advance correctly. This change is already in the branch; do not apply it again.
+
+The onboarding release build and six rendered flows with simulated macOS permission APIs passed. Evidence is in the private `.local-evals/input-monitoring/verification.json` and `build.log`. A fresh macOS permission reset and grant flow remains unverified. The installed trial was not replaced or restarted for this fix.
+
 Before the public update:
 
 1. Bundle and activate Mini in the normal release build. The current release builder and production default still use Llama; a successful trial build does not change them.
 2. Migrate existing cleanup-model and tone preferences to the single light-cleanup path. Preserve the user's cleanup on/off choice, dictionary, shortcut, and history. Old tone values must not trigger a tone rewrite, capitalization pass, or Llama download in the Mini release.
 3. Check the upgraded app's settings, dictionary preview, history labels, startup, and paste behavior with old Normal, Casual, Formal, and cleanup-off preferences. Retain old model attribution in historical entries; do not reinterpret old results as Mini results.
+   Include the onboarding fix in these checks: fresh Accessibility grant, denied Input Monitoring, a later grant, existing access, skipped Accessibility, and resumed setup. Keep simulated-flow evidence separate from a fresh macOS permission grant test.
 4. Publish the matching app, download metadata, and website copy together. Do not deploy the new website while its download still delivers the tone-rewrite app.
 
 Keep experimental formatting or a future tone layer separate from this update. No such controls or features are promised in the prepared website copy.
