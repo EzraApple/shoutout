@@ -1,5 +1,6 @@
 import AVFoundation
 import Foundation
+import MiniCleanup
 import ShoutOutCore
 
 @MainActor
@@ -79,6 +80,8 @@ final class AppControlRouter {
             "engine": transcription?.selectedBackend.rawValue
                 ?? TranscriptionService.configuredBackend(defaults: defaults).rawValue,
             "modelState": transcription.map { String(describing: $0.modelState) } ?? "unloaded",
+            "cleanupModel": cleanup?.selectedModelID ?? (MiniTrialConfiguration.isEnabled ? MiniCleanupEngine.modelID : LanguagePassModelOption.defaultID),
+            "cleanupState": cleanup.map { String(describing: $0.modelState) } ?? "unloaded",
             "busy": String(transcription?.isDictationInProgress ?? false),
         ]
     }
@@ -164,7 +167,7 @@ final class AppControlRouter {
             recordingDuration: Double(samples.count) / 16000, signal: signal) {
             return response(values: ["status": "lowInformation"], text: "", rawText: result.result.rawText)
         }
-        let language = cleanup ?? LanguagePassService(defaults: defaults, modelsDirectory: languageModelsDirectory)
+        let language = cleanup ?? MiniTrialConfiguration.makeLanguagePassService(defaults: defaults, modelsDirectory: languageModelsDirectory)
         cleanup = language
         if language.isEnabled { await language.prepareIfNeeded() }
         let dictionary = dictionary ?? DictionaryStore.defaultStore()

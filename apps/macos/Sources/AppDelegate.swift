@@ -235,7 +235,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var statusItem: NSStatusItem!
     let audioRecorder = AudioRecorder()
     let transcriptionService = TranscriptionService()
-    let languagePassService = LanguagePassService()
+    let languagePassService = MiniTrialConfiguration.makeLanguagePassService()
     let hotkeyManager = HotkeyManager()
     let screenshotMonitor = ScreenshotMonitor()
     let permissions = PermissionManager.shared
@@ -941,7 +941,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     languagePassOutput: languagePassResult.finalText,
                     languagePassAccepted: languagePassResult.accepted,
                     languagePassFallbackReason: languagePassResult.fallbackReason,
-                    languagePassStyle: languagePassResult.styleRawValue
+                    languagePassStyle: languagePassResult.styleRawValue,
+                    languagePassModel: languagePassResult.modelID
                 )
                 TextInserter.insertText(
                     finalText,
@@ -1724,7 +1725,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
             return "Preparing ShoutOut model"
         case .idle:
-            return "ShoutOut"
+            return MiniTrialConfiguration.appName
         case .recording:
             return "Recording"
         case .processing:
@@ -1957,7 +1958,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 backing: .buffered,
                 defer: false
             )
-            window.title = "ShoutOut"
+            window.title = MiniTrialConfiguration.appName
             window.minSize = NSSize(width: 820, height: 620)
             window.center()
             window.contentView = NSHostingView(

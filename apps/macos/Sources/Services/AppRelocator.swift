@@ -7,6 +7,10 @@ enum AppRelocator {
 
     @MainActor
     static func installToUserApplicationsIfNeeded() -> Bool {
+        guard !MiniTrialConfiguration.isEnabled else {
+            RuntimeLog.write("install relocation skipped reason=miniTrial")
+            return false
+        }
         let environment = ProcessInfo.processInfo.environment
         guard environment[skipEnvironmentKey] == nil else {
             RuntimeLog.write("install relocation skipped reason=environment")

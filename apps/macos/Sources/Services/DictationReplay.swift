@@ -46,7 +46,7 @@ enum DictationReplay {
         defaults.set(profile?.string(forKey: Defaults.languagePassStyle)
             ?? LanguagePassStyle.defaultStyle.rawValue, forKey: Defaults.languagePassStyle)
         let service = TranscriptionService(defaults: defaults, modelsDirectory: modelsDirectory)
-        let cleanup = LanguagePassService(defaults: defaults, modelsDirectory: languageModelsDirectory)
+        let cleanup = MiniTrialConfiguration.makeLanguagePassService(defaults: defaults, modelsDirectory: languageModelsDirectory)
         defer { cleanup.unload() }
         await service.loadModel()
         guard service.modelState.isReady else {
