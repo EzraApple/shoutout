@@ -2,7 +2,7 @@
 
 ## Scope
 
-Give users one local dictionary with a page in the existing app sidebar. A rule maps one or more misheard phrases to the preferred spelling. Apply the same rules across engines; the selected writing tone can then adjust capitalization.
+Give users one local dictionary with a page in the existing app sidebar. A rule maps one or more misheard phrases to the preferred spelling. Apply the same rules across engines, before optional text cleanup.
 
 The page includes search, add and edit sheets, delete confirmation, and a live sentence test. It uses the app’s existing visual components. There are no per-app modes, scripts, or additional models.
 
@@ -14,9 +14,11 @@ The page includes search, add and edit sheets, delete confirmation, and a live s
 
 ## Integration
 
-The app delegate owns the shared store and injects it into the home window. Apply the dictionary once to the mechanically processed transcript, before optional local AI cleanup. The corrected text becomes the cleanup input and its validation/fallback baseline, so the model sees preferred spellings and can apply the selected tone. Casual cleanup may turn `Replo` into `replo`. When cleanup is off or fails, its normal passthrough/fallback starts from the corrected text. Do not reapply dictionary rules after cleanup. Keep the language-cleanup audit fields as that stage’s actual input and output. The final history text and word counts use the cleanup result.
+The app delegate owns the shared store and injects it into the home window. Apply the dictionary once to the mechanically processed transcript, before optional local text cleanup. In the Mini trial, the corrected text becomes the cleanup input. Mini can delete words, but copies retained words with their spelling, case, and punctuation unchanged. When cleanup is off or fails, the corrected input is kept. Do not reapply dictionary rules after cleanup. Keep the cleanup audit fields as that stage’s actual input and output, including its model ID. The final history text and word counts use the cleanup result.
 
-The sentence test calls the same replacement function used by dictation. It does not run transcription, filler removal, or the language model.
+The sentence test calls the same replacement function used by dictation. It does not run transcription or the cleanup model.
+
+The dated verification notes below describe earlier app versions. Their tone-rewrite behavior is not the Mini trial's behavior.
 
 ## Verification
 

@@ -743,7 +743,7 @@ p {
   max-width: 280px;
 }
 
-.style-example-window {
+.cleanup-example-window {
   display: grid;
   gap: 8px;
   margin-top: auto;
@@ -757,7 +757,7 @@ p {
   transition: transform 160ms var(--ease-snap), box-shadow 160ms var(--ease-snap);
 }
 
-.style-example-window .example-label {
+.cleanup-example-window .example-label {
   width: fit-content;
   border: 2px solid var(--line);
   border-radius: 2px;
@@ -769,7 +769,7 @@ p {
   line-height: 1;
 }
 
-.style-example-window p {
+.cleanup-example-window p {
   margin: 0;
   color: var(--ink);
   font-size: 15px;
@@ -777,20 +777,20 @@ p {
   line-height: 1.32;
 }
 
-.feature-card:hover .style-example-window {
+.feature-card:hover .cleanup-example-window {
   box-shadow: 4px 4px 0 var(--ink);
   transform: translate(-1px, -2px);
 }
 
-.casual-card {
+.filler-card {
   background: var(--panel-mint);
 }
 
-.normal-card {
+.repeat-card {
   background: var(--panel-blue);
 }
 
-.formal-card {
+.wording-card {
   background: var(--panel-lilac);
 }
 

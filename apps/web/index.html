@@ -62,8 +62,8 @@
             <p class="eyebrow">Free local Mac dictation</p>
             <h1 id="hero-title">Dictate into any Mac app without breaking focus.</h1>
             <p class="lede">
-              Hold Fn, speak, release. ShoutOut transcribes locally, lightly cleans up
-              the wording in your style, and pastes into the field you were already using.
+              Hold Fn, speak, release. ShoutOut transcribes locally, can trim likely
+              filler words, and pastes into the field you were already using.
             </p>
             <div class="command-row" aria-label="Release actions">
               <a
@@ -140,9 +140,9 @@
               <p>Fast English transcription runs on your Mac, with no cloud round trip.</p>
             </article>
             <article class="flow-node">
-              <span class="node-kicker">Style</span>
-              <h3>Clean up</h3>
-              <p>Casual, Normal, or Formal writing style runs locally after transcription.</p>
+              <span class="node-kicker">Cleanup</span>
+              <h3>Keep your words</h3>
+              <p>Optional light cleanup can remove likely filler words.</p>
             </article>
             <article class="flow-node target-node">
               <span class="node-kicker">Output</span>
@@ -154,40 +154,46 @@
 
         <section id="writing" class="section writing-section" aria-labelledby="writing-title">
           <div class="section-copy">
-            <p class="eyebrow">Writing style</p>
-            <h2 id="writing-title">Your words. Your writing style.</h2>
+            <p class="eyebrow">Light cleanup</p>
+            <h2 id="writing-title">Your words, lightly cleaned up.</h2>
             <p>
-              Choose Casual, Normal, or Formal for local text cleanup, or turn cleanup off.
-              The same fast English dictation powers every style.
+              Turn on light cleanup to trim likely fillers. The words
+              it keeps stay in the same order. You can also turn cleanup off.
             </p>
           </div>
 
-          <div class="feature-grid writing-grid" aria-label="Writing style examples">
-            <article class="feature-card style-card casual-card">
-              <span class="feature-kicker">Casual</span>
-              <h3>For quick thoughts and DMs.</h3>
-              <p>your words in lowercase no extra punctuation just like a quick message</p>
-              <div class="style-example-window" aria-label="Casual style example">
-                <span class="example-label">Example output</span>
-                <p>i can send this by friday if that works</p>
+          <div class="feature-grid writing-grid" aria-label="Light cleanup examples">
+            <article class="feature-card cleanup-card filler-card">
+              <span class="feature-kicker">Fillers</span>
+              <h3>Trim extra words.</h3>
+              <p>Cleanup can remove filler words when they add nothing.</p>
+              <div class="cleanup-example-window" aria-label="Filler word example">
+                <span class="example-label">Before</span>
+                <p>We can like send the notes after lunch.</p>
+                <span class="example-label">After</span>
+                <p>We can send the notes after lunch.</p>
               </div>
             </article>
-            <article class="feature-card style-card normal-card">
-              <span class="feature-kicker">Normal</span>
-              <h3>For everyday writing.</h3>
-              <p>Your words, with natural punctuation and everyday capitalization.</p>
-              <div class="style-example-window" aria-label="Normal style example">
-                <span class="example-label">Example output</span>
-                <p>I can send this by Friday, if that works.</p>
+            <article class="feature-card cleanup-card repeat-card">
+              <span class="feature-kicker">Repeated fillers</span>
+              <h3>Lose the extra filler.</h3>
+              <p>Repeated filler words can go while the rest stays in place.</p>
+              <div class="cleanup-example-window" aria-label="Repeated filler example">
+                <span class="example-label">Before</span>
+                <p>We should like like send this after lunch.</p>
+                <span class="example-label">After</span>
+                <p>We should send this after lunch.</p>
               </div>
             </article>
-            <article class="feature-card style-card formal-card">
-              <span class="feature-kicker">Formal</span>
-              <h3>For emails and finished notes.</h3>
-              <p>Your words, presented with proper capitalization and precise punctuation.</p>
-              <div class="style-example-window" aria-label="Formal style example">
-                <span class="example-label">Example output</span>
-                <p>I can send this by Friday if that works.</p>
+            <article class="feature-card cleanup-card wording-card">
+              <span class="feature-kicker">Your phrasing</span>
+              <h3>Keep your wording.</h3>
+              <p>Cleanup keeps the words it retains in the order you said them.</p>
+              <div class="cleanup-example-window" aria-label="Unchanged phrasing example">
+                <span class="example-label">Before</span>
+                <p>Could you send it Friday?</p>
+                <span class="example-label">After</span>
+                <p>Could you send it Friday?</p>
               </div>
             </article>
           </div>
@@ -330,7 +336,7 @@
             <p class="eyebrow">Download</p>
             <h2 id="download-title">Get ShoutOut for macOS.</h2>
             <p>
-              A free Mac utility with local dictation, writing styles, history, insights,
+              A free Mac utility with local dictation, optional light cleanup, history, insights,
               and a checklist for the permissions macOS keeps in your control.
             </p>
           </div>

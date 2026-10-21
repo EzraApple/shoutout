@@ -218,7 +218,7 @@ struct ShoutOutHomeView: View {
 
                 ActionPanel(
                     title: "Make it yours",
-                    message: "Your shortcut, writing style, and a crab in your favorite color.",
+                    message: "Your shortcut, text cleanup, and a crab in your favorite color.",
                     buttonTitle: "Open",
                     systemImage: "paintpalette"
                 ) {

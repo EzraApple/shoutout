@@ -23,3 +23,16 @@ find "$trial/Contents/Resources/MiniCleanup" -type f
 ```
 
 The model source and output paths are local to this Mac. If the installed base app changes, inspect the new helper and update the checked commit before rebuilding. A successful build and signature check do not confirm the Mini startup path or live dictation behavior; verify those in the trial app before using it for comparisons.
+
+## Coordinated Mini release
+
+The current trial has a single Text cleanup toggle and no tone chooser. The website source on this branch describes that behavior. It is not deployed. Historical release notes retain the behavior of their dated versions.
+
+Before the public update:
+
+1. Bundle and activate Mini in the normal release build. The current release builder and production default still use Llama; a successful trial build does not change them.
+2. Migrate existing cleanup-model and tone preferences to the single light-cleanup path. Preserve the user's cleanup on/off choice, dictionary, shortcut, and history. Old tone values must not trigger a tone rewrite, capitalization pass, or Llama download in the Mini release.
+3. Check the upgraded app's settings, dictionary preview, history labels, startup, and paste behavior with old Normal, Casual, Formal, and cleanup-off preferences. Retain old model attribution in historical entries; do not reinterpret old results as Mini results.
+4. Publish the matching app, download metadata, and website copy together. Do not deploy the new website while its download still delivers the tone-rewrite app.
+
+Keep experimental formatting or a future tone layer separate from this update. No such controls or features are promised in the prepared website copy.
