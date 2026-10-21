@@ -99,10 +99,11 @@ cp -R "$base_app/Contents/Resources/HexSpeechWorker" "$app/Contents/Resources/"
 
 # Preserve the MLX runtime resource used by the app's existing language path.
 mlx_bundle="$app/Contents/Resources/mlx-swift_Cmlx.bundle"
-if [[ ! -d "$mlx_bundle" || ! -f "$base_app/Contents/Resources/mlx-swift_Cmlx.bundle/default.metallib" ]]; then
-    echo "The MLX resource bundle or installed Metal library is missing." >&2
+if [[ ! -f "$base_app/Contents/Resources/mlx-swift_Cmlx.bundle/default.metallib" ]]; then
+    echo "The installed MLX Metal library is missing." >&2
     exit 1
 fi
+mkdir -p "$mlx_bundle"
 cp "$base_app/Contents/Resources/mlx-swift_Cmlx.bundle/default.metallib" "$mlx_bundle/"
 
 # Copy only the three frozen Mini assets; the source directory also has private replays.
