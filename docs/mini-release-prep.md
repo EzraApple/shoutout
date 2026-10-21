@@ -24,7 +24,11 @@ apps/macos/scripts/build-app.sh
 
 ## Verification and publication boundary
 
-Local evidence is in `.local-evals/mini-release-prep-2026-10-21/`. Checks cover the release Swift tests, migration, the 168 authorized development cases through the production factory, pinned bundled assets, packaged CLI behavior, website build and rendered layout, and release version consistency. The final model test remains untouched.
+Local evidence is in `.local-evals/mini-release-prep-2026-10-21/verification.json` and its adjacent logs and screenshots. The app and headless DMG are in `apps/macos/dist-mini-release/`. The app is ad-hoc signed; the DMG is not notarized. Both contain the pinned Mini assets and model attribution notices.
+
+Passed: 240 XCTest tests, 20 Swift Testing tests, 18 final focused tests, 168 exact development-output matches, 36 packaged migration combinations, and 285 repository checks. A synthetic speech test through the packaged ASR and cleanup removed a filler `like` when cleanup was enabled and kept it when disabled. An isolated app rendered the single cleanup toggle, preserved dictionary, Glass preference, and legacy history tone. The temporary QA app and its cache link were removed afterward. These are functional checks, not a new model-quality study or latency benchmark.
+
+Checks cover the release Swift tests, migration, the 168 authorized development cases through the production factory, pinned bundled assets, packaged CLI behavior, website build and rendered layout, and release version consistency. The final model test remains untouched.
 
 The six previously rendered onboarding scenarios used simulated macOS permission APIs. The underlying permission manager and onboarding view are unchanged from that verified fix and are compiled into this candidate. A fresh macOS account permission grant flow remains unverified; real permissions are not reset during release preparation.
 
