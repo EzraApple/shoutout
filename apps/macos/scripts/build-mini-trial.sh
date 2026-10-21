@@ -79,6 +79,7 @@ cp "$base_app/Contents/Resources/mlx-swift_Cmlx.bundle/default.metallib" "$mlx_b
 # Copy only the three frozen Mini assets; the source directory also has private replays.
 mini_resources="$app/Contents/Resources/MiniCleanup"
 python3 "$script_dir/mini-assets.py" stage "$model_dir" "$mini_resources"
+cp -R Resources/MiniCleanupNotices "$app/Contents/Resources/"
 
 cp Resources/Info.plist "$app/Contents/Info.plist"
 plist="$app/Contents/Info.plist"

@@ -1,0 +1,15 @@
+ShoutOut Mini cleanup model
+
+Based on Google BERT Mini:
+https://huggingface.co/google/bert_uncased_L-4_H-256_A-4
+Base revision: 387825ce42dbb39b87911cdf8e383ee3b25184f8
+Upstream model card license: Apache-2.0.
+A copy of the Apache License 2.0 is included in this folder.
+
+ShoutOut modifications (2026): fine-tuned model weights and a two-label
+KEEP/DELETE classification head, exported to fixed-length Core ML inference.
+The model is not the unchanged Google checkpoint.
+
+Reference: Iulia Turc, Ming-Wei Chang, Kenton Lee, and Kristina Toutanova.
+Well-Read Students Learn Better: On the Importance of Pre-training Compact
+Models (2019), https://arxiv.org/abs/1908.08962.

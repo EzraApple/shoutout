@@ -211,6 +211,7 @@ if [[ "$MINI_RESOURCES" != /* ]]; then
     MINI_RESOURCES="$PROJECT_DIR/$MINI_RESOURCES"
 fi
 python3 "$SCRIPT_DIR/mini-assets.py" stage "$MINI_CLEANUP_ASSET_DIR" "$MINI_RESOURCES"
+cp -R "$PROJECT_DIR/Resources/MiniCleanupNotices" "$APP_BUNDLE/Contents/Resources/"
 
 # Copy icon if it exists
 if [ -f "Resources/AppIcon.icns" ]; then
