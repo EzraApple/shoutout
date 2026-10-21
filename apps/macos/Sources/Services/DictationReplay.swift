@@ -13,8 +13,7 @@ enum DictationReplay {
     }
 
     static func run(manifest: URL, profile: UserDefaults? = nil,
-                    modelsDirectory: URL = TranscriptionService.modelsDirectory,
-                    languageModelsDirectory: URL = LanguagePassService.modelsDirectory) async throws {
+                    modelsDirectory: URL = TranscriptionService.modelsDirectory) async throws {
         let environment = ProcessInfo.processInfo.environment
         guard let output = environment["SHOUTOUT_REPLAY_OUTPUT"] else {
             throw TranscriptionError.engineUnavailable("Set SHOUTOUT_REPLAY_OUTPUT for local replay.")
@@ -41,12 +40,8 @@ enum DictationReplay {
         defaults.set(true, forKey: "removeFillerWords")
         defaults.set(profile?.object(forKey: Defaults.languagePassEnabled) == nil
             || profile?.bool(forKey: Defaults.languagePassEnabled) == true, forKey: Defaults.languagePassEnabled)
-        defaults.set(LanguagePassModelOption.defaultID, forKey: Defaults.languagePassModel)
-        defaults.set(1, forKey: Defaults.languagePassModelCleanupVersion)
-        defaults.set(profile?.string(forKey: Defaults.languagePassStyle)
-            ?? LanguagePassStyle.defaultStyle.rawValue, forKey: Defaults.languagePassStyle)
         let service = TranscriptionService(defaults: defaults, modelsDirectory: modelsDirectory)
-        let cleanup = MiniTrialConfiguration.makeLanguagePassService(defaults: defaults, modelsDirectory: languageModelsDirectory)
+        let cleanup = MiniCleanupConfiguration.makeLanguagePassService(defaults: defaults)
         defer { cleanup.unload() }
         await service.loadModel()
         guard service.modelState.isReady else {

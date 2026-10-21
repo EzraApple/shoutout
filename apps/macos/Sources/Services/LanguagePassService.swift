@@ -14,18 +14,22 @@ struct LanguagePassModelOption: Identifiable, Hashable, Sendable {
 
     fileprivate static let legacyDefaultID = "mlx-community/SmolLM2-135M-Instruct-8bit"
     fileprivate static let previousDefaultID = "mlx-community/Qwen2.5-0.5B-Instruct-4bit"
-    static let defaultID = "mlx-community/Llama-3.2-1B-Instruct-4bit"
+    static let defaultID = MiniCleanupEngine.modelID
+    static let generativeDefaultID = "mlx-community/Llama-3.2-1B-Instruct-4bit"
 
     static let all: [LanguagePassModelOption] = [
         LanguagePassModelOption(
-            id: "mlx-community/Llama-3.2-1B-Instruct-4bit",
+            id: generativeDefaultID,
             title: "Llama 3.2 1B",
             detail: "More reliable cleanup for casual style and filler removal, with moderate local memory use."
         )
     ]
 
     static func option(for id: String) -> LanguagePassModelOption {
-        all.first { $0.id == id }
+        if id == defaultID {
+            return LanguagePassModelOption(id: id, title: "Mini", detail: "Bundled light cleanup")
+        }
+        return all.first { $0.id == id }
             ?? LanguagePassModelOption(id: id, title: id, detail: "Custom local language model")
     }
 }
@@ -115,7 +119,9 @@ final class LanguagePassService: ObservableObject {
     }
     @Published private(set) var lastRunSummary: LanguagePassRunSummary?
 
-    let availableModels = LanguagePassModelOption.all.map(\.id)
+    var availableModels: [String] {
+        miniModelDirectory == nil ? LanguagePassModelOption.all.map(\.id) : [MiniCleanupEngine.modelID]
+    }
 
     private let defaults: UserDefaults
     private let persistsSettings: Bool
@@ -155,10 +161,10 @@ final class LanguagePassService: ObservableObject {
         if storedModel == LanguagePassModelOption.legacyDefaultID
             || storedModel == LanguagePassModelOption.previousDefaultID
         {
-            self.selectedModelID = LanguagePassModelOption.defaultID
-            defaults.set(LanguagePassModelOption.defaultID, forKey: Defaults.languagePassModel)
+            self.selectedModelID = LanguagePassModelOption.generativeDefaultID
+            defaults.set(LanguagePassModelOption.generativeDefaultID, forKey: Defaults.languagePassModel)
         } else {
-            self.selectedModelID = storedModel ?? LanguagePassModelOption.defaultID
+            self.selectedModelID = storedModel ?? LanguagePassModelOption.generativeDefaultID
         }
 
         if defaults.object(forKey: Defaults.languagePassEnabled) == nil {
@@ -175,7 +181,7 @@ final class LanguagePassService: ObservableObject {
         Self.configureMLXMemoryIfNeeded()
     }
 
-    /// Explicit local trial. The production initializer and saved settings stay unchanged.
+    /// Bundled Mini editor. An omitted defaults argument keeps isolated trials ephemeral.
     init(miniModelDirectory: URL, style: LanguagePassStyle = .casual, defaults: UserDefaults? = nil) {
         self.defaults = defaults ?? .standard
         self.persistsSettings = defaults != nil
@@ -380,11 +386,11 @@ final class LanguagePassService: ObservableObject {
         let modelID = MiniCleanupEngine.modelID
         guard isEnabled else {
             return .passthrough(baseText, enabled: false, modelID: modelID,
-                                fallbackReason: "disabled", styleRawValue: selectedStyle.rawValue)
+                                fallbackReason: "disabled")
         }
         guard !baseText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return .passthrough(baseText, enabled: true, modelID: modelID,
-                                fallbackReason: "empty_input", styleRawValue: selectedStyle.rawValue)
+                                fallbackReason: "empty_input")
         }
         if modelState != .ready || miniEngine == nil {
             await prepareIfNeeded()
@@ -392,22 +398,21 @@ final class LanguagePassService: ObservableObject {
         guard isEnabled, let engine = miniEngine else {
             return .passthrough(baseText, enabled: isEnabled,
                                 wallMs: Self.elapsedMilliseconds(since: startedAt), modelID: modelID,
-                                fallbackReason: isEnabled ? "model_not_ready" : "disabled",
-                                styleRawValue: selectedStyle.rawValue)
+                                fallbackReason: isEnabled ? "model_not_ready" : "disabled")
         }
         let generation = loadGeneration
         let output = await engine.cleanup(source: baseText)
         guard generation == loadGeneration, isEnabled else {
             return .passthrough(baseText, enabled: isEnabled,
                                 wallMs: Self.elapsedMilliseconds(since: startedAt), modelID: modelID,
-                                fallbackReason: "cancelled", styleRawValue: selectedStyle.rawValue)
+                                fallbackReason: "cancelled")
         }
         return LanguagePassRunResult(
             finalText: output.finalText, inputText: baseText, candidateText: output.candidateText,
             enabled: true, accepted: output.fallbackReason == nil,
             changed: output.finalText != baseText,
             wallMs: Self.elapsedMilliseconds(since: startedAt), modelID: modelID,
-            fallbackReason: output.fallbackReason, styleRawValue: selectedStyle.rawValue
+            fallbackReason: output.fallbackReason, styleRawValue: nil
         )
     }
 

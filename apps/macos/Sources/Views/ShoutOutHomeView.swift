@@ -1651,7 +1651,7 @@ private struct TranscriptionHistoryRow: View {
     }
 
     private var cleanupStatusText: String {
-        if entry.languagePassModel == MiniTrialConfiguration.modelID {
+        if entry.languagePassModel == MiniCleanupConfiguration.modelID {
             return entry.languagePassAccepted == true
                 ? (cleanupDidChange ? "Light cleanup" : "Unchanged") : "Cleanup skipped"
         }
@@ -1663,7 +1663,7 @@ private struct TranscriptionHistoryRow: View {
     }
 
     private var cleanupReasonText: String {
-        if entry.languagePassModel == MiniTrialConfiguration.modelID {
+        if entry.languagePassModel == MiniCleanupConfiguration.modelID {
             return entry.languagePassAccepted == true
                 ? (cleanupDidChange ? "Selected words removed" : "No edit made")
                 : "Original kept"
@@ -1677,7 +1677,7 @@ private struct TranscriptionHistoryRow: View {
     }
 
     private var cleanupToneText: String? {
-        entry.languagePassModel == MiniTrialConfiguration.modelID
+        entry.languagePassModel == MiniCleanupConfiguration.modelID
             ? nil : LanguagePassDisplayCopy.toneTitle(entry.languagePassStyle)
     }
 

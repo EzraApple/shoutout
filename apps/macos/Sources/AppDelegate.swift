@@ -235,7 +235,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var statusItem: NSStatusItem!
     let audioRecorder = AudioRecorder()
     let transcriptionService = TranscriptionService()
-    let languagePassService = MiniTrialConfiguration.makeLanguagePassService()
+    let languagePassService = MiniCleanupConfiguration.makeLanguagePassService()
     let hotkeyManager = HotkeyManager()
     let screenshotMonitor = ScreenshotMonitor()
     let permissions = PermissionManager.shared
@@ -323,8 +323,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             Defaults.smartSpacing: true,
             Defaults.hotkeyTrigger: HotkeyTrigger.defaultTrigger.rawValue,
             Defaults.languagePassEnabled: true,
-            Defaults.languagePassModel: LanguagePassModelOption.defaultID,
-            Defaults.languagePassStyle: LanguagePassStyle.defaultStyle.rawValue,
             "removeFillerWords": true,
         ])
 

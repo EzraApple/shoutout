@@ -4,9 +4,19 @@ import XCTest
 
 @MainActor
 final class MiniLanguagePassIntegrationTests: XCTestCase {
-    func testProductionDefaultRemainsLlama() {
-        XCTAssertEqual(LanguagePassModelOption.defaultID, "mlx-community/Llama-3.2-1B-Instruct-4bit")
-        XCTAssertEqual(LanguagePassModelOption.all.map(\.id), [LanguagePassModelOption.defaultID])
+    func testProductionDefaultIsBundledMiniAndGenerativeToolRemainsExplicit() throws {
+        XCTAssertEqual(LanguagePassModelOption.defaultID, MiniCleanupConfiguration.modelID)
+        XCTAssertEqual(LanguagePassModelOption.option(for: LanguagePassModelOption.defaultID).title, "Mini")
+        XCTAssertEqual(LanguagePassModelOption.all.map(\.id), [LanguagePassModelOption.generativeDefaultID])
+        let suite = "ShoutOut.MiniDefault.Tests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let service = MiniCleanupConfiguration.makeLanguagePassService(defaults: defaults)
+        XCTAssertTrue(service.usesMiniEditor)
+        XCTAssertEqual(service.selectedModelID, LanguagePassModelOption.defaultID)
+        XCTAssertEqual(service.availableModels, [LanguagePassModelOption.defaultID])
+        XCTAssertTrue(service.isEnabled)
+        XCTAssertEqual(defaults.object(forKey: Defaults.languagePassModel) as? String, nil)
     }
 
     func testLoadFailurePreservesExactInputWithoutFormatting() async {
@@ -17,6 +27,7 @@ final class MiniLanguagePassIntegrationTests: XCTestCase {
         XCTAssertFalse(result.accepted)
         XCTAssertEqual(result.fallbackReason, "model_not_ready")
         XCTAssertNil(result.candidateText)
+        XCTAssertNil(result.styleRawValue)
     }
 
     func testDisabledTrialDoesNotChangeSavedSettings() async {
@@ -50,6 +61,18 @@ final class MiniLanguagePassIntegrationTests: XCTestCase {
         XCTAssertTrue(nextLaunch.usesMiniEditor)
     }
 
+    func testProductionMiniClearsLegacyToneAndModel() throws {
+        let suite = "ShoutOut.MiniDefault.Tests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set("formal", forKey: Defaults.languagePassStyle)
+        defaults.set("mlx-community/Llama-3.2-1B-Instruct-4bit", forKey: Defaults.languagePassModel)
+        let service = MiniCleanupConfiguration.makeLanguagePassService(defaults: defaults)
+        XCTAssertNil(defaults.object(forKey: Defaults.languagePassStyle))
+        XCTAssertNil(defaults.object(forKey: Defaults.languagePassModel))
+        XCTAssertEqual(service.selectedModelID, MiniCleanupConfiguration.modelID)
+    }
+
     func testPrivateDevelopmentReplayThroughAppService() async throws {
         let environment = ProcessInfo.processInfo.environment
         guard let directory = environment["MINI_TEST_MODEL_DIRECTORY"],
@@ -64,7 +87,17 @@ final class MiniLanguagePassIntegrationTests: XCTestCase {
         let data = try Data(contentsOf: URL(fileURLWithPath: casePath))
         let cases = try data.split(separator: 10).map { try JSONDecoder().decode(ReplayCase.self, from: Data($0)) }
         XCTAssertEqual(cases.count, 168)
-        let service = LanguagePassService(miniModelDirectory: URL(fileURLWithPath: directory))
+        let suite = "ShoutOut.MiniReplay.Tests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set("formal", forKey: Defaults.languagePassStyle)
+        defaults.set(LanguagePassModelOption.generativeDefaultID, forKey: Defaults.languagePassModel)
+        let service = MiniCleanupConfiguration.makeLanguagePassService(
+            defaults: defaults, miniModelDirectory: URL(fileURLWithPath: directory))
+        XCTAssertTrue(service.usesMiniEditor)
+        XCTAssertEqual(service.selectedModelID, MiniCleanupConfiguration.modelID)
+        XCTAssertNil(defaults.object(forKey: Defaults.languagePassStyle))
+        XCTAssertNil(defaults.object(forKey: Defaults.languagePassModel))
         async let warmup: Void = service.prepareIfNeeded()
         async let firstRequest: Void = service.prepareIfNeeded()
         _ = await (warmup, firstRequest)

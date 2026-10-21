@@ -1,6 +1,5 @@
 import AVFoundation
 import Foundation
-import MiniCleanup
 import ShoutOutCore
 
 @MainActor
@@ -10,7 +9,6 @@ final class AppControlRouter {
     private var cleanup: LanguagePassService?
     private var dictionary: DictionaryStore?
     private let modelsDirectory: URL
-    private let languageModelsDirectory: URL
     private let settingsChanged: ((String) -> Void)?
 
     init(
@@ -19,7 +17,6 @@ final class AppControlRouter {
         cleanup: LanguagePassService? = nil,
         dictionary: DictionaryStore? = nil,
         modelsDirectory: URL = TranscriptionService.modelsDirectory,
-        languageModelsDirectory: URL = LanguagePassService.modelsDirectory,
         settingsChanged: ((String) -> Void)? = nil
     ) {
         self.defaults = defaults
@@ -27,7 +24,6 @@ final class AppControlRouter {
         self.cleanup = cleanup
         self.dictionary = dictionary
         self.modelsDirectory = modelsDirectory
-        self.languageModelsDirectory = languageModelsDirectory
         self.settingsChanged = settingsChanged
     }
 
@@ -73,14 +69,13 @@ final class AppControlRouter {
                 ?? TranscriptionService.configuredBackend(defaults: defaults)) == .hexStreaming),
             "cleanup": String(defaults.object(forKey: Defaults.languagePassEnabled) == nil
                 || defaults.bool(forKey: Defaults.languagePassEnabled)),
-            "style": defaults.string(forKey: Defaults.languagePassStyle) ?? LanguagePassStyle.defaultStyle.rawValue,
             "shortcut": defaults.string(forKey: Defaults.hotkeyTrigger) ?? HotkeyTrigger.defaultTrigger.rawValue,
             "indicator": defaults.string(forKey: Defaults.overlayStyle) ?? "crab",
             "color": defaults.string(forKey: Defaults.crabColorVariant) ?? "ocean",
             "engine": transcription?.selectedBackend.rawValue
                 ?? TranscriptionService.configuredBackend(defaults: defaults).rawValue,
             "modelState": transcription.map { String(describing: $0.modelState) } ?? "unloaded",
-            "cleanupModel": cleanup?.selectedModelID ?? (MiniTrialConfiguration.isEnabled ? MiniCleanupEngine.modelID : LanguagePassModelOption.defaultID),
+            "cleanupModel": cleanup?.selectedModelID ?? LanguagePassModelOption.defaultID,
             "cleanupState": cleanup.map { String(describing: $0.modelState) } ?? "unloaded",
             "busy": String(transcription?.isDictationInProgress ?? false),
         ]
@@ -102,10 +97,7 @@ final class AppControlRouter {
             defaults.set(enabled, forKey: Defaults.languagePassEnabled)
             cleanup?.isEnabled = enabled
         case "style":
-            let raw = value == "normal" ? "standard" : value
-            guard let style = LanguagePassStyle(rawValue: raw) else { throw invalid("Style must be normal, casual, or formal.") }
-            defaults.set(style.rawValue, forKey: Defaults.languagePassStyle)
-            cleanup?.selectedStyle = style
+            throw invalid("Mini cleanup does not support writing styles.")
         case "shortcut":
             guard HotkeyTrigger(rawValue: value) != nil else { throw invalid("Unknown shortcut: \(value)") }
             defaults.set(value, forKey: Defaults.hotkeyTrigger)
@@ -167,7 +159,7 @@ final class AppControlRouter {
             recordingDuration: Double(samples.count) / 16000, signal: signal) {
             return response(values: ["status": "lowInformation"], text: "", rawText: result.result.rawText)
         }
-        let language = cleanup ?? MiniTrialConfiguration.makeLanguagePassService(defaults: defaults, modelsDirectory: languageModelsDirectory)
+        let language = cleanup ?? MiniCleanupConfiguration.makeLanguagePassService(defaults: defaults)
         cleanup = language
         if language.isEnabled { await language.prepareIfNeeded() }
         let dictionary = dictionary ?? DictionaryStore.defaultStore()

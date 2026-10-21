@@ -683,9 +683,15 @@ p {
   font-size: 16px;
 }
 
-.writing-grid {
-  width: 100%;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+.writing-section {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: center;
+  gap: 36px;
+}
+
+.writing-section .section-copy {
+  margin-bottom: 0;
 }
 
 .feature-card {
@@ -746,7 +752,6 @@ p {
 .cleanup-example-window {
   display: grid;
   gap: 8px;
-  margin-top: auto;
   border: 2px solid var(--line);
   border-radius: 3px;
   padding: 12px 13px;
@@ -775,23 +780,6 @@ p {
   font-size: 15px;
   font-weight: 850;
   line-height: 1.32;
-}
-
-.feature-card:hover .cleanup-example-window {
-  box-shadow: 4px 4px 0 var(--ink);
-  transform: translate(-1px, -2px);
-}
-
-.filler-card {
-  background: var(--panel-mint);
-}
-
-.repeat-card {
-  background: var(--panel-blue);
-}
-
-.wording-card {
-  background: var(--panel-lilac);
 }
 
 .surface-board {
@@ -1479,7 +1467,7 @@ p {
 
 @media (max-width: 680px) {
   #app {
-    padding-top: 112px;
+    padding-top: 80px;
   }
 
   .site-header,
@@ -1490,7 +1478,7 @@ p {
     width: 100%;
     height: auto;
     min-height: 0;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     gap: 10px;
     padding: 10px 14px;
     border-color: transparent;
@@ -1503,7 +1491,7 @@ p {
   }
 
   .section {
-    scroll-margin-top: 126px;
+    scroll-margin-top: 90px;
   }
 
   .brand {
@@ -1513,18 +1501,12 @@ p {
   }
 
   .nav-links {
-    width: calc(100% + 8px);
-    justify-content: flex-start;
-    gap: 4px;
-    margin-right: -8px;
-    overflow-x: auto;
-    padding-bottom: 2px;
     font-size: 13px;
-    scrollbar-width: none;
   }
 
-  .nav-links::-webkit-scrollbar {
-    display: none;
+  .writing-section {
+    grid-template-columns: 1fr;
+    gap: 20px;
   }
 
   .nav-links a {

@@ -65,18 +65,50 @@ final class SettingsMigrationTests: XCTestCase {
         defaults.set(true, forKey: "streamingTranscriptionEnabled")
 
         SettingsMigration.removeRetiredOverrides(from: defaults)
+        SettingsMigration.useMiniCleanupByDefault(in: defaults)
         SettingsMigration.removeRetiredOverrides(from: defaults)
+        SettingsMigration.useMiniCleanupByDefault(in: defaults)
 
         XCTAssertEqual(defaults.string(forKey: "transcriptionBackend"), "parakeet")
         XCTAssertTrue(defaults.bool(forKey: "smartSpacing"))
         XCTAssertNil(defaults.object(forKey: "languagePassModel"))
         XCTAssertNil(defaults.object(forKey: "boringMode"))
         XCTAssertFalse(defaults.bool(forKey: "languagePassEnabled"))
-        XCTAssertEqual(defaults.string(forKey: "languagePassStyle"), "casual")
+        XCTAssertNil(defaults.object(forKey: "languagePassStyle"))
         XCTAssertEqual(defaults.string(forKey: "crabColorVariant"), "black")
         XCTAssertEqual(defaults.string(forKey: "overlayStyle"), "capsule")
         XCTAssertEqual(defaults.string(forKey: "hotkeyTrigger"), "rightOption")
         XCTAssertTrue(defaults.bool(forKey: "hasCompletedOnboarding"))
         XCTAssertTrue(defaults.bool(forKey: "streamingTranscriptionEnabled"))
+    }
+
+    func testMiniMigrationClearsLegacyChoicesOnceAndKeepsPersonalSettings() throws {
+        for (model, style, enabled) in [
+            ("mlx-community/Llama-3.2-1B-Instruct-4bit", "formal", true),
+            ("mlx-community/Qwen2.5-0.5B-Instruct-4bit", "casual", false),
+            ("custom/model", "standard", true),
+        ] {
+            let suite = "ShoutOut.MiniMigration.Tests.\(UUID().uuidString)"
+            let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+            defer { defaults.removePersistentDomain(forName: suite) }
+            defaults.set(model, forKey: "languagePassModel")
+            defaults.set(style, forKey: "languagePassStyle")
+            defaults.set(enabled, forKey: "languagePassEnabled")
+            defaults.set("rightOption", forKey: "hotkeyTrigger")
+            defaults.set("Example", forKey: "dictionaryUnrelatedValue")
+            defaults.set("history sentinel", forKey: "transcriptionHistoryUnrelatedValue")
+
+            SettingsMigration.useMiniCleanupByDefault(in: defaults)
+            XCTAssertNil(defaults.object(forKey: "languagePassModel"))
+            XCTAssertNil(defaults.object(forKey: "languagePassStyle"))
+            XCTAssertEqual(defaults.bool(forKey: "languagePassEnabled"), enabled)
+            XCTAssertEqual(defaults.string(forKey: "hotkeyTrigger"), "rightOption")
+            XCTAssertEqual(defaults.string(forKey: "dictionaryUnrelatedValue"), "Example")
+            XCTAssertEqual(defaults.string(forKey: "transcriptionHistoryUnrelatedValue"), "history sentinel")
+
+            defaults.set("later value", forKey: "languagePassStyle")
+            SettingsMigration.useMiniCleanupByDefault(in: defaults)
+            XCTAssertEqual(defaults.string(forKey: "languagePassStyle"), "later value")
+        }
     }
 }

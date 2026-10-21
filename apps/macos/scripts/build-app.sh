@@ -1,18 +1,28 @@
 #!/bin/bash
 set -e
 
-# Load .env (check repo root first, then the macOS app)
+# Load .env (check repo root first, then the macOS app) unless preparing a local build.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 ROOT_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
-for ENV_FILE in "$ROOT_DIR/.env" "$PROJECT_DIR/.env"; do
-    if [ -f "$ENV_FILE" ]; then
-        set -a
-        source "$ENV_FILE"
-        set +a
-        break
-    fi
-done
+MINI_ASSET_DIR_OVERRIDE="${MINI_CLEANUP_ASSET_DIR:-}"
+SKIP_NOTARIZE_OVERRIDE="${SKIP_NOTARIZE:-}"
+if [ "${SHOUTOUT_SKIP_ENV:-false}" != "true" ]; then
+    for ENV_FILE in "$ROOT_DIR/.env" "$PROJECT_DIR/.env"; do
+        if [ -f "$ENV_FILE" ]; then
+            set -a
+            source "$ENV_FILE"
+            set +a
+            break
+        fi
+    done
+fi
+if [ -n "$MINI_ASSET_DIR_OVERRIDE" ]; then
+    MINI_CLEANUP_ASSET_DIR="$MINI_ASSET_DIR_OVERRIDE"
+fi
+if [ -n "$SKIP_NOTARIZE_OVERRIDE" ]; then
+    SKIP_NOTARIZE="$SKIP_NOTARIZE_OVERRIDE"
+fi
 
 # Colors for output
 GREEN='\033[0;32m'
@@ -28,6 +38,20 @@ DIST_DIR="${SHOUTOUT_DIST_DIR:-dist}"
 APP_BUNDLE="$DIST_DIR/$APP_NAME.app"
 UNIVERSAL="${UNIVERSAL:-true}"
 NOTARY_PROFILE="${NOTARY_PROFILE:-notarytool-profile}"
+MINI_CLEANUP_ASSET_DIR="${MINI_CLEANUP_ASSET_DIR:-}"
+
+# Validate before clearing a previous build or starting any compilation.
+if [ -z "$MINI_CLEANUP_ASSET_DIR" ]; then
+    echo -e "${RED}Error: Set MINI_CLEANUP_ASSET_DIR to the absolute frozen Mini asset directory.${NC}" >&2
+    exit 1
+fi
+python3 "$SCRIPT_DIR/mini-assets.py" verify "$MINI_CLEANUP_ASSET_DIR"
+
+cd "$PROJECT_DIR"
+if [ -L "$DIST_DIR" ] || [ -L "$APP_BUNDLE" ]; then
+    echo -e "${RED}Error: Refusing a symlink in the app output path.${NC}" >&2
+    exit 1
+fi
 
 build_mlx_metal_runtime() {
     local source_dir=".build/checkouts/mlx-swift/Source/Cmlx/mlx-generated/metal"
@@ -102,8 +126,6 @@ select_speech_analyzer_toolchain_if_available
 echo -e "${BLUE}Cleaning previous builds...${NC}"
 rm -rf "$DIST_DIR"
 mkdir -p "$DIST_DIR"
-
-cd "$PROJECT_DIR"
 
 # Build release binary
 if [ "$UNIVERSAL" = "true" ]; then
@@ -182,6 +204,13 @@ for RESOURCE_BUNDLE in "$BUILD_DIR"/*.bundle; do
 done
 
 build_mlx_metal_runtime
+
+# Bundle only the frozen model, vocabulary, and tokenizer config.
+MINI_RESOURCES="$APP_BUNDLE/Contents/Resources/MiniCleanup"
+if [[ "$MINI_RESOURCES" != /* ]]; then
+    MINI_RESOURCES="$PROJECT_DIR/$MINI_RESOURCES"
+fi
+python3 "$SCRIPT_DIR/mini-assets.py" stage "$MINI_CLEANUP_ASSET_DIR" "$MINI_RESOURCES"
 
 # Copy icon if it exists
 if [ -f "Resources/AppIcon.icns" ]; then

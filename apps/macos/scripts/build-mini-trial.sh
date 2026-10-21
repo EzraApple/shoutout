@@ -15,37 +15,7 @@ if [[ $# -ne 2 || "$1" != "--model-directory" ]]; then
     exit 2
 fi
 model_dir="$2"
-if [[ "$model_dir" != /* || ! -d "$model_dir/mini-fixed256.mlpackage" \
-    || ! -f "$model_dir/vocab.txt" || ! -f "$model_dir/tokenizer-config.json" ]]; then
-    echo "Mini model directory must be absolute and contain the frozen model, vocabulary, and tokenizer config." >&2
-    exit 1
-fi
-if [[ "$(shasum -a 256 "$model_dir/vocab.txt" | cut -d ' ' -f 1)" != \
-        "07eced375cec144d27c900241f3e339478dec958f92fddbc551f295c992038a3" || \
-    "$(shasum -a 256 "$model_dir/tokenizer-config.json" | cut -d ' ' -f 1)" != \
-        "7a248d081af1990bbbb20e98f58f07759f13991aec65a97858bdfd593697efc8" ]]; then
-    echo "The Mini vocabulary or tokenizer config does not match the frozen trial." >&2
-    exit 1
-fi
-model_digest="$(python3 - "$model_dir/mini-fixed256.mlpackage" <<'PY'
-import hashlib
-import pathlib
-import sys
-
-root = pathlib.Path(sys.argv[1])
-digest = hashlib.sha256()
-for path in sorted(path for path in root.rglob("*") if path.is_file()):
-    digest.update(path.relative_to(root).as_posix().encode())
-    with path.open("rb") as model_file:
-        for chunk in iter(lambda: model_file.read(1_048_576), b""):
-            digest.update(chunk)
-print(digest.hexdigest())
-PY
-)"
-if [[ "$model_digest" != "6c62bb511b9f639998907e578b062d1932e6c79ad55dea6c94fa47f79edc93f5" ]]; then
-    echo "The Mini model package does not match the frozen trial." >&2
-    exit 1
-fi
+python3 "$script_dir/mini-assets.py" verify "$model_dir"
 
 # The helper is copied from the installed 0.2.0 app so the trial keeps its ASR path.
 # Read only; never sign, replace, or launch the installed app.
@@ -108,12 +78,7 @@ cp "$base_app/Contents/Resources/mlx-swift_Cmlx.bundle/default.metallib" "$mlx_b
 
 # Copy only the three frozen Mini assets; the source directory also has private replays.
 mini_resources="$app/Contents/Resources/MiniCleanup"
-mkdir -p "$mini_resources"
-cp -R "$model_dir/mini-fixed256.mlpackage" "$mini_resources/"
-cp "$model_dir/vocab.txt" "$model_dir/tokenizer-config.json" "$mini_resources/"
-cmp "$model_dir/vocab.txt" "$mini_resources/vocab.txt"
-cmp "$model_dir/tokenizer-config.json" "$mini_resources/tokenizer-config.json"
-diff -qr "$model_dir/mini-fixed256.mlpackage" "$mini_resources/mini-fixed256.mlpackage" >/dev/null
+python3 "$script_dir/mini-assets.py" stage "$model_dir" "$mini_resources"
 
 cp Resources/Info.plist "$app/Contents/Info.plist"
 plist="$app/Contents/Info.plist"
