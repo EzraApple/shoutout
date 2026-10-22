@@ -292,6 +292,7 @@ struct AppOverlayView: View {
     var onCommit: (() -> Void)?
     var anchor: IndicatorAnchor = .right
     var isHovered = false
+    var crabPlacementRevision = 0
     var onDragChanged: ((CGPoint, CGSize) -> Void)?
     var onDragEnded: (() -> Void)?
     var onInteractionRegionChanged: ((CGRect) -> Void)?
@@ -303,6 +304,7 @@ struct AppOverlayView: View {
                 state: state, height: crabHeight, anchor: anchor, isHovered: isHovered,
                 onInteractionRegionChanged: onInteractionRegionChanged
             )
+                .id(crabPlacementRevision)
                 .frame(width: CrabOverlayLayout.width, height: crabHeight)
                 .contentShape(Rectangle())
         case .capsule, .glass:
@@ -328,6 +330,7 @@ final class IndicatorOverlayModel: ObservableObject {
     @Published var isHovered = false
     @Published var isDragging = false
     @Published var dragRect = CGRect.zero
+    @Published var crabPlacementRevision = 0
     var onDragChanged: ((CGPoint, CGSize) -> Void)?
     var onDragEnded: (() -> Void)?
     var onInteractionRegionChanged: ((CGRect) -> Void)?
@@ -378,6 +381,7 @@ struct IndicatorOverlayHostView: View {
             onCommit: model.onCommit,
             anchor: model.anchor,
             isHovered: model.isHovered || model.isDragging,
+            crabPlacementRevision: model.crabPlacementRevision,
             onDragChanged: model.onDragChanged,
             onDragEnded: model.onDragEnded,
             onInteractionRegionChanged: model.onInteractionRegionChanged

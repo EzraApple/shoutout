@@ -186,6 +186,7 @@ final class IndicatorPlacementController {
             defaults.set(selectedTarget.anchor.rawValue, forKey: "indicatorAnchor.\(model.style.rawValue)")
             defaults.set(selectedTarget.screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")],
                          forKey: "indicatorDisplay.\(model.style.rawValue)")
+            if model.style == .crab { model.crabPlacementRevision += 1 }
         }
         endDrag()
         placeIndicator()

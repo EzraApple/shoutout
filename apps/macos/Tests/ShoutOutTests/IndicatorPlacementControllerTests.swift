@@ -14,6 +14,7 @@ final class IndicatorPlacementControllerTests: XCTestCase {
         XCTAssertTrue(view.hitTest(CGPoint(x: 30, y: view.bounds.midY)) === view)
 
         for anchor in [IndicatorAnchor.left, .right] {
+            let priorRevision = harness.model.crabPlacementRevision
             let start = CGPoint(x: harness.panel.frame.midX, y: harness.panel.frame.midY)
             let target = anchor.targetFrame(in: harness.screen.visibleFrame)
             func event(_ type: NSEvent.EventType, at point: CGPoint) throws -> NSEvent {
@@ -29,6 +30,7 @@ final class IndicatorPlacementControllerTests: XCTestCase {
 
             XCTAssertFalse(harness.controller.isDragging)
             XCTAssertEqual(harness.model.anchor, anchor)
+            XCTAssertEqual(harness.model.crabPlacementRevision, priorRevision + 1)
             XCTAssertEqual(harness.defaults.string(forKey: "indicatorAnchor.crab"), anchor.rawValue)
         }
     }
@@ -100,6 +102,7 @@ final class IndicatorPlacementControllerTests: XCTestCase {
         XCTAssertNil(harness.defaults.string(forKey: "indicatorAnchor.glass"))
         XCTAssertEqual(harness.model.anchor, .right)
         XCTAssertEqual(harness.panel.frame, originalFrame)
+        XCTAssertEqual(harness.model.crabPlacementRevision, 0)
         XCTAssertTrue(guides.allSatisfy { !$0.isVisible })
     }
 
