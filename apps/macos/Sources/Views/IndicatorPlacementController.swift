@@ -291,13 +291,6 @@ private final class IndicatorDropGuideView: NSView {
             NSColor.white.withAlphaComponent(selected ? 0.95 : 0.42).setStroke()
             path.lineWidth = selected ? 2 : 1
             path.stroke()
-            let label = anchor.rawValue.capitalized as NSString
-            let attributes: [NSAttributedString.Key: Any] = [
-                .font: NSFont.systemFont(ofSize: 12, weight: .medium),
-                .foregroundColor: selected ? NSColor.black.withAlphaComponent(0.8) : NSColor.white,
-            ]
-            let size = label.size(withAttributes: attributes)
-            label.draw(at: CGPoint(x: target.midX - size.width / 2, y: target.midY - size.height / 2), withAttributes: attributes)
         }
     }
 }

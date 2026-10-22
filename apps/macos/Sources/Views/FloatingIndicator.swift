@@ -305,7 +305,6 @@ struct AppOverlayView: View {
             )
                 .frame(width: CrabOverlayLayout.width, height: crabHeight)
                 .contentShape(Rectangle())
-                .simultaneousGesture(indicatorDragGesture(onChanged: onDragChanged, onEnded: onDragEnded))
         case .capsule, .glass:
             PillIndicatorView(
                 style: style, state: state, onCancel: onCancel, onCommit: onCommit,

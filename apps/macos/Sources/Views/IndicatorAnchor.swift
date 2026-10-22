@@ -53,6 +53,10 @@ enum IndicatorAnchor: String, CaseIterable, Sendable {
     }
 
     static func dropTarget(at point: CGPoint, in visibleFrame: CGRect, style: OverlayStyle) -> Self? {
-        allowed(for: style).first { $0.targetFrame(in: visibleFrame).insetBy(dx: -24, dy: -24).contains(point) }
+        // A sideways drag should still land when the Crab has crawled above or below the target.
+        let verticalAllowance: CGFloat = style == .crab ? 72 : 24
+        return allowed(for: style).first {
+            $0.targetFrame(in: visibleFrame).insetBy(dx: -24, dy: -verticalAllowance).contains(point)
+        }
     }
 }

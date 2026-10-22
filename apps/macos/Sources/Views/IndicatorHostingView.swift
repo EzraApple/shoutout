@@ -2,6 +2,8 @@ import AppKit
 import SwiftUI
 
 final class IndicatorHostingView: NSHostingView<IndicatorOverlayHostView> {
+    private var mouseDownPoint: CGPoint?
+    private var startedDrag = false
     var dragRect = CGRect.zero {
         didSet {
             if oldValue != dragRect { window?.invalidateCursorRects(for: self) }
@@ -9,6 +11,44 @@ final class IndicatorHostingView: NSHostingView<IndicatorOverlayHostView> {
     }
 
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        if rootView.model.style == .crab, dragRect.contains(convert(point, from: superview)) {
+            return self
+        }
+        return super.hitTest(point)
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        guard rootView.model.style == .crab, let window else {
+            super.mouseDown(with: event)
+            return
+        }
+        mouseDownPoint = window.convertPoint(toScreen: event.locationInWindow)
+        startedDrag = false
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        guard let mouseDownPoint, let window else { return }
+        let pointer = window.convertPoint(toScreen: event.locationInWindow)
+        let translation = CGSize(width: pointer.x - mouseDownPoint.x, height: mouseDownPoint.y - pointer.y)
+        guard startedDrag || hypot(translation.width, translation.height) >= 3 else { return }
+        startedDrag = true
+        rootView.model.onDragChanged?(convert(event.locationInWindow, from: nil), translation)
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        guard mouseDownPoint != nil else {
+            super.mouseUp(with: event)
+            return
+        }
+        if startedDrag {
+            mouseDragged(with: event)
+            rootView.model.onDragEnded?()
+        }
+        mouseDownPoint = nil
+        startedDrag = false
+    }
 
     override func resetCursorRects() {
         super.resetCursorRects()

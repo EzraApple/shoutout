@@ -4,6 +4,35 @@ import XCTest
 
 @MainActor
 final class IndicatorPlacementControllerTests: XCTestCase {
+    func testNativeCrabMouseEventsMoveBetweenBothSides() throws {
+        let harness = try Harness(style: .crab)
+        defer { harness.close() }
+        let view = IndicatorHostingView(rootView: IndicatorOverlayHostView(model: harness.model))
+        harness.panel.contentView = view
+        view.frame = CGRect(origin: .zero, size: harness.panel.frame.size)
+        view.dragRect = CGRect(x: 10, y: view.bounds.midY - 46, width: 62, height: 92)
+        XCTAssertTrue(view.hitTest(CGPoint(x: 30, y: view.bounds.midY)) === view)
+
+        for anchor in [IndicatorAnchor.left, .right] {
+            let start = CGPoint(x: harness.panel.frame.midX, y: harness.panel.frame.midY)
+            let target = anchor.targetFrame(in: harness.screen.visibleFrame)
+            func event(_ type: NSEvent.EventType, at point: CGPoint) throws -> NSEvent {
+                try XCTUnwrap(NSEvent.mouseEvent(with: type,
+                    location: harness.panel.convertPoint(fromScreen: point), modifierFlags: [],
+                    timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: harness.panel.windowNumber,
+                    context: nil, eventNumber: 0, clickCount: 1, pressure: 1))
+            }
+            view.mouseDown(with: try event(.leftMouseDown, at: start))
+            view.mouseDragged(with: try event(.leftMouseDragged, at: CGPoint(x: target.midX, y: target.midY)))
+            XCTAssertTrue(harness.controller.isDragging)
+            view.mouseUp(with: try event(.leftMouseUp, at: CGPoint(x: target.midX, y: target.midY)))
+
+            XCTAssertFalse(harness.controller.isDragging)
+            XCTAssertEqual(harness.model.anchor, anchor)
+            XCTAssertEqual(harness.defaults.string(forKey: "indicatorAnchor.crab"), anchor.rawValue)
+        }
+    }
+
     func testDroppingGlassAtTopPersistsPlacementAndDismissesGuides() throws {
         let harness = try Harness(style: .glass)
         defer { harness.close() }

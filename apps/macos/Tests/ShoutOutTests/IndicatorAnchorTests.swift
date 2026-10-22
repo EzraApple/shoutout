@@ -109,4 +109,15 @@ final class IndicatorAnchorTests: XCTestCase {
                                        in: visibleFrame, style: .glass)
         )
     }
+
+    func testCrabCanDropSidewaysAcrossItsCrawlRange() {
+        for anchor in [IndicatorAnchor.left, .right] {
+            let target = anchor.targetFrame(in: visibleFrame)
+            for offset: CGFloat in [-130, 130] {
+                let point = CGPoint(x: target.midX, y: target.midY + offset)
+                XCTAssertEqual(IndicatorAnchor.dropTarget(at: point, in: visibleFrame, style: .crab), anchor)
+                XCTAssertNil(IndicatorAnchor.dropTarget(at: point, in: visibleFrame, style: .glass))
+            }
+        }
+    }
 }
