@@ -4,7 +4,7 @@ import ShoutOutCore
 // Only model identity/template adaptation differs from the production cleanup prompt.
 enum BenchmarkLanguageConfiguration {
     static var modelID: String {
-        ProcessInfo.processInfo.environment["BENCH_LM_MODEL"] ?? LanguagePassModelOption.defaultID
+        ProcessInfo.processInfo.environment["BENCH_LM_MODEL"] ?? LanguagePassModelOption.generativeDefaultID
     }
 
     @MainActor static func modelDirectory(_ modelID: String) -> URL {
@@ -16,7 +16,7 @@ enum BenchmarkLanguageConfiguration {
 
     static func instructions(for style: LanguagePassStyle) -> String {
         let original = LanguagePassPrompt.systemInstructions(for: style)
-        return modelID == LanguagePassModelOption.defaultID ? original : original.replacingOccurrences(
+        return modelID == LanguagePassModelOption.generativeDefaultID ? original : original.replacingOccurrences(
             of: "You are Llama, created by Meta. ", with: "")
     }
 

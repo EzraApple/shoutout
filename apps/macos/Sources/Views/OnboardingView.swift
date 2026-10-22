@@ -64,7 +64,20 @@ struct OnboardingView: View {
             if step < 0 || step >= totalSteps {
                 step = 0
             }
+            if step == 4 {
+                advancePastAccessibility()
+            }
         }
+        .onChange(of: permissions.hasInputMonitoring) { _, granted in
+            if step == 4 && granted {
+                withAnimation { step = 5 }
+            }
+        }
+    }
+
+    private func advancePastAccessibility() {
+        permissions.resolveInputMonitoringAfterAccessibility()
+        withAnimation { step = permissions.hasInputMonitoring ? 5 : 4 }
     }
 
     // MARK: - Step 0: Welcome
@@ -230,14 +243,14 @@ struct OnboardingView: View {
             VStack(spacing: 12) {
                 if permissions.hasAccessibility {
                     OnboardingPillButton("Continue") {
-                        withAnimation { step = 4 }
+                        advancePastAccessibility()
                     }
                 } else {
                     OnboardingPillButton("Grant Permission") {
                         permissions.requestAccessibility()
                     }
 
-                    Button(action: { withAnimation { step = 4 } }) {
+                    Button(action: { advancePastAccessibility() }) {
                         Text("Skip for now")
                             .font(.system(size: 13, weight: .semibold))
                             .foregroundStyle(OnboardingTheme.muted)

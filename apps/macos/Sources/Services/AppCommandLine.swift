@@ -9,14 +9,14 @@ enum AppCommandLine {
             ShoutOut headless commands:
               --cli capabilities
               --cli status
-              --cli settings get [streaming|cleanup|style|shortcut|indicator|color]
+              --cli settings get [streaming|cleanup|shortcut|indicator|color]
               --cli settings set KEY VALUE
               --cli models prepare
               --cli transcribe /absolute/mono-16k.wav
               --cli replay /absolute/manifest.json --output /absolute/results.json [--paced]
               --cli serve
 
-            Settings: streaming/cleanup on|off; style normal|casual|formal;
+            Settings: streaming/cleanup on|off;
             indicator crab|classic|glass; shortcut/color accept the app's stored IDs.
             Commands use the running app when available. Otherwise settings persist
             for its next launch and audio commands run without windows or text insertion.
@@ -41,7 +41,7 @@ enum AppCommandLine {
             let defaults = controlDefaults()
             setenv("SHOUTOUT_REPLAY_ENGINE", TranscriptionService.configuredBackend(defaults: defaults) == .hexStreaming ? "hexStreaming" : "parakeet", 1)
             try await DictationReplay.run(manifest: URL(fileURLWithPath: arguments[1]), profile: defaults,
-                                         modelsDirectory: modelsDirectory, languageModelsDirectory: languageModelsDirectory)
+                                         modelsDirectory: modelsDirectory)
             return
         }
         let router = makeRouter()
@@ -98,23 +98,12 @@ enum AppCommandLine {
     }
 
     private static func makeRouter() -> AppControlRouter {
-        AppControlRouter(defaults: controlDefaults(), modelsDirectory: modelsDirectory,
-                         languageModelsDirectory: languageModelsDirectory)
+        AppControlRouter(defaults: controlDefaults(), modelsDirectory: modelsDirectory)
     }
 
     private static var modelsDirectory: URL {
         ProcessInfo.processInfo.environment["SHOUTOUT_CLI_MODELS_DIRECTORY"]
             .map { URL(fileURLWithPath: $0) } ?? TranscriptionService.modelsDirectory
-    }
-
-    private static var languageModelsDirectory: URL {
-        if let path = ProcessInfo.processInfo.environment["SHOUTOUT_CLI_LANGUAGE_MODELS_DIRECTORY"] {
-            return URL(fileURLWithPath: path)
-        }
-        if ProcessInfo.processInfo.environment["SHOUTOUT_CLI_MODELS_DIRECTORY"] != nil {
-            return modelsDirectory.appendingPathComponent("LanguageModels")
-        }
-        return LanguagePassService.modelsDirectory
     }
 
     private static func controlDefaults() -> UserDefaults {
@@ -127,6 +116,7 @@ enum AppCommandLine {
             defaults = .standard
         }
         SettingsMigration.enableStreamingByDefault(in: defaults)
+        SettingsMigration.useMiniCleanupByDefault(in: defaults)
         return defaults
     }
 

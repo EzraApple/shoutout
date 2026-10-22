@@ -135,6 +135,16 @@ class PermissionManager: ObservableObject {
         beginPollingForPermissionChanges()
     }
 
+    func resolveInputMonitoringAfterAccessibility() {
+        refresh()
+        guard hasAccessibility, !hasInputMonitoring else { return }
+
+        // Accessibility can satisfy the request even while preflight still returns false.
+        hasInputMonitoring = CGRequestListenEventAccess()
+        RuntimeLog.write("permissions resolved inputMonitoring after accessibility granted=\(hasInputMonitoring)")
+        beginPollingForPermissionChanges()
+    }
+
     func openFirstMissingPermissionPane() {
         if !hasAccessibility {
             openAccessibilitySettings()

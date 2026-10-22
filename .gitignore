@@ -13,6 +13,8 @@ apps/web/public/releases/*.dmg
 apps/macos/.build/
 apps/macos/Packages/
 apps/macos/dist/
+apps/macos/dist-mini-trial/
+apps/macos/dist-mini-release/
 apps/macos/.swiftpm/
 apps/macos/xcuserdata/
 apps/macos/DerivedData/

@@ -54,15 +54,18 @@ final class AppControlRouterTests: XCTestCase {
         XCTAssertEqual(response.values["engine"], "whisperkit")
     }
 
-    func testInvalidSettingDoesNotReplaceSavedValue() async throws {
+    func testLegacyStyleSettingIsRejectedAndHidden() async throws {
         let suite = "ShoutOut.CLI.Tests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
         defaults.set("casual", forKey: Defaults.languagePassStyle)
         let router = AppControlRouter(defaults: defaults)
-        let response = await router.handle(AppControlRequest(command: "settings.set", key: "style", value: "anything", path: nil))
+        let response = await router.handle(AppControlRequest(command: "settings.set", key: "style", value: "formal", path: nil))
         XCTAssertFalse(response.ok)
         XCTAssertEqual(defaults.string(forKey: Defaults.languagePassStyle), "casual")
+        let status = await router.handle(AppControlRequest(command: "status"))
+        XCTAssertNil(status.values["style"])
+        XCTAssertEqual(status.values["cleanupModel"], MiniCleanupConfiguration.modelID)
     }
 
     func testIndicatorStylesPersistWithoutChangingTheTranscriptionEngine() async throws {

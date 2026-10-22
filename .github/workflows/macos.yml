@@ -74,7 +74,12 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
 
+      - name: Fetch frozen Mini assets
+        run: python3 apps/macos/scripts/mini-assets.py fetch "$RUNNER_TEMP/mini-cleanup"
+
       - name: Build app bundle
+        env:
+          MINI_CLEANUP_ASSET_DIR: ${{ runner.temp }}/mini-cleanup
         run: cd apps/macos && UNIVERSAL=false SKIP_NOTARIZE=true ./scripts/build-app.sh
 
       - name: Archive app bundle
@@ -100,7 +105,10 @@ jobs:
           swift --version
 
       - name: Run language cleanup smoke
-        run: make test-language-pass
+        run: |
+          python3 apps/macos/scripts/mini-assets.py fetch "$RUNNER_TEMP/mini-cleanup"
+          cd apps/macos
+          MINI_CLEANUP_ASSET_DIR="$RUNNER_TEMP/mini-cleanup" swift test --filter MiniCleanupTests
 
   web-build:
     name: Web build

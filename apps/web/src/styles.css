@@ -838,9 +838,15 @@ p {
   margin-top: 0;
 }
 
-.writing-grid {
-  width: 100%;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+.writing-section {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: center;
+  gap: 36px;
+}
+
+.writing-section .section-copy {
+  margin-bottom: 0;
 }
 
 .feature-card {
@@ -898,10 +904,9 @@ p {
   max-width: 280px;
 }
 
-.style-example-window {
+.cleanup-example-window {
   display: grid;
   gap: 8px;
-  margin-top: auto;
   border: 2px solid var(--line);
   border-radius: 3px;
   padding: 12px 13px;
@@ -912,7 +917,7 @@ p {
   transition: transform 160ms var(--ease-snap), box-shadow 160ms var(--ease-snap);
 }
 
-.style-example-window .example-label {
+.cleanup-example-window .example-label {
   width: fit-content;
   border: 2px solid var(--line);
   border-radius: 2px;
@@ -924,29 +929,12 @@ p {
   line-height: 1;
 }
 
-.style-example-window p {
+.cleanup-example-window p {
   margin: 0;
   color: var(--ink);
   font-size: 15px;
   font-weight: 850;
   line-height: 1.32;
-}
-
-.feature-card:hover .style-example-window {
-  box-shadow: 4px 4px 0 var(--ink);
-  transform: translate(-1px, -2px);
-}
-
-.casual-card {
-  background: var(--panel-mint);
-}
-
-.normal-card {
-  background: var(--panel-blue);
-}
-
-.formal-card {
-  background: var(--panel-lilac);
 }
 
 .surface-board {
@@ -1612,7 +1600,7 @@ p {
 
 @media (max-width: 680px) {
   #app {
-    padding-top: 112px;
+    padding-top: 80px;
   }
 
   .site-header,
@@ -1623,7 +1611,7 @@ p {
     width: 100%;
     height: auto;
     min-height: 0;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     gap: 10px;
     padding: 10px 14px;
     border-color: transparent;
@@ -1636,7 +1624,7 @@ p {
   }
 
   .section {
-    scroll-margin-top: 126px;
+    scroll-margin-top: 90px;
   }
 
   .brand {
@@ -1646,18 +1634,12 @@ p {
   }
 
   .nav-links {
-    width: calc(100% + 8px);
-    justify-content: flex-start;
-    gap: 4px;
-    margin-right: -8px;
-    overflow-x: auto;
-    padding-bottom: 2px;
     font-size: 13px;
-    scrollbar-width: none;
   }
 
-  .nav-links::-webkit-scrollbar {
-    display: none;
+  .writing-section {
+    grid-template-columns: 1fr;
+    gap: 20px;
   }
 
   .nav-links a {
