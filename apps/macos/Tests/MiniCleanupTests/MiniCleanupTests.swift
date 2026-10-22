@@ -119,6 +119,26 @@ final class MiniCleanupTests: XCTestCase {
             }
         }
     }
+
+    func testFrozenModelCleanupWhenAssetsProvided() async throws {
+        guard let directory = ProcessInfo.processInfo.environment["MINI_CLEANUP_ASSET_DIR"] else {
+            throw XCTSkip("Set MINI_CLEANUP_ASSET_DIR to run frozen-model smoke checks")
+        }
+        let engine = MiniCleanupEngine(modelDirectory: URL(fileURLWithPath: directory))
+        try await engine.prepare()
+        let cases = [
+            ("Can we just like not expose that anymore?", "Can we just not expose that anymore?"),
+            ("Please keep the word period in this sentence.", "Please keep the word period in this sentence."),
+            ("Um, we should like send the notes after lunch so um everyone has time to review the changes and share their feedback before Friday's team meeting.",
+             "we should send the notes after lunch so everyone has time to review the changes and share their feedback before Friday's team meeting."),
+        ]
+        for (source, expected) in cases {
+            let result = await engine.cleanup(source: source)
+            XCTAssertNil(result.fallbackReason)
+            XCTAssertEqual(result.finalText, expected)
+        }
+        await engine.unload()
+    }
 }
 
 private struct FixtureSet: Decodable {

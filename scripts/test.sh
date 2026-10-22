@@ -159,7 +159,7 @@ assert_path_missing() {
 }
 
 assert_contains "README names ShoutOut" "$REPO_ROOT/README.md" "^# ShoutOut"
-assert_contains "README describes local-first dictation" "$REPO_ROOT/README.md" "local-first macOS dictation"
+assert_contains "README describes Mac dictation" "$REPO_ROOT/README.md" "dictation for Mac"
 assert_contains "Development guide documents mascot asset sync" "$REPO_ROOT/docs/development.md" "scripts/sync-mascot-assets.py"
 assert_contains "Development guide documents release prep scripts" "$REPO_ROOT/docs/development.md" "make release-preflight"
 assert_not_contains "README avoids settled open-source license claim" "$REPO_ROOT/README.md" "released under the MIT license|MIT license"

@@ -4,12 +4,14 @@
 
 Use an Apple Silicon Mac with macOS 15 or later, Xcode with the Metal toolchain, and Swift 6.2 or newer. Check `swift --version` before building; the app’s deployment target remains macOS 15.
 
-The asset build also needs Python 3 and Pillow. The app builder requires `MINI_CLEANUP_ASSET_DIR` to point to the frozen Mini export containing `mini-fixed256.mlpackage`, `vocab.txt`, and `tokenizer-config.json`. It verifies their pinned hashes before building and copies only those three assets. See [release preparation](mini-release-prep.md). From the repository root:
+The asset build also needs Python 3 and Pillow. Fetch the frozen Mini assets once, then point `MINI_CLEANUP_ASSET_DIR` at that directory. The download and each asset have pinned hashes. The app builder copies only `mini-fixed256.mlpackage`, `vocab.txt`, and `tokenizer-config.json`; users receive them inside the app. From the repository root:
 
 ```sh
 python3 -m venv .venv
 source .venv/bin/activate
 python3 -m pip install Pillow
+python3 apps/macos/scripts/mini-assets.py fetch "$PWD/.local-evals/mini-assets"
+export MINI_CLEANUP_ASSET_DIR="$PWD/.local-evals/mini-assets"
 make run
 ```
 
