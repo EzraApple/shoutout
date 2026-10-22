@@ -307,7 +307,8 @@ assert_contains "Home settings retain optional text cleanup" "$MACOS_DIR/Sources
 assert_contains "Home settings retain writing style" "$MACOS_DIR/Sources/Views/ShoutOutHomeView.swift" 'accessibilityLabel\("Writing style"'
 assert_contains "Home settings retain model progress" "$MACOS_DIR/Sources/Views/ShoutOutHomeView.swift" "ModelProgressBar"
 assert_contains "Home settings retain updates" "$MACOS_DIR/Sources/Views/ShoutOutHomeView.swift" "Check for updates"
-assert_not_contains "Home settings omit retired experimental controls" "$MACOS_DIR/Sources/Views/ShoutOutHomeView.swift" 'boringMode|selectedPreset|selectedModel|smartSpacing|appendTrailingSpace|dimSystemAudio'
+assert_not_contains "Home settings omit retired experimental controls" "$MACOS_DIR/Sources/Views/ShoutOutHomeView.swift" 'boringMode|selectedPreset|selectedModel|smartSpacing|appendTrailingSpace'
+assert_contains "Home settings expose recording audio dimming" "$MACOS_DIR/Sources/Views/ShoutOutHomeView.swift" 'dimSystemAudio'
 assert_contains "Home window exposes settings page" "$MACOS_DIR/Sources/Views/ShoutOutHomeView.swift" "case settings"
 assert_contains "Home window exposes shortcut picker" "$MACOS_DIR/Sources/Views/ShoutOutHomeView.swift" "HotkeyTrigger.allCases"
 assert_contains "Home window exposes diagnostics export" "$MACOS_DIR/Sources/Views/ShoutOutHomeView.swift" "Diagnostics"

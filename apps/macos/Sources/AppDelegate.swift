@@ -288,6 +288,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 #endif
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        audioRecorder.onInterruption = { [weak self] reason in
+            self?.discardActiveRecording(reason: reason)
+            self?.hotkeyManager.cancelRecording()
+        }
 #if DEBUG
         if ProcessInfo.processInfo.environment["SHOUTOUT_CLASSIC_PREVIEW"] != nil {
             setupMainMenu()
@@ -419,9 +423,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             task.cancel()
         }
         transcriptionTasks.removeAll()
-        if audioRecorder.isRecording {
-            _ = audioRecorder.stopRecording()
-        }
+        audioRecorder.tearDown()
         recordingIsCommitted = false
         audioDucker.endDucking()
         if let token = activityToken {
@@ -640,8 +642,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             appState = .idle
             refreshMenuBarIcon()
             hotkeyManager.cancelRecording()
-            showTransientAttention("Mic failed")
-            activeDictationMetrics?.log(status: "recordStartFailed")
+            let microphoneChanging: Bool
+            if case AudioRecorderError.inputDeviceChanging = error {
+                microphoneChanging = true
+            } else {
+                microphoneChanging = false
+            }
+            showTransientAttention(microphoneChanging ? "Mic changing" : "Mic failed")
+            activeDictationMetrics?.log(
+                status: microphoneChanging ? "inputDeviceChanging" : "recordStartFailed"
+            )
             activeDictationMetrics = nil
             RuntimeLog.write("record start failed error=\(error)")
         }
