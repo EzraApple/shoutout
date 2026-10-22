@@ -35,7 +35,7 @@ final class SystemAudioDucker {
                 return
             }
 
-            let duckedVolume = min(currentVolume, 25)
+            let duckedVolume = min(currentVolume, 10)
             guard duckedVolume < currentVolume else {
                 return
             }
@@ -94,6 +94,7 @@ final class SystemAudioDucker {
 
         UserDefaults.standard.removeObject(forKey: DefaultsKey.savedVolume)
         Task {
+            // Include the previous 25% cap when recovering an interrupted recording.
             guard let currentVolume = await Self.readOutputVolume(),
                 currentVolume <= 25
             else {

@@ -47,6 +47,24 @@ final class SettingsMigrationTests: XCTestCase {
         XCTAssertTrue(nextLaunch.bool(forKey: "streamingTranscriptionEnabled"))
     }
 
+    func testRecordingAudioPreferenceSurvivesStartupMigration() throws {
+        for isDimmingEnabled in [false, true] {
+            let suite = "ShoutOut.SettingsMigrationTests.\(UUID().uuidString)"
+            let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+            defer { defaults.removePersistentDomain(forName: suite) }
+            defaults.register(defaults: ["dimSystemAudio": true])
+            defaults.set(isDimmingEnabled, forKey: "dimSystemAudio")
+            defaults.synchronize()
+
+            let nextLaunch = try XCTUnwrap(UserDefaults(suiteName: suite))
+            nextLaunch.register(defaults: ["dimSystemAudio": true])
+            SettingsMigration.removeRetiredOverrides(from: nextLaunch)
+            SettingsMigration.removeRetiredOverrides(from: nextLaunch)
+
+            XCTAssertEqual(nextLaunch.bool(forKey: "dimSystemAudio"), isDimmingEnabled)
+        }
+    }
+
     func testRetiredOverridesResetWithoutChangingPersonalPreferences() throws {
         let suite = "ShoutOut.SettingsMigrationTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
