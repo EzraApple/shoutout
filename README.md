@@ -1,48 +1,15 @@
 # ShoutOut
 
-<p align="center">
-  <img src="docs/assets/shoutout-icon.png" alt="ShoutOut's crab mascot" width="140">
-</p>
+Free English dictation for Mac. Hold **Fn/Globe**, speak, and release to paste into your current app. Double-tap for hands-free recording.
 
-**English dictation, right where you’re typing.**
+**[Download ShoutOut](https://shoutout.sh)**
 
-ShoutOut is a local-first macOS dictation app. Hold **Fn/Globe**, speak, and release to paste into your current app. Double-tap for hands-free recording.
+- Streaming transcription and optional Mini text cleanup run locally. No account required.
+- Custom dictionary and searchable history. Cleanup removes fillers and repetitions while keeping your wording.
+- Glass, Classic, or animated Crab indicators, with customizable colors.
 
-This branch prepares the unreleased 0.3.0 update with Mini cleanup as the default. The website changes here are prepared for that update; the public app and website have not been changed.
+Requires **Apple Silicon and macOS 15+**. First use downloads a **731 MB** speech model. The small cleanup model is bundled in the app. Setup guides you through Microphone, Accessibility, and Input Monitoring permissions.
 
-[Website & download](https://shoutout.sh) · [Development](docs/development.md) · [Troubleshooting](TROUBLESHOOTING.md)
-
-## A few things that make it ShoutOut
-
-- **On your Mac.** Transcription and text cleanup run locally. No account required.
-- **Less waiting.** Speech recognition starts while you talk, before you release the shortcut.
-- **Light cleanup.** Optional filler removal that keeps your wording and spoken tone.
-- **Easy to find again.** Searchable local transcription history with one-click copy.
-- **Your spelling.** A customizable dictionary for names, acronyms, and common mishearings.
-- **A little personality.** A wall-walking crab in your choice of color, or a Glass or Classic recording indicator.
-
-Requires **Apple Silicon and macOS 15 or later**. Dictation downloads one **731 MB** speech model. The app bundles its small cleanup model. Onboarding walks you through Microphone, Accessibility, and Input Monitoring permissions.
-
-## Development
-
-The app is a Swift package in [`apps/macos`](apps/macos); the website lives in [`apps/web`](apps/web).
-
-After [setting up the build tools](docs/development.md), run from the repo root:
-
-```sh
-make run       # Build and open the app
-make test      # Run Swift tests and repo checks
-make web-dev   # Start the website dev server
-```
-
-See the [development guide](docs/development.md) for prerequisites, local QA, models, and release workflows.
-
-## Dictionary
-
-Open **Dictionary** in the app sidebar and choose **Add Entry**. Enter what ShoutOut hears under **Replace** and your preferred spelling under **Write as**. Separate multiple variations with commas or new lines. You can search, edit, delete, and test your saved entries on the same page.
-
-Replacements match whole phrases without regard to capitalization. Longer phrases win when matches overlap. Each replacement runs once, before optional text cleanup, with every transcription engine. Mini copies the words it keeps with their spelling, case, and punctuation unchanged. The insertion step then formats sentence starts and spacing using cursor context. Your dictionary is saved locally in `dictionary.json` alongside the app’s other local data.
-
-## License
+[Development](docs/development.md) · [Troubleshooting](TROUBLESHOOTING.md)
 
 No open-source license is granted for the source code or project files.
