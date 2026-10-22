@@ -159,7 +159,7 @@ assert_path_missing() {
 }
 
 assert_contains "README names ShoutOut" "$REPO_ROOT/README.md" "^# ShoutOut"
-assert_contains "README describes local-first dictation" "$REPO_ROOT/README.md" "local-first macOS dictation"
+assert_contains "README describes Mac dictation" "$REPO_ROOT/README.md" "dictation for Mac"
 assert_contains "Development guide documents mascot asset sync" "$REPO_ROOT/docs/development.md" "scripts/sync-mascot-assets.py"
 assert_contains "Development guide documents release prep scripts" "$REPO_ROOT/docs/development.md" "make release-preflight"
 assert_not_contains "README avoids settled open-source license claim" "$REPO_ROOT/README.md" "released under the MIT license|MIT license"
@@ -370,7 +370,7 @@ assert_contains "Text inserter can post paste to captured app PID" "$MACOS_DIR/S
 assert_not_contains "Text inserter does not retry an unverified paste" "$MACOS_DIR/Sources/Services/TextInserter.swift" "paste retry reason=unchanged"
 assert_contains "Text formatter ignores Claude placeholder text" "$MACOS_DIR/Sources/Core/TextInsertionFormatter.swift" "Type / for commands"
 assert_contains "Text formatter ignores Codex placeholder text" "$MACOS_DIR/Sources/Core/TextInsertionFormatter.swift" "Do anything"
-assert_contains "Core supports trailing fallback" "$MACOS_DIR/Sources/Core/TextInsertionFormatter.swift" "fallbackTrailing"
+assert_not_contains "Core avoids blind trailing-space fallback" "$MACOS_DIR/Sources/Core/TextInsertionFormatter.swift" "fallbackTrailing"
 assert_contains "Core formats insertion spacing" "$MACOS_DIR/Sources/Core/TextInsertionFormatter.swift" "TextInsertionFormatter"
 assert_contains "Core uses context window for insertion casing" "$MACOS_DIR/Sources/Core/TextInsertionFormatter.swift" "textBefore"
 assert_contains "WhisperKit cleans interrupted downloads" "$MACOS_DIR/Sources/Services/WhisperKitTranscriptionEngine.swift" "cleanupInterruptedDownloads"

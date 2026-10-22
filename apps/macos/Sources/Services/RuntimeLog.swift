@@ -11,7 +11,7 @@ enum RuntimeLog {
         let library = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask).first!
         return library
             .appendingPathComponent("Logs")
-            .appendingPathComponent("ShoutOut")
+            .appendingPathComponent(MiniTrialConfiguration.isEnabled ? "ShoutOut Mini Trial" : "ShoutOut")
             .appendingPathComponent("runtime.log")
     }()
 

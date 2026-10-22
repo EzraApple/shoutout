@@ -17,6 +17,7 @@ enum AppUpdaterConfiguration {
     }
 
     static var isConfigured: Bool {
+        guard !MiniTrialConfiguration.isEnabled else { return false }
         guard Bundle.main.object(forInfoDictionaryKey: "ShoutOutLocalTrial") as? Bool != true else { return false }
         guard let publicKey,
             !publicKey.isEmpty,
@@ -29,6 +30,7 @@ enum AppUpdaterConfiguration {
     }
 
     static var statusText: String {
+        if MiniTrialConfiguration.isEnabled { return "Updates disabled for Mini trial" }
         if Bundle.main.object(forInfoDictionaryKey: "ShoutOutLocalTrial") as? Bool == true {
             return "Local trial; automatic updates disabled"
         }

@@ -24,6 +24,7 @@ final class TranscriptionHistoryStoreTests: XCTestCase {
         XCTAssertEqual(reloadedStore.recentEntries.first?.wordCount, 3)
         XCTAssertEqual(reloadedStore.recentEntries.first?.duration, 2.4)
         XCTAssertEqual(reloadedStore.recentEntries.first?.model, "large")
+        XCTAssertNil(reloadedStore.recentEntries.first?.languagePassModel)
     }
 
     func testRecordsAndPersistsLanguagePassDetails() throws {
@@ -40,7 +41,8 @@ final class TranscriptionHistoryStoreTests: XCTestCase {
             languagePassOutput: "Does this PR also make it actually register manage tabs?",
             languagePassAccepted: true,
             languagePassFallbackReason: nil,
-            languagePassStyle: "casual"
+            languagePassStyle: "casual",
+            languagePassModel: "native-mini-2026-10-21"
         )
 
         let entry = try XCTUnwrap(TranscriptionHistoryStore(fileURL: fileURL).recentEntries.first)
@@ -58,7 +60,22 @@ final class TranscriptionHistoryStoreTests: XCTestCase {
         )
         XCTAssertEqual(entry.languagePassAccepted, true)
         XCTAssertEqual(entry.languagePassStyle, "casual")
+        XCTAssertEqual(entry.languagePassModel, "native-mini-2026-10-21")
         XCTAssertTrue(entry.hasLanguagePassDetails)
+    }
+
+    func testFormattedTranscriptKeepsRawMiniTraceSeparate() throws {
+        let fileURL = temporaryFileURL()
+        let store = TranscriptionHistoryStore(fileURL: fileURL)
+        try store.record(text: "We should send the notes", duration: 2, model: "parakeet",
+                         languagePassInput: "Um, we should send the notes",
+                         languagePassCandidate: "we should send the notes",
+                         languagePassOutput: "we should send the notes",
+                         languagePassAccepted: true,
+                         languagePassModel: "native-mini-2026-10-21")
+        let entry = try XCTUnwrap(TranscriptionHistoryStore(fileURL: fileURL).recentEntries.first)
+        XCTAssertEqual(entry.text, "We should send the notes")
+        XCTAssertEqual(entry.languagePassOutput, "we should send the notes")
     }
 
     func testIgnoresBlankTranscriptText() throws {

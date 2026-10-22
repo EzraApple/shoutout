@@ -80,7 +80,6 @@ public enum TextPostProcessor {
             ("\\s+question mark\\b", "?"),
             ("\\s+exclamation point\\b", "!"),
             ("\\s+exclamation mark\\b", "!"),
-            ("\\s+period\\b", "."),
         ]
 
         for (pattern, replacement) in replacements {

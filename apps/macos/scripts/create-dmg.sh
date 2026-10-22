@@ -5,15 +5,27 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 ROOT_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 
-# Load .env (check repo root first, then the macOS app)
-for ENV_FILE in "$ROOT_DIR/.env" "$PROJECT_DIR/.env"; do
-    if [ -f "$ENV_FILE" ]; then
-        set -a
-        source "$ENV_FILE"
-        set +a
-        break
-    fi
-done
+# Load .env for release builds, while keeping explicit command-line settings.
+SKIP_NOTARIZE_WAS_SET="${SKIP_NOTARIZE+x}"
+SKIP_NOTARIZE_OVERRIDE="${SKIP_NOTARIZE-}"
+CODE_SIGN_IDENTITY_WAS_SET="${CODE_SIGN_IDENTITY+x}"
+CODE_SIGN_IDENTITY_OVERRIDE="${CODE_SIGN_IDENTITY-}"
+if [ "${SHOUTOUT_SKIP_ENV:-false}" != "true" ]; then
+    for ENV_FILE in "$ROOT_DIR/.env" "$PROJECT_DIR/.env"; do
+        if [ -f "$ENV_FILE" ]; then
+            set -a
+            source "$ENV_FILE"
+            set +a
+            break
+        fi
+    done
+fi
+if [ -n "$SKIP_NOTARIZE_WAS_SET" ]; then
+    SKIP_NOTARIZE="$SKIP_NOTARIZE_OVERRIDE"
+fi
+if [ -n "$CODE_SIGN_IDENTITY_WAS_SET" ]; then
+    CODE_SIGN_IDENTITY="$CODE_SIGN_IDENTITY_OVERRIDE"
+fi
 
 # Colors
 GREEN='\033[0;32m'

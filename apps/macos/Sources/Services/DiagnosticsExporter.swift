@@ -325,7 +325,6 @@ private struct SettingsMetadata: Encodable {
     let dimSystemAudio: Bool
     let removeFillerWords: Bool
     let smartSpacing: Bool
-    let appendTrailingSpace: Bool
 
     static var current: SettingsMetadata {
         let defaults = UserDefaults.standard
@@ -341,8 +340,7 @@ private struct SettingsMetadata: Encodable {
             showInDock: defaults.object(forKey: Defaults.showInDock) as? Bool ?? true,
             dimSystemAudio: defaults.object(forKey: Defaults.dimSystemAudio) as? Bool ?? true,
             removeFillerWords: defaults.object(forKey: "removeFillerWords") as? Bool ?? true,
-            smartSpacing: defaults.object(forKey: Defaults.smartSpacing) as? Bool ?? true,
-            appendTrailingSpace: defaults.object(forKey: Defaults.appendTrailingSpace) as? Bool ?? true
+            smartSpacing: true
         )
     }
 }

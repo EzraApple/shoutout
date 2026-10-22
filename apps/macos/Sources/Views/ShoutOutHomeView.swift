@@ -197,7 +197,7 @@ struct ShoutOutHomeView: View {
                 )
                 MetricTile(
                     title: "Writing",
-                    value: languagePass.isEnabled ? languagePass.selectedStyle.title : "As spoken",
+                    value: languagePass.isEnabled ? (languagePass.usesMiniEditor ? "Light cleanup" : languagePass.selectedStyle.title) : "As spoken",
                     caption: languagePass.isEnabled ? "text cleanup enabled" : "text cleanup off",
                     color: ShoutOutHomeTheme.panelLilac
                 )
@@ -218,7 +218,7 @@ struct ShoutOutHomeView: View {
 
                 ActionPanel(
                     title: "Make it yours",
-                    message: "Your shortcut, writing style, and a crab in your favorite color.",
+                    message: "Your shortcut, text cleanup, and a crab in your favorite color.",
                     buttonTitle: "Open",
                     systemImage: "paintpalette"
                 ) {
@@ -463,31 +463,40 @@ struct ShoutOutHomeView: View {
         HomeSettingSection(title: "Writing", systemImage: "text.cursor") {
             HomeToggleRow(
                 title: "Text cleanup",
-                detail: "Clean up stutters, repeated starts, and obvious self-corrections.",
+                detail: languagePass.usesMiniEditor
+                    ? "Remove likely fillers while keeping your wording."
+                    : "Clean up stutters, repeated starts, and obvious self-corrections.",
                 systemImage: "sparkles",
                 isOn: $languagePass.isEnabled
             )
             if languagePass.isEnabled {
                 Divider()
-                HStack(spacing: 8) {
-                    ForEach(LanguagePassStyle.allCases) { style in
-                        let isSelected = languagePass.selectedStyle == style
-                        Button {
-                            languagePass.selectedStyle = style
-                        } label: {
-                            Text(style.title)
-                                .frame(maxWidth: .infinity)
+                if !languagePass.usesMiniEditor {
+                    HStack(spacing: 8) {
+                        ForEach(LanguagePassStyle.allCases) { style in
+                            let isSelected = languagePass.selectedStyle == style
+                            Button {
+                                languagePass.selectedStyle = style
+                            } label: {
+                                Text(style.title)
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(HomeSelectionButtonStyle(isSelected: isSelected))
+                            .accessibilityAddTraits(isSelected ? .isSelected : [])
                         }
-                        .buttonStyle(HomeSelectionButtonStyle(isSelected: isSelected))
-                        .accessibilityAddTraits(isSelected ? .isSelected : [])
                     }
+                    .accessibilityElement(children: .contain)
+                    .accessibilityLabel("Writing style")
+                    Text(languagePass.selectedStyle.detail)
+                        .font(.subheadline)
+                        .foregroundStyle(ShoutOutHomeTheme.muted)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                } else {
+                    Text("Keeps your wording and capitalizes sentence starts.")
+                        .font(.subheadline)
+                        .foregroundStyle(ShoutOutHomeTheme.muted)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .accessibilityElement(children: .contain)
-                .accessibilityLabel("Writing style")
-                Text(languagePass.selectedStyle.detail)
-                    .font(.subheadline)
-                    .foregroundStyle(ShoutOutHomeTheme.muted)
-                    .frame(maxWidth: .infinity, alignment: .leading)
                 if let progress = languagePass.modelState.startupProgress,
                     !languagePass.modelState.isReady {
                     ModelProgressBar(progress: progress, height: 6)
@@ -807,7 +816,7 @@ private struct HomeBrandMark: View {
                     .frame(width: 28, height: 24)
             }
 
-            Text("ShoutOut")
+            Text(MiniTrialConfiguration.isEnabled ? "Mini trial" : "ShoutOut")
                 .font(.system(size: 26, weight: .heavy, design: .rounded))
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
@@ -1642,7 +1651,12 @@ private struct TranscriptionHistoryRow: View {
     }
 
     private var cleanupStatusText: String {
-        LanguagePassDisplayCopy.status(
+        if entry.languagePassModel == MiniCleanupConfiguration.modelID,
+           entry.languagePassFallbackReason != "disabled" {
+            return entry.languagePassAccepted == true
+                ? (cleanupDidChange ? "Light cleanup" : "Unchanged") : "Cleanup skipped"
+        }
+        return LanguagePassDisplayCopy.status(
             accepted: entry.languagePassAccepted,
             changed: cleanupDidChange,
             fallbackReason: entry.languagePassFallbackReason
@@ -1650,7 +1664,13 @@ private struct TranscriptionHistoryRow: View {
     }
 
     private var cleanupReasonText: String {
-        LanguagePassDisplayCopy.reason(
+        if entry.languagePassModel == MiniCleanupConfiguration.modelID,
+           entry.languagePassFallbackReason != "disabled" {
+            return entry.languagePassAccepted == true
+                ? (cleanupDidChange ? "Selected words removed" : "No edit made")
+                : "Original kept"
+        }
+        return LanguagePassDisplayCopy.reason(
             accepted: entry.languagePassAccepted,
             changed: cleanupDidChange,
             fallbackReason: entry.languagePassFallbackReason,
@@ -1659,7 +1679,8 @@ private struct TranscriptionHistoryRow: View {
     }
 
     private var cleanupToneText: String? {
-        LanguagePassDisplayCopy.toneTitle(entry.languagePassStyle)
+        entry.languagePassModel == MiniCleanupConfiguration.modelID
+            ? nil : LanguagePassDisplayCopy.toneTitle(entry.languagePassStyle)
     }
 
     private func copyText() {

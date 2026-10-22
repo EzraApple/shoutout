@@ -22,10 +22,25 @@ let package = Package(
             name: "ShoutOutCore",
             path: "Sources/Core"
         ),
+        .target(
+            name: "MiniCleanup",
+            path: "Sources/MiniCleanup"
+        ),
+        .executableTarget(
+            name: "MiniCleanupPanel",
+            dependencies: ["MiniCleanup"],
+            path: "Tools/MiniCleanupPanel"
+        ),
+        .testTarget(
+            name: "MiniCleanupTests",
+            dependencies: ["MiniCleanup"],
+            path: "Tests/MiniCleanupTests"
+        ),
         .executableTarget(
             name: "ShoutOut",
             dependencies: [
                 "ShoutOutCore",
+                "MiniCleanup",
                 .product(name: "MLXAudioSTT", package: "mlx-audio-swift"),
                 .product(name: "WhisperKit", package: "WhisperKit"),
                 .product(name: "Sparkle", package: "Sparkle"),
@@ -35,7 +50,7 @@ let package = Package(
                 .product(name: "Tokenizers", package: "swift-transformers"),
             ],
             path: "Sources",
-            exclude: ["Core", "Resources"],
+            exclude: ["Core", "MiniCleanup", "Resources"],
             swiftSettings: [
                 .define("DEBUG", .when(configuration: .debug)),
             ]

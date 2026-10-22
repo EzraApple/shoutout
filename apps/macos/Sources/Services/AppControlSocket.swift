@@ -66,7 +66,8 @@ final class AppControlSocket: @unchecked Sendable {
     static let defaultPath = FileManager.default.urls(
         for: .applicationSupportDirectory, in: .userDomainMask
     )[0]
-    .appendingPathComponent("com.ezraapple.shoutout/Control/app.sock")
+    .appendingPathComponent(Bundle.main.bundleIdentifier ?? "com.ezraapple.shoutout")
+    .appendingPathComponent("Control/app.sock")
 
     private let path: URL
     private let handler: @MainActor @Sendable (AppControlRequest) async -> AppControlResponse

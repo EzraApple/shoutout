@@ -13,11 +13,12 @@ enum TextInserter {
 
     /// Insert text into the currently focused text field by simulating Cmd+V.
     /// Saves and restores the clipboard content around the paste.
+    @discardableResult
     static func insertText(
         _ text: String,
         options: TextInsertionFormattingOptions = .default,
         target preferredTarget: CapturedTarget? = nil
-    ) {
+    ) -> String {
         let target: CapturedTarget?
         if let preferredTarget {
             target = refreshedTarget(from: preferredTarget) ?? preferredTarget
@@ -27,7 +28,7 @@ enum TextInserter {
         let formatted = TextInsertionFormatter.prepare(text, context: target?.context, options: options)
         let pasteText = formatted.text
         RuntimeLog.write(
-            "paste start length=\(pasteText.count) spacing=\(formatted.strategy) smartSpacing=\(options.useSmartSpacing) appendTrailingSpace=\(options.appendTrailingSpace)"
+            "paste start length=\(pasteText.count) spacing=\(formatted.strategy) smartSpacing=\(options.useSmartSpacing) capitalize=\(options.fitCapitalization)"
         )
 
         if let target, shouldUseAccessibilityInsertion(for: target) {
@@ -36,14 +37,15 @@ enum TextInserter {
                 break
             case .submitted:
                 RuntimeLog.write("paste accessibility submitted verification=unverified")
-                return
+                return pasteText
             case .verified:
                 RuntimeLog.write("paste accessibility submitted verification=verified")
-                return
+                return pasteText
             }
         }
 
         insertWithClipboard(pasteText, target: target)
+        return pasteText
     }
 
     static func captureFocusedTarget() -> CapturedTarget? {

@@ -14,8 +14,6 @@ enum Defaults {
     static let requestPermissionsOnLaunch = "requestPermissionsOnLaunch"
     static let transcriptionBackend = "transcriptionBackend"
     static let streamingTranscriptionEnabled = "streamingTranscriptionEnabled"
-    static let appendTrailingSpace = "appendTrailingSpace"
-    static let smartSpacing = "smartSpacing"
     static let hotkeyTrigger = "hotkeyTrigger"
     static let languagePassEnabled = "languagePassEnabled"
     static let languagePassModel = "languagePassModel"
@@ -235,7 +233,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var statusItem: NSStatusItem!
     let audioRecorder = AudioRecorder()
     let transcriptionService = TranscriptionService()
-    let languagePassService = LanguagePassService()
+    let languagePassService = MiniCleanupConfiguration.makeLanguagePassService()
     let hotkeyManager = HotkeyManager()
     let screenshotMonitor = ScreenshotMonitor()
     let permissions = PermissionManager.shared
@@ -319,12 +317,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             Defaults.overlayStyle: OverlayStyle.crab.rawValue,
             Defaults.crabColorVariant: CrabColorVariant.ocean.rawValue,
             Defaults.transcriptionBackend: TranscriptionBackend.defaultBackend.rawValue,
-            Defaults.appendTrailingSpace: true,
-            Defaults.smartSpacing: true,
             Defaults.hotkeyTrigger: HotkeyTrigger.defaultTrigger.rawValue,
             Defaults.languagePassEnabled: true,
-            Defaults.languagePassModel: LanguagePassModelOption.defaultID,
-            Defaults.languagePassStyle: LanguagePassStyle.defaultStyle.rawValue,
             "removeFillerWords": true,
         ])
 
@@ -923,17 +917,24 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 let finalText = languagePassResult.finalText
                 metrics.applyLanguagePass(languagePassResult)
 
+                let insertedText = TextInserter.insertText(
+                    finalText,
+                    options: .default,
+                    target: metrics.insertionTarget
+                )
+                metrics.pastePostedAt = Date()
+                metrics.finalTextLength = insertedText.count
                 let performance = metrics.performanceSnapshot(
                     transcriptionTiming: transcription.timing
                 )
                 try? usageStats.record(
-                    finalText: finalText,
+                    finalText: insertedText,
                     duration: recordingDuration,
                     model: transcription.timing.modelIdentifier,
                     performance: performance
                 )
                 try? transcriptionHistory.record(
-                    text: finalText,
+                    text: insertedText,
                     duration: recordingDuration,
                     model: transcription.timing.modelIdentifier,
                     languagePassInput: languagePassResult.inputText,
@@ -941,26 +942,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     languagePassOutput: languagePassResult.finalText,
                     languagePassAccepted: languagePassResult.accepted,
                     languagePassFallbackReason: languagePassResult.fallbackReason,
-                    languagePassStyle: languagePassResult.styleRawValue
+                    languagePassStyle: languagePassResult.styleRawValue,
+                    languagePassModel: languagePassResult.modelID
                 )
-                TextInserter.insertText(
-                    finalText,
-                    options: TextInsertionFormattingOptions(
-                        appendTrailingSpace: UserDefaults.standard.object(
-                            forKey: Defaults.appendTrailingSpace
-                        ) == nil
-                            || UserDefaults.standard.bool(forKey: Defaults.appendTrailingSpace),
-                        useSmartSpacing: UserDefaults.standard.object(
-                            forKey: Defaults.smartSpacing
-                        ) == nil
-                            || UserDefaults.standard.bool(forKey: Defaults.smartSpacing),
-                        fitCapitalization: languagePassService.selectedStyle != .casual
-                    ),
-                    target: metrics.insertionTarget
-                )
-                metrics.pastePostedAt = Date()
                 metrics.log(status: "inserted", transcriptionTiming: transcription.timing)
-                showTranscriptionResultIndicator(.done(text: finalText))
+                showTranscriptionResultIndicator(.done(text: insertedText))
             } else {
                 metrics.log(status: "empty", transcriptionTiming: transcription.timing)
                 RuntimeLog.write("transcription empty")
@@ -1724,7 +1710,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
             return "Preparing ShoutOut model"
         case .idle:
-            return "ShoutOut"
+            return MiniTrialConfiguration.appName
         case .recording:
             return "Recording"
         case .processing:
@@ -1957,7 +1943,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 backing: .buffered,
                 defer: false
             )
-            window.title = "ShoutOut"
+            window.title = MiniTrialConfiguration.appName
             window.minSize = NSSize(width: 820, height: 620)
             window.center()
             window.contentView = NSHostingView(

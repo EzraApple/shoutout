@@ -47,11 +47,6 @@
       <header class="site-header" aria-label="ShoutOut navigation">
         <a class="brand" href="#top" aria-label="ShoutOut home">ShoutOut</a>
         <nav class="nav-links" aria-label="Primary">
-          <a href="#flow">Flow</a>
-          <a href="#writing">Writing</a>
-          <a href="#appearance">Appearance</a>
-          <a href="#surfaces">Surfaces</a>
-          <a href="#permissions">Setup</a>
           <a href="#download">Download</a>
         </nav>
       </header>
@@ -61,22 +56,21 @@
           <div class="hero-copy">
             <h1 id="hero-title">Dictate into any Mac app without breaking focus.</h1>
             <p class="lede">
-              Hold Fn, speak, release. ShoutOut transcribes locally, lightly cleans up
-              the wording in your style, and pastes into the field you were already using.
+              Hold Fn, speak, release. ShoutOut transcribes locally, can trim likely
+              filler words, and pastes into the field you were already using.
             </p>
             <div class="command-row" aria-label="Release actions">
               <a
                 class="command-button primary"
                 href="/download?source=hero"
-                data-local-download-href="/releases/ShoutOut-0.2.0.dmg"
+                data-local-download-href="/releases/ShoutOut-0.3.0.dmg"
                 data-track-event="download clicked"
                 data-track-label="hero"
-                data-track-release-version="0.2.0"
+                data-track-release-version="0.3.0"
               >
                 <span class="desktop-cta-label">Download for Mac</span>
                 <span class="mobile-cta-label">Available on macOS</span>
               </a>
-              <a class="command-button" href="#permissions">Setup guide</a>
             </div>
           </div>
 
@@ -144,9 +138,9 @@
               <p>Fast English transcription runs on your Mac, with no cloud round trip.</p>
             </article>
             <article class="flow-node">
-              <span class="node-kicker">Style</span>
-              <h3>Clean up</h3>
-              <p>Casual, Normal, or Formal writing style runs locally after transcription.</p>
+              <span class="node-kicker">Cleanup</span>
+              <h3>Trim the filler</h3>
+              <p>Optional light cleanup can remove likely filler words.</p>
             </article>
             <article class="flow-node target-node">
               <span class="node-kicker">Output</span>
@@ -158,41 +152,15 @@
 
         <section id="writing" class="section writing-section" aria-labelledby="writing-title">
           <div class="section-copy">
-            <h2 id="writing-title">Your words. Your writing style.</h2>
-            <p>
-              Choose Casual, Normal, or Formal for local text cleanup, or turn cleanup off.
-              The same fast English dictation powers every style.
-            </p>
+            <p class="eyebrow">Light cleanup</p>
+            <h2 id="writing-title">Lose the extra filler.</h2>
+            <p>Optional cleanup trims likely filler words before your text is pasted.</p>
           </div>
-
-          <div class="feature-grid writing-grid" aria-label="Writing style examples">
-            <article class="feature-card style-card casual-card">
-              <span class="feature-kicker">Casual</span>
-              <h3>For quick thoughts and DMs.</h3>
-              <p>your words in lowercase no extra punctuation just like a quick message</p>
-              <div class="style-example-window" aria-label="Casual style example">
-                <span class="example-label">Example output</span>
-                <p>i can send this by friday if that works</p>
-              </div>
-            </article>
-            <article class="feature-card style-card normal-card">
-              <span class="feature-kicker">Normal</span>
-              <h3>For everyday writing.</h3>
-              <p>Your words, with natural punctuation and everyday capitalization.</p>
-              <div class="style-example-window" aria-label="Normal style example">
-                <span class="example-label">Example output</span>
-                <p>I can send this by Friday, if that works.</p>
-              </div>
-            </article>
-            <article class="feature-card style-card formal-card">
-              <span class="feature-kicker">Formal</span>
-              <h3>For emails and finished notes.</h3>
-              <p>Your words, presented with proper capitalization and precise punctuation.</p>
-              <div class="style-example-window" aria-label="Formal style example">
-                <span class="example-label">Example output</span>
-                <p>I can send this by Friday if that works.</p>
-              </div>
-            </article>
+          <div class="cleanup-example-window" aria-label="Light cleanup before and after">
+            <span class="example-label">Before</span>
+            <p>Um, we should like send the notes after lunch so um everyone has time to review the changes and share their feedback before Friday's team meeting.</p>
+            <span class="example-label">After</span>
+            <p>We should send the notes after lunch so everyone has time to review the changes and share their feedback before Friday's team meeting.</p>
           </div>
         </section>
 
@@ -334,7 +302,7 @@
           <div class="release-copy">
             <h2 id="download-title">Get ShoutOut for macOS.</h2>
             <p>
-              A free Mac utility with local dictation, writing styles, history, insights,
+              A free Mac utility with local dictation, optional light cleanup, history, insights,
               and a checklist for the permissions macOS keeps in your control.
             </p>
           </div>
@@ -350,10 +318,10 @@
             <a
               class="command-button primary"
               href="/download?source=download-panel"
-              data-local-download-href="/releases/ShoutOut-0.2.0.dmg"
+              data-local-download-href="/releases/ShoutOut-0.3.0.dmg"
               data-track-event="download clicked"
               data-track-label="download-panel"
-              data-track-release-version="0.2.0"
+              data-track-release-version="0.3.0"
             >
               <span class="desktop-cta-label">Download for macOS</span>
               <span class="mobile-cta-label">Available on macOS</span>

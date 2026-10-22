@@ -3,6 +3,7 @@ import Hub
 import MLX
 import MLXLLM
 import MLXLMCommon
+import MiniCleanup
 import ShoutOutCore
 import Tokenizers
 
@@ -13,18 +14,22 @@ struct LanguagePassModelOption: Identifiable, Hashable, Sendable {
 
     fileprivate static let legacyDefaultID = "mlx-community/SmolLM2-135M-Instruct-8bit"
     fileprivate static let previousDefaultID = "mlx-community/Qwen2.5-0.5B-Instruct-4bit"
-    static let defaultID = "mlx-community/Llama-3.2-1B-Instruct-4bit"
+    static let defaultID = MiniCleanupEngine.modelID
+    static let generativeDefaultID = "mlx-community/Llama-3.2-1B-Instruct-4bit"
 
     static let all: [LanguagePassModelOption] = [
         LanguagePassModelOption(
-            id: "mlx-community/Llama-3.2-1B-Instruct-4bit",
+            id: generativeDefaultID,
             title: "Llama 3.2 1B",
             detail: "More reliable cleanup for casual style and filler removal, with moderate local memory use."
         )
     ]
 
     static func option(for id: String) -> LanguagePassModelOption {
-        all.first { $0.id == id }
+        if id == defaultID {
+            return LanguagePassModelOption(id: id, title: "Mini", detail: "Bundled light cleanup")
+        }
+        return all.first { $0.id == id }
             ?? LanguagePassModelOption(id: id, title: id, detail: "Custom local language model")
     }
 }
@@ -81,6 +86,7 @@ final class LanguagePassService: ObservableObject {
     @Published var modelState: ModelState = .unloaded
     @Published var selectedModelID: String {
         didSet {
+            guard miniModelDirectory == nil else { return }
             defaults.set(selectedModelID, forKey: Defaults.languagePassModel)
             if selectedModelID != oldValue {
                 unload()
@@ -92,7 +98,9 @@ final class LanguagePassService: ObservableObject {
     }
     @Published var isEnabled: Bool {
         didSet {
-            defaults.set(isEnabled, forKey: Defaults.languagePassEnabled)
+            if persistsSettings {
+                defaults.set(isEnabled, forKey: Defaults.languagePassEnabled)
+            }
             RuntimeLog.write("languagePass enabled=\(isEnabled)")
             if isEnabled {
                 warmUpIfEnabled()
@@ -103,17 +111,26 @@ final class LanguagePassService: ObservableObject {
     }
     @Published var selectedStyle: LanguagePassStyle {
         didSet {
-            defaults.set(selectedStyle.rawValue, forKey: Defaults.languagePassStyle)
+            guard miniModelDirectory == nil else { return }
+            if persistsSettings {
+                defaults.set(selectedStyle.rawValue, forKey: Defaults.languagePassStyle)
+            }
             RuntimeLog.write("languagePass style=\(selectedStyle.rawValue)")
         }
     }
     @Published private(set) var lastRunSummary: LanguagePassRunSummary?
 
-    let availableModels = LanguagePassModelOption.all.map(\.id)
+    var availableModels: [String] {
+        miniModelDirectory == nil ? LanguagePassModelOption.all.map(\.id) : [MiniCleanupEngine.modelID]
+    }
 
     private let defaults: UserDefaults
+    private let persistsSettings: Bool
     private let modelStorageDirectory: URL
     private var modelContainer: ModelContainer?
+    private let miniModelDirectory: URL?
+    private var miniEngine: MiniCleanupEngine?
+    private var miniLoadTask: Task<MiniCleanupEngine, Error>?
     private var loadTask: Task<ModelContainer, Error>?
     private var loadGeneration = 0
     private static let mlxCacheLimitBytes = 0
@@ -139,14 +156,16 @@ final class LanguagePassService: ObservableObject {
     init(defaults: UserDefaults = .standard, modelsDirectory: URL = LanguagePassService.modelsDirectory) {
         self.defaults = defaults
         self.modelStorageDirectory = modelsDirectory
+        self.miniModelDirectory = nil
+        self.persistsSettings = true
         let storedModel = defaults.string(forKey: Defaults.languagePassModel)
         if storedModel == LanguagePassModelOption.legacyDefaultID
             || storedModel == LanguagePassModelOption.previousDefaultID
         {
-            self.selectedModelID = LanguagePassModelOption.defaultID
-            defaults.set(LanguagePassModelOption.defaultID, forKey: Defaults.languagePassModel)
+            self.selectedModelID = LanguagePassModelOption.generativeDefaultID
+            defaults.set(LanguagePassModelOption.generativeDefaultID, forKey: Defaults.languagePassModel)
         } else {
-            self.selectedModelID = storedModel ?? LanguagePassModelOption.defaultID
+            self.selectedModelID = storedModel ?? LanguagePassModelOption.generativeDefaultID
         }
 
         if defaults.object(forKey: Defaults.languagePassEnabled) == nil {
@@ -162,6 +181,24 @@ final class LanguagePassService: ObservableObject {
         cleanupRetiredModelsIfNeeded()
         Self.configureMLXMemoryIfNeeded()
     }
+
+    /// Bundled Mini editor. An omitted defaults argument keeps isolated trials ephemeral.
+    init(miniModelDirectory: URL, style: LanguagePassStyle = .casual, defaults: UserDefaults? = nil) {
+        self.defaults = defaults ?? .standard
+        self.persistsSettings = defaults != nil
+        self.modelStorageDirectory = miniModelDirectory
+        self.miniModelDirectory = miniModelDirectory
+        self.selectedModelID = MiniCleanupEngine.modelID
+        if let defaults {
+            self.isEnabled = defaults.object(forKey: Defaults.languagePassEnabled) == nil
+                || defaults.bool(forKey: Defaults.languagePassEnabled)
+        } else {
+            self.isEnabled = true
+        }
+        self.selectedStyle = style
+    }
+
+    var usesMiniEditor: Bool { miniModelDirectory != nil }
 
     private func cleanupRetiredModelsIfNeeded() {
         guard defaults.integer(forKey: Defaults.languagePassModelCleanupVersion) < Self.modelCleanupVersion else {
@@ -205,6 +242,10 @@ final class LanguagePassService: ObservableObject {
 
     func prepareIfNeeded() async {
         guard isEnabled else { return }
+        if let miniModelDirectory {
+            await prepareMiniIfNeeded(directory: miniModelDirectory)
+            return
+        }
         Self.configureMLXMemoryIfNeeded()
         if modelState == .ready, modelContainer != nil { return }
 
@@ -272,7 +313,9 @@ final class LanguagePassService: ObservableObject {
 
     func warmUpIfEnabled(delayNanoseconds: UInt64 = 0) {
         guard isEnabled else { return }
-        Self.configureMLXMemoryIfNeeded()
+        if miniModelDirectory == nil {
+            Self.configureMLXMemoryIfNeeded()
+        }
         Task { [weak self] in
             if delayNanoseconds > 0 {
                 try? await Task.sleep(nanoseconds: delayNanoseconds)
@@ -282,6 +325,13 @@ final class LanguagePassService: ObservableObject {
     }
 
     func process(rawText _: String, baseText: String) async -> LanguagePassRunResult {
+        if miniModelDirectory != nil {
+            let result = await processMini(baseText: baseText)
+            if result.enabled && result.fallbackReason != "empty_input" {
+                recordSummary(result)
+            }
+            return result
+        }
         var result = await generateResult(baseText: baseText)
         let formatted = LanguagePassOutputFormatter.format(
             source: baseText,
@@ -300,6 +350,70 @@ final class LanguagePassService: ObservableObject {
             recordSummary(result)
         }
         return result
+    }
+
+    private func prepareMiniIfNeeded(directory: URL) async {
+        if modelState == .ready, miniEngine != nil { return }
+        let task: Task<MiniCleanupEngine, Error>
+        if let miniLoadTask {
+            task = miniLoadTask
+        } else {
+            loadGeneration += 1
+            modelState = .loading
+            task = Task {
+                let engine = MiniCleanupEngine(modelDirectory: directory)
+                try await engine.prepare()
+                return engine
+            }
+            miniLoadTask = task
+        }
+        let generation = loadGeneration
+        do {
+            let engine = try await task.value
+            guard loadGeneration == generation, isEnabled else { return }
+            miniEngine = engine
+            modelState = .ready
+        } catch {
+            guard loadGeneration == generation else { return }
+            miniEngine = nil
+            modelState = .error("Mini cleanup could not load.")
+            RuntimeLog.write("languagePass Mini load failed error=\(error)")
+        }
+        if loadGeneration == generation { miniLoadTask = nil }
+    }
+
+    private func processMini(baseText: String) async -> LanguagePassRunResult {
+        let startedAt = Date()
+        let modelID = MiniCleanupEngine.modelID
+        guard isEnabled else {
+            return .passthrough(baseText, enabled: false, fallbackReason: "disabled")
+        }
+        guard !baseText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return .passthrough(baseText, enabled: true, modelID: modelID,
+                                fallbackReason: "empty_input")
+        }
+        if modelState != .ready || miniEngine == nil {
+            await prepareIfNeeded()
+        }
+        guard isEnabled, let engine = miniEngine else {
+            return .passthrough(baseText, enabled: isEnabled,
+                                wallMs: Self.elapsedMilliseconds(since: startedAt), modelID: modelID,
+                                fallbackReason: isEnabled ? "model_not_ready" : "disabled")
+        }
+        let generation = loadGeneration
+        let output = await engine.cleanup(source: baseText)
+        guard generation == loadGeneration, isEnabled else {
+            return .passthrough(baseText, enabled: isEnabled,
+                                wallMs: Self.elapsedMilliseconds(since: startedAt), modelID: modelID,
+                                fallbackReason: "cancelled")
+        }
+        return LanguagePassRunResult(
+            finalText: output.finalText, inputText: baseText, candidateText: output.candidateText,
+            enabled: true, accepted: output.fallbackReason == nil,
+            changed: output.finalText != baseText,
+            wallMs: Self.elapsedMilliseconds(since: startedAt), modelID: modelID,
+            fallbackReason: output.fallbackReason, styleRawValue: nil
+        )
     }
 
     private func generateResult(baseText: String) async -> LanguagePassRunResult {
@@ -453,9 +567,14 @@ final class LanguagePassService: ObservableObject {
         loadGeneration += 1
         loadTask?.cancel()
         loadTask = nil
+        miniLoadTask?.cancel()
+        miniLoadTask = nil
         modelContainer = nil
+        miniEngine = nil
         modelState = .unloaded
-        Self.clearMLXCache(reason: "unload")
+        if miniModelDirectory == nil {
+            Self.clearMLXCache(reason: "unload")
+        }
     }
 
     nonisolated private static func generateCleanup(
@@ -583,7 +702,7 @@ final class LanguagePassService: ObservableObject {
                 "changed=\(result.changed)",
                 "wallMs=\(result.wallMs.map(String.init) ?? "na")",
                 "model=\(result.modelID ?? "none")",
-                "style=\(selectedStyle.rawValue)",
+                "style=\(usesMiniEditor ? "none" : selectedStyle.rawValue)",
                 "fallback=\(result.fallbackReason ?? "none")",
                 "inputChars=\(inputMetrics.characters)",
                 "inputWords=\(inputMetrics.words)",

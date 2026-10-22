@@ -14,6 +14,7 @@ public struct TranscriptionHistoryEntry: Codable, Equatable, Identifiable, Senda
     public var languagePassAccepted: Bool?
     public var languagePassFallbackReason: String?
     public var languagePassStyle: String?
+    public var languagePassModel: String?
 
     public init(
         id: UUID = UUID(),
@@ -27,7 +28,8 @@ public struct TranscriptionHistoryEntry: Codable, Equatable, Identifiable, Senda
         languagePassOutput: String? = nil,
         languagePassAccepted: Bool? = nil,
         languagePassFallbackReason: String? = nil,
-        languagePassStyle: String? = nil
+        languagePassStyle: String? = nil,
+        languagePassModel: String? = nil
     ) {
         self.id = id
         self.date = date
@@ -41,6 +43,7 @@ public struct TranscriptionHistoryEntry: Codable, Equatable, Identifiable, Senda
         self.languagePassAccepted = languagePassAccepted
         self.languagePassFallbackReason = languagePassFallbackReason
         self.languagePassStyle = languagePassStyle
+        self.languagePassModel = languagePassModel
     }
 
     public var hasLanguagePassDetails: Bool {
@@ -50,6 +53,7 @@ public struct TranscriptionHistoryEntry: Codable, Equatable, Identifiable, Senda
             || languagePassAccepted != nil
             || languagePassFallbackReason != nil
             || languagePassStyle != nil
+            || languagePassModel != nil
     }
 }
 
@@ -99,7 +103,8 @@ public final class TranscriptionHistoryStore: ObservableObject {
         languagePassOutput: String? = nil,
         languagePassAccepted: Bool? = nil,
         languagePassFallbackReason: String? = nil,
-        languagePassStyle: String? = nil
+        languagePassStyle: String? = nil,
+        languagePassModel: String? = nil
     ) throws {
         let normalizedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalizedText.isEmpty else {
@@ -118,7 +123,8 @@ public final class TranscriptionHistoryStore: ObservableObject {
                 languagePassOutput: Self.normalizedOptionalText(languagePassOutput),
                 languagePassAccepted: languagePassAccepted,
                 languagePassFallbackReason: Self.normalizedOptionalText(languagePassFallbackReason),
-                languagePassStyle: Self.normalizedOptionalText(languagePassStyle)
+                languagePassStyle: Self.normalizedOptionalText(languagePassStyle),
+                languagePassModel: Self.normalizedOptionalText(languagePassModel)
             ),
             at: 0
         )

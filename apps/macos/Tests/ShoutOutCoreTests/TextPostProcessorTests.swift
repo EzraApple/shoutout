@@ -70,8 +70,10 @@ final class TextPostProcessorTests: XCTestCase {
         XCTAssertEqual(process("intro new paragraph next idea"), "intro\n\nnext idea")
     }
 
-    func testPeriodCommand() {
-        XCTAssertEqual(process("ship it period next"), "ship it. next")
+    func testLiteralPeriodIsPreserved() {
+        XCTAssertEqual(process("add auto period and auto capitalization"), "add auto period and auto capitalization")
+        XCTAssertEqual(process("say the word period"), "say the word period")
+        XCTAssertEqual(process("a period of time"), "a period of time")
     }
 
     func testQuestionMarkCommand() {

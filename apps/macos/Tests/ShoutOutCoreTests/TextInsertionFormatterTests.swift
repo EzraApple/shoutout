@@ -18,7 +18,7 @@ final class TextInsertionFormatterTests: XCTestCase {
         XCTAssertEqual(format("there", before: "i", after: "f").text, " there ")
     }
 
-    func testMidSentenceInsertionLowercasesCommonDictationStarter() {
+    func testMidSentenceInsertionPreservesCapitalization() {
         let context = TextInsertionContext(
             text: "I think  would work",
             selectedUTF16Range: NSRange(location: 8, length: 0)
@@ -26,7 +26,7 @@ final class TextInsertionFormatterTests: XCTestCase {
 
         let result = TextInsertionFormatter.prepare("This is good", context: context)
 
-        XCTAssertEqual(result.text, "this is good")
+        XCTAssertEqual(result.text, "This is good")
     }
 
     func testMidSentenceInsertionKeepsLikelyProperNoun() {
@@ -110,64 +110,89 @@ final class TextInsertionFormatterTests: XCTestCase {
         XCTAssertEqual(format("hello", before: nil, after: ".").text, "hello")
     }
 
-    func testUnavailableContextFallsBackToTrailingSpace() {
-        let result = TextInsertionFormatter.prepare(
-            "hello",
-            context: nil,
-            options: TextInsertionFormattingOptions(appendTrailingSpace: true, useSmartSpacing: true)
-        )
-
-        XCTAssertEqual(result.text, "hello ")
-        XCTAssertEqual(result.strategy, "fallbackTrailing")
-    }
-
-    func testSmartSpacingCanBeDisabledForFallback() {
-        let result = TextInsertionFormatter.prepare(
-            "hello",
-            context: TextInsertionContext(characterBefore: nil, characterAfter: nil),
-            options: TextInsertionFormattingOptions(appendTrailingSpace: true, useSmartSpacing: false)
-        )
-
-        XCTAssertEqual(result.text, "hello ")
-        XCTAssertEqual(result.strategy, "trailing")
-    }
-
-    func testFallbackTrailingSpaceCanBeDisabledWhenContextIsUnavailable() {
-        let result = TextInsertionFormatter.prepare(
-            "hello",
-            context: nil,
-            options: TextInsertionFormattingOptions(appendTrailingSpace: false, useSmartSpacing: true)
-        )
-
+    func testUnavailableContextPreservesTextWithoutBlindFormatting() {
+        let result = TextInsertionFormatter.prepare("hello", context: nil)
         XCTAssertEqual(result.text, "hello")
         XCTAssertEqual(result.strategy, "exact")
     }
 
-    func testFallbackTrailingSpaceDoesNotDisableSmartSpacing() {
+    func testSmartSpacingCanBeDisabledWithoutAddingTrailingSpace() {
         let result = TextInsertionFormatter.prepare(
             "hello",
             context: TextInsertionContext(characterBefore: "x", characterAfter: nil),
-            options: TextInsertionFormattingOptions(appendTrailingSpace: false, useSmartSpacing: true)
+            options: TextInsertionFormattingOptions(useSmartSpacing: false)
         )
-
-        XCTAssertEqual(result.text, " hello")
-        XCTAssertEqual(result.strategy, "smart")
+        XCTAssertEqual(result.text, "hello")
     }
 
-    func testFallbackTrailingSpaceDoesNotDisableSmartCapitalization() {
-        let context = TextInsertionContext(
-            text: "ship it.",
-            selectedUTF16Range: NSRange(location: 8, length: 0)
-        )
+    func testEmptyFieldCapitalizesWithoutAddingPunctuation() {
+        XCTAssertEqual(inserting("we should send the notes", into: ""), "We should send the notes")
+    }
 
-        let result = TextInsertionFormatter.prepare(
-            "this works",
-            context: context,
-            options: TextInsertionFormattingOptions(appendTrailingSpace: false, useSmartSpacing: true)
-        )
+    func testSentenceStartCapitalizesAnyLowercaseStarter() {
+        XCTAssertEqual(inserting("send the notes", into: "Done. "), "Send the notes")
+        XCTAssertEqual(inserting("hello there", into: ""), "Hello there")
+        XCTAssertEqual(inserting("hello there", into: "  "), "Hello there")
+    }
 
-        XCTAssertEqual(result.text, " This works")
-        XCTAssertEqual(result.strategy, "smart")
+    func testEndOfExistingSentencePreservesContinuation() {
+        XCTAssertEqual(inserting("send the notes", into: "We should "), "send the notes")
+    }
+
+    func testExistingPunctuationDoesNotGetAnotherPeriod() {
+        for text in ["Ready?", "Done!", "Okay.", "Wait…", "Notes:", "Wait,"] {
+            XCTAssertEqual(inserting(text, into: ""), text)
+        }
+    }
+
+    func testInsertionBeforeExistingPunctuationDoesNotAddPeriod() {
+        let context = TextInsertionContext(text: "We should .", selectedUTF16Range: NSRange(location: 10, length: 0))
+        XCTAssertEqual(TextInsertionFormatter.prepare("send the notes", context: context).text, "send the notes")
+    }
+
+    func testClosingDelimitersKeepTheirOriginalPunctuation() {
+        XCTAssertEqual(inserting("Call (tomorrow)", into: ""), "Call (tomorrow)")
+        XCTAssertEqual(inserting("He said “hello”", into: ""), "He said “hello”")
+        XCTAssertEqual(inserting("He said “hello.”", into: ""), "He said “hello.”")
+        XCTAssertEqual(inserting("“hello”", into: ""), "“Hello”")
+    }
+
+    func testCapitalizationPreservesExistingTrailingWhitespace() {
+        XCTAssertEqual(inserting("hello  ", into: ""), "Hello  ")
+    }
+
+    func testCodeAndURLsStayUnchanged() {
+        for text in ["let value = 1", "https://example.com", "`hello`"] {
+            XCTAssertEqual(inserting(text, into: ""), text)
+        }
+    }
+
+    func testMixedCaseNamesAndAcronymsKeepTheirCase() {
+        XCTAssertEqual(inserting("iPhone works", into: ""), "iPhone works")
+        XCTAssertEqual(inserting("API works", into: ""), "API works")
+        XCTAssertEqual(inserting("ßeta works", into: ""), "SSeta works")
+    }
+
+    func testCapitalizationCanBeDisabledIndependentlyOfSpacing() {
+        let result = TextInsertionFormatter.prepare("hello", context: TextInsertionContext(text: "x", selectedUTF16Range: NSRange(location: 1, length: 0)), options: TextInsertionFormattingOptions(fitCapitalization: false))
+        XCTAssertEqual(result.text, " hello")
+    }
+
+    func testObviousEmailsAndFilenamesKeepTheirCase() {
+        for text in ["ezra@example.com", "report.csv", "README.md", "archive.tar.gz", "docs/report.csv", "/tmp/report", "example.com"] {
+            XCTAssertEqual(inserting(text, into: ""), text)
+        }
+        XCTAssertEqual(inserting("hello.", into: ""), "Hello.")
+        XCTAssertEqual(inserting("we should open report.csv", into: ""), "We should open report.csv")
+    }
+
+    func testEmptyAndWhitespaceInputsDoNotCreatePunctuation() {
+        XCTAssertEqual(inserting("", into: ""), "")
+        XCTAssertEqual(inserting("  ", into: ""), "  ")
+    }
+
+    private func inserting(_ text: String, into existing: String) -> String {
+        TextInsertionFormatter.prepare(text, context: TextInsertionContext(text: existing, selectedUTF16Range: NSRange(location: existing.utf16.count, length: 0))).text
     }
 
     func testSelectedTextContextDoesNotAddBoundarySpacesInsideExistingSpaces() {
@@ -219,7 +244,7 @@ final class TextInsertionFormatterTests: XCTestCase {
         XCTAssertEqual(snapshot.editableSelectedUTF16Range, NSRange(location: 0, length: 0))
         XCTAssertEqual(
             TextInsertionFormatter.prepare("ship this", context: snapshot.context).text,
-            "ship this"
+            "Ship this"
         )
     }
 
