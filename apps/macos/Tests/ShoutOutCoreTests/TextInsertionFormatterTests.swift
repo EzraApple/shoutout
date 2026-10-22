@@ -86,7 +86,7 @@ final class TextInsertionFormatterTests: XCTestCase {
 
         let result = TextInsertionFormatter.prepare("this works", context: context)
 
-        XCTAssertEqual(result.text, "This works.")
+        XCTAssertEqual(result.text, "This works")
     }
 
     func testCodeLikeTextDoesNotChangeCapitalization() {
@@ -125,18 +125,18 @@ final class TextInsertionFormatterTests: XCTestCase {
         XCTAssertEqual(result.text, "hello")
     }
 
-    func testEmptyFieldCapitalizesAndAddsFinalPeriod() {
-        XCTAssertEqual(inserting("we should send the notes", into: ""), "We should send the notes.")
+    func testEmptyFieldCapitalizesWithoutAddingPunctuation() {
+        XCTAssertEqual(inserting("we should send the notes", into: ""), "We should send the notes")
     }
 
     func testSentenceStartCapitalizesAnyLowercaseStarter() {
-        XCTAssertEqual(inserting("send the notes", into: "Done. "), "Send the notes.")
-        XCTAssertEqual(inserting("hello there", into: ""), "Hello there.")
-        XCTAssertEqual(inserting("hello there", into: "  "), "Hello there.")
+        XCTAssertEqual(inserting("send the notes", into: "Done. "), "Send the notes")
+        XCTAssertEqual(inserting("hello there", into: ""), "Hello there")
+        XCTAssertEqual(inserting("hello there", into: "  "), "Hello there")
     }
 
-    func testEndOfExistingSentenceAddsPeriodWithoutCapitalizingContinuation() {
-        XCTAssertEqual(inserting("send the notes", into: "We should "), "send the notes.")
+    func testEndOfExistingSentencePreservesContinuation() {
+        XCTAssertEqual(inserting("send the notes", into: "We should "), "send the notes")
     }
 
     func testExistingPunctuationDoesNotGetAnotherPeriod() {
@@ -150,15 +150,15 @@ final class TextInsertionFormatterTests: XCTestCase {
         XCTAssertEqual(TextInsertionFormatter.prepare("send the notes", context: context).text, "send the notes")
     }
 
-    func testClosingDelimitersAllowFinalPeriodWithoutDuplicatingInnerPunctuation() {
-        XCTAssertEqual(inserting("Call (tomorrow)", into: ""), "Call (tomorrow).")
-        XCTAssertEqual(inserting("He said “hello”", into: ""), "He said “hello”.")
+    func testClosingDelimitersKeepTheirOriginalPunctuation() {
+        XCTAssertEqual(inserting("Call (tomorrow)", into: ""), "Call (tomorrow)")
+        XCTAssertEqual(inserting("He said “hello”", into: ""), "He said “hello”")
         XCTAssertEqual(inserting("He said “hello.”", into: ""), "He said “hello.”")
-        XCTAssertEqual(inserting("“hello”", into: ""), "“Hello”.")
+        XCTAssertEqual(inserting("“hello”", into: ""), "“Hello”")
     }
 
-    func testPeriodPrecedesExistingTrailingWhitespace() {
-        XCTAssertEqual(inserting("hello  ", into: ""), "Hello.  ")
+    func testCapitalizationPreservesExistingTrailingWhitespace() {
+        XCTAssertEqual(inserting("hello  ", into: ""), "Hello  ")
     }
 
     func testCodeAndURLsStayUnchanged() {
@@ -168,14 +168,22 @@ final class TextInsertionFormatterTests: XCTestCase {
     }
 
     func testMixedCaseNamesAndAcronymsKeepTheirCase() {
-        XCTAssertEqual(inserting("iPhone works", into: ""), "iPhone works.")
-        XCTAssertEqual(inserting("API works", into: ""), "API works.")
-        XCTAssertEqual(inserting("ßeta works", into: ""), "SSeta works.")
+        XCTAssertEqual(inserting("iPhone works", into: ""), "iPhone works")
+        XCTAssertEqual(inserting("API works", into: ""), "API works")
+        XCTAssertEqual(inserting("ßeta works", into: ""), "SSeta works")
     }
 
-    func testSentenceFormattingCanBeDisabledIndependentlyOfSpacing() {
-        let result = TextInsertionFormatter.prepare("hello", context: TextInsertionContext(text: "x", selectedUTF16Range: NSRange(location: 1, length: 0)), options: TextInsertionFormattingOptions(fitCapitalization: false, appendSentencePeriod: false))
+    func testCapitalizationCanBeDisabledIndependentlyOfSpacing() {
+        let result = TextInsertionFormatter.prepare("hello", context: TextInsertionContext(text: "x", selectedUTF16Range: NSRange(location: 1, length: 0)), options: TextInsertionFormattingOptions(fitCapitalization: false))
         XCTAssertEqual(result.text, " hello")
+    }
+
+    func testObviousEmailsAndFilenamesKeepTheirCase() {
+        for text in ["ezra@example.com", "report.csv", "README.md", "archive.tar.gz", "docs/report.csv", "/tmp/report", "example.com"] {
+            XCTAssertEqual(inserting(text, into: ""), text)
+        }
+        XCTAssertEqual(inserting("hello.", into: ""), "Hello.")
+        XCTAssertEqual(inserting("we should open report.csv", into: ""), "We should open report.csv")
     }
 
     func testEmptyAndWhitespaceInputsDoNotCreatePunctuation() {
@@ -205,7 +213,7 @@ final class TextInsertionFormatterTests: XCTestCase {
 
         let result = TextInsertionFormatter.prepare("this works", context: context)
 
-        XCTAssertEqual(result.text, " This works.")
+        XCTAssertEqual(result.text, " This works")
         XCTAssertEqual(result.strategy, "smart")
     }
 
@@ -236,7 +244,7 @@ final class TextInsertionFormatterTests: XCTestCase {
         XCTAssertEqual(snapshot.editableSelectedUTF16Range, NSRange(location: 0, length: 0))
         XCTAssertEqual(
             TextInsertionFormatter.prepare("ship this", context: snapshot.context).text,
-            "Ship this."
+            "Ship this"
         )
     }
 

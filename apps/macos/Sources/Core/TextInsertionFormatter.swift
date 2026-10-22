@@ -3,16 +3,13 @@ import Foundation
 public struct TextInsertionFormattingOptions: Equatable, Sendable {
     public var useSmartSpacing: Bool
     public var fitCapitalization: Bool
-    public var appendSentencePeriod: Bool
 
     public init(
         useSmartSpacing: Bool = true,
-        fitCapitalization: Bool = true,
-        appendSentencePeriod: Bool = true
+        fitCapitalization: Bool = true
     ) {
         self.useSmartSpacing = useSmartSpacing
         self.fitCapitalization = fitCapitalization
-        self.appendSentencePeriod = appendSentencePeriod
     }
 
     public static let `default` = TextInsertionFormattingOptions()
@@ -161,32 +158,13 @@ public enum TextInsertionFormatter {
         guard let context else {
             return TextInsertionFormattingResult(text: text, strategy: "exact")
         }
-        var fittedText = options.fitCapitalization ? fitCapitalization(text, context: context) : text
-        if options.appendSentencePeriod {
-            fittedText = appendSentencePeriod(fittedText, context: context)
-        }
+        let fittedText = options.fitCapitalization ? fitCapitalization(text, context: context) : text
         guard options.useSmartSpacing else {
             return TextInsertionFormattingResult(text: fittedText, strategy: "exact")
         }
         let prefix = shouldPrefixSpace(before: context.characterBefore, text: fittedText) ? " " : ""
         let suffix = shouldSuffixSpace(after: context.characterAfter, text: fittedText) ? " " : ""
         return TextInsertionFormattingResult(text: prefix + fittedText + suffix, strategy: "smart")
-    }
-
-    private static func appendSentencePeriod(_ text: String, context: TextInsertionContext) -> String {
-        guard context.hasTextWindow,
-              context.textAfter.allSatisfy({ $0.isInsertionWhitespace }),
-              isLikelyNaturalText(text), isLikelyNaturalContext(context),
-              let last = text.lastIndex(where: { !$0.isInsertionWhitespace }) else { return text }
-        var contentEnd = last
-        while closingSentenceDelimiters.contains(text[contentEnd]) {
-            guard contentEnd > text.startIndex else { return text }
-            contentEnd = text.index(before: contentEnd)
-        }
-        guard text[contentEnd].isLetter || text[contentEnd].isNumber else { return text }
-        var result = text
-        result.insert(".", at: result.index(after: last))
-        return result
     }
 
     private static func shouldPrefixSpace(before: Character?, text: String) -> Bool {
@@ -250,6 +228,11 @@ public enum TextInsertionFormatter {
     }
 
     private static func isLikelyNaturalText(_ text: String) -> Bool {
+        let firstToken = text.split(whereSeparator: { $0.isWhitespace }).first.map(String.init) ?? ""
+        if firstToken.contains("@") || firstToken.contains("/") || firstToken.contains("\\")
+            || firstToken.trimmingCharacters(in: .punctuationCharacters).contains(".") {
+            return false
+        }
         let lowered = text.lowercased()
         if lowered.contains("://") || lowered.contains("www.") {
             return false
@@ -315,8 +298,6 @@ public enum TextInsertionFormatter {
     private static let openingPunctuation: Set<Character> = [
         "(", "[", "{", "$", "#", "@",
     ]
-
-    private static let closingSentenceDelimiters: Set<Character> = ["\"", "'", "”", "’", ")", "]"]
 
     private static let sentenceTerminators: Set<Character> = [
         ".", "?", "!", "\n",

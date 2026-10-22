@@ -28,7 +28,7 @@ enum TextInserter {
         let formatted = TextInsertionFormatter.prepare(text, context: target?.context, options: options)
         let pasteText = formatted.text
         RuntimeLog.write(
-            "paste start length=\(pasteText.count) spacing=\(formatted.strategy) smartSpacing=\(options.useSmartSpacing) capitalize=\(options.fitCapitalization) sentencePeriod=\(options.appendSentencePeriod)"
+            "paste start length=\(pasteText.count) spacing=\(formatted.strategy) smartSpacing=\(options.useSmartSpacing) capitalize=\(options.fitCapitalization)"
         )
 
         if let target, shouldUseAccessibilityInsertion(for: target) {

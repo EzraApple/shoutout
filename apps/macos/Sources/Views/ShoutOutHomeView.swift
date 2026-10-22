@@ -492,7 +492,7 @@ struct ShoutOutHomeView: View {
                         .foregroundStyle(ShoutOutHomeTheme.muted)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 } else {
-                    Text("Keeps your wording, with sentence capitalization and punctuation.")
+                    Text("Keeps your wording and capitalizes sentence starts.")
                         .font(.subheadline)
                         .foregroundStyle(ShoutOutHomeTheme.muted)
                         .frame(maxWidth: .infinity, alignment: .leading)
