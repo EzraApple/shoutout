@@ -224,7 +224,7 @@ public enum TextInsertionFormatter {
 
         let firstWord = firstWord(in: text, from: firstLetterIndex)
         if shouldUppercaseFirstWord(firstWord, context: context) {
-            return replacingCharacter(at: firstLetterIndex, in: text) { Character(String($0).uppercased()) }
+            return replacingCharacter(at: firstLetterIndex, in: text) { String($0).uppercased() }
         }
 
         return text
@@ -281,10 +281,10 @@ public enum TextInsertionFormatter {
     private static func replacingCharacter(
         at index: String.Index,
         in text: String,
-        transform: (Character) -> Character
+        transform: (Character) -> String
     ) -> String {
         var updated = text
-        updated.replaceSubrange(index...index, with: String(transform(text[index])))
+        updated.replaceSubrange(index...index, with: transform(text[index]))
         return updated
     }
 

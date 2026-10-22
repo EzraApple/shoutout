@@ -170,6 +170,7 @@ final class TextInsertionFormatterTests: XCTestCase {
     func testMixedCaseNamesAndAcronymsKeepTheirCase() {
         XCTAssertEqual(inserting("iPhone works", into: ""), "iPhone works.")
         XCTAssertEqual(inserting("API works", into: ""), "API works.")
+        XCTAssertEqual(inserting("ßeta works", into: ""), "SSeta works.")
     }
 
     func testSentenceFormattingCanBeDisabledIndependentlyOfSpacing() {
