@@ -6,6 +6,9 @@ final class IndicatorPlacementController {
     private weak var panel: NSPanel?
     private weak var model: IndicatorOverlayModel?
     private let defaults: UserDefaults
+    private let pointerLocation: () -> CGPoint
+    private var pointerTimer: Timer?
+    private var sampledPointer: CGPoint?
     private var guidePanels: [NSPanel] = []
     private var escapeMonitor: Any?
     private var globalEscapeMonitor: Any?
@@ -25,8 +28,9 @@ final class IndicatorPlacementController {
     private var actionResumeAt = Date.distantPast
     var acceptsActions: Bool { !isDragging && Date() >= actionResumeAt }
 
-    init(defaults: UserDefaults = .standard) {
+    init(defaults: UserDefaults = .standard, pointerLocation: @escaping () -> CGPoint = { NSEvent.mouseLocation }) {
         self.defaults = defaults
+        self.pointerLocation = pointerLocation
     }
 
     func attach(panel: NSPanel, model: IndicatorOverlayModel) {
@@ -41,7 +45,21 @@ final class IndicatorPlacementController {
             self?.updateMouseRouting()
         }
         observePointerEvents()
+        let timer = Timer(timeInterval: 0.05, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.samplePointer() }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        pointerTimer = timer
         observeScreenChanges()
+    }
+
+    // Click-through windows can miss the mouse-move event that would make them interactive.
+    func samplePointer() {
+        guard panel?.isVisible == true, !isDragging, !pointerStartedOnIndicator else { return }
+        let pointer = pointerLocation()
+        guard pointer != sampledPointer else { return }
+        sampledPointer = pointer
+        updateMouseRouting(at: pointer)
     }
 
     private func observePointerEvents() {
@@ -90,7 +108,7 @@ final class IndicatorPlacementController {
 
     private func updateMouseRouting(at screenPoint: CGPoint? = nil) {
         guard let panel, let view = panel.contentView else { return }
-        let point = view.convert(panel.convertPoint(fromScreen: screenPoint ?? NSEvent.mouseLocation), from: nil)
+        let point = view.convert(panel.convertPoint(fromScreen: screenPoint ?? pointerLocation()), from: nil)
         let hitRect = getIndicatorHitFrame(for: interactionRect, style: model?.style ?? .off,
                                                anchor: model?.anchor ?? .right, in: view.bounds)
         (view as? IndicatorHostingView)?.dragRect = hitRect
@@ -113,6 +131,8 @@ final class IndicatorPlacementController {
     }
 
     func tearDown() {
+        pointerTimer?.invalidate()
+        pointerTimer = nil
         cancelDrag()
         hideGuides()
         if let screenObserver { NotificationCenter.default.removeObserver(screenObserver) }
@@ -242,6 +262,8 @@ final class IndicatorPlacementController {
         let snapshot: [String: Any] = [
             "frame": NSStringFromRect(panel.frame), "interaction": NSStringFromRect(interactionRect),
             "pointer": NSStringFromPoint(pointer), "ignoresMouse": panel.ignoresMouseEvents,
+            "bounds": NSStringFromRect(panel.contentView?.bounds ?? .zero),
+            "hitFrame": NSStringFromRect(model?.dragRect ?? .zero), "hovered": model?.isHovered ?? false,
             "anchor": model?.anchor.rawValue ?? "", "style": model?.style.rawValue ?? "",
             "window": panel.windowNumber, "isDragging": isDragging, "pressed": pointerStartedOnIndicator,
             "guideCount": guidePanels.filter(\.isVisible).count, "target": selectedTarget?.anchor.rawValue ?? "",

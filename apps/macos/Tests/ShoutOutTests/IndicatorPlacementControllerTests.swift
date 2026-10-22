@@ -155,6 +155,31 @@ final class IndicatorPlacementControllerTests: XCTestCase {
         XCTAssertTrue(harness.panel.ignoresMouseEvents)
     }
 
+    func testPointerSamplingRestoresPillHoverAfterCrabWithoutMouseMoveEvents() async throws {
+        var pointer = CGPoint.zero
+        let harness = try Harness(style: .crab, pointerLocation: { pointer })
+        defer { harness.close() }
+
+        for style in [OverlayStyle.glass, .capsule] {
+            harness.model.style = style
+            harness.controller.placeIndicator()
+            let view = try XCTUnwrap(harness.panel.contentView)
+            harness.model.onInteractionRegionChanged?(CGRect(x: 29, y: 43, width: 8, height: 30))
+            pointer = harness.panel.convertPoint(toScreen: view.convert(CGPoint(x: 22, y: 58), to: nil))
+
+            try await Task.sleep(for: .milliseconds(150))
+
+            XCTAssertTrue(harness.model.isHovered, "\(style) should hover without an NSEvent")
+            XCTAssertFalse(harness.panel.ignoresMouseEvents)
+
+            pointer = CGPoint(x: harness.screen.visibleFrame.midX, y: harness.screen.visibleFrame.midY)
+            try await Task.sleep(for: .milliseconds(150))
+
+            XCTAssertFalse(harness.model.isHovered)
+            XCTAssertTrue(harness.panel.ignoresMouseEvents)
+        }
+    }
+
     func testTearDownDismissesGuidesDuringAnActiveDrag() throws {
         let harness = try Harness(style: .glass)
         defer { harness.close() }
@@ -181,7 +206,8 @@ private final class Harness {
     let controller: IndicatorPlacementController
     private let priorWindowNumbers: Set<Int>
 
-    init(style: OverlayStyle, savedAnchor: IndicatorAnchor? = nil) throws {
+    init(style: OverlayStyle, savedAnchor: IndicatorAnchor? = nil,
+         pointerLocation: @escaping () -> CGPoint = { NSEvent.mouseLocation }) throws {
         _ = NSApplication.shared
         screen = try XCTUnwrap(NSScreen.main ?? NSScreen.screens.first)
         suite = "ShoutOut.IndicatorPlacementTests.\(UUID().uuidString)"
@@ -197,7 +223,7 @@ private final class Harness {
                         styleMask: [.borderless, .nonactivatingPanel],
                         backing: .buffered, defer: false)
         panel.contentView = NSView(frame: CGRect(origin: .zero, size: initialFrame.size))
-        controller = IndicatorPlacementController(defaults: defaults)
+        controller = IndicatorPlacementController(defaults: defaults, pointerLocation: pointerLocation)
         controller.attach(panel: panel, model: model)
         controller.placeIndicator()
         panel.orderFrontRegardless()

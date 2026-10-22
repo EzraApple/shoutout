@@ -29,7 +29,10 @@ final class IndicatorHostingView: NSHostingView<IndicatorOverlayHostView> {
     }
 
     override func mouseDragged(with event: NSEvent) {
-        guard let mouseDownPoint, let window else { return }
+        guard let mouseDownPoint, let window else {
+            super.mouseDragged(with: event)
+            return
+        }
         let pointer = window.convertPoint(toScreen: event.locationInWindow)
         let translation = CGSize(width: pointer.x - mouseDownPoint.x, height: mouseDownPoint.y - pointer.y)
         guard startedDrag || hypot(translation.width, translation.height) >= 3 else { return }
