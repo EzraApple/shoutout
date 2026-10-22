@@ -6,7 +6,7 @@
 
 **English dictation, right where you’re typing.**
 
-ShoutOut is a local-first macOS dictation app. Hold **Fn/Globe**, speak, and release to paste into your current app. Double-tap for hands-free recording.
+ShoutOut is a free, local-first macOS dictation app. Hold **Fn/Globe**, speak, and release to paste into your current app. Double-tap for hands-free recording.
 
 [Website & download](https://shoutout.sh) · [Development](docs/development.md) · [Troubleshooting](TROUBLESHOOTING.md)
 
@@ -17,9 +17,19 @@ ShoutOut is a local-first macOS dictation app. Hold **Fn/Globe**, speak, and rel
 - **Your words, tidied up.** Optional cleanup with Normal, Casual, and Formal tones.
 - **Easy to find again.** Searchable local transcription history with one-click copy.
 - **Your spelling.** A customizable dictionary for names, acronyms, and common mishearings.
-- **A little personality.** A wall-walking crab in your choice of color, or a simple Classic recording indicator.
+- **Make it yours.** Choose Glass, Classic, or an animated Crab recording indicator, with a shared color theme for the app.
 
 Requires **Apple Silicon and macOS 15 or later**. Dictation downloads one **731 MB** speech model. Optional text cleanup downloads a separate model. Onboarding walks you through Microphone, Accessibility, and Input Monitoring permissions.
+
+## Customization
+
+In **Settings → Make it yours**, choose an **Indicator** to suit your desktop:
+
+- **Glass:** a translucent recording indicator with an animated loading rim.
+- **Classic:** a compact recording indicator with a waveform and spinner.
+- **Crab:** an animated companion that walks along the edge of your screen.
+
+Choose an **App theme** to change the crab, app icon, and indicator accent colors. You can also change the recording shortcut here.
 
 ## Development
 
