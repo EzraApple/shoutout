@@ -16,6 +16,7 @@ final class IndicatorPlacementControllerTests: XCTestCase {
                      translation: CGSize(width: 32, height: -18))
 
         XCTAssertTrue(harness.controller.isDragging)
+        XCTAssertTrue(harness.model.isDragging)
         XCTAssertTrue(harness.panel.isVisible)
         XCTAssertEqual(harness.panel.frame.origin,
                        CGPoint(x: originalFrame.minX + 32, y: originalFrame.minY + 18))
@@ -26,6 +27,7 @@ final class IndicatorPlacementControllerTests: XCTestCase {
         harness.model.onDragEnded?()
 
         XCTAssertFalse(harness.controller.isDragging)
+        XCTAssertFalse(harness.model.isDragging)
         XCTAssertEqual(harness.defaults.string(forKey: "indicatorAnchor.glass"), "top")
         XCTAssertNotNil(harness.defaults.object(forKey: "indicatorDisplay.glass"))
         XCTAssertEqual(harness.model.anchor, .top)
@@ -102,6 +104,23 @@ final class IndicatorPlacementControllerTests: XCTestCase {
         XCTAssertTrue(harness.panel.ignoresMouseEvents)
         XCTAssertFalse(harness.controller.isDragging)
         XCTAssertTrue(harness.newGuidePanels.isEmpty)
+    }
+
+    func testHoverStartsInThePaddedGrabAreaAndEndsOutsideIt() throws {
+        let harness = try Harness(style: .glass)
+        defer { harness.close() }
+        let pointer = NSEvent.mouseLocation
+        harness.panel.setFrameOrigin(CGPoint(x: pointer.x - 10, y: pointer.y - 58))
+
+        harness.model.onInteractionRegionChanged?(CGRect(x: 20, y: 43, width: 8, height: 30))
+
+        XCTAssertTrue(harness.model.isHovered)
+        XCTAssertFalse(harness.panel.ignoresMouseEvents)
+
+        harness.model.onInteractionRegionChanged?(CGRect(x: 20, y: 0, width: 8, height: 30))
+
+        XCTAssertFalse(harness.model.isHovered)
+        XCTAssertTrue(harness.panel.ignoresMouseEvents)
     }
 
     func testTearDownDismissesGuidesDuringAnActiveDrag() throws {

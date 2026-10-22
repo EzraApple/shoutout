@@ -19,6 +19,7 @@ final class IndicatorPlacementController {
     private var originalLevel = NSWindow.Level.statusBar
     private var cancelledUntilRelease = false
     private var pointerStartedOnIndicator = false
+    private var hasDragCursor = false
     private var selectedTarget: (screen: NSScreen, anchor: IndicatorAnchor)?
     private(set) var isDragging = false
     private var actionResumeAt = Date.distantPast
@@ -90,12 +91,18 @@ final class IndicatorPlacementController {
     private func updateMouseRouting(at screenPoint: CGPoint? = nil) {
         guard let panel, let view = panel.contentView else { return }
         let point = view.convert(panel.convertPoint(fromScreen: screenPoint ?? NSEvent.mouseLocation), from: nil)
+        let hitRect = getIndicatorHitFrame(for: interactionRect, style: model?.style ?? .off,
+                                               anchor: model?.anchor ?? .right, in: view.bounds)
+        (view as? IndicatorHostingView)?.dragRect = hitRect
+        if model?.dragRect != hitRect { model?.dragRect = hitRect }
 #if DEBUG
         defer { writeDebugSnapshot(pointer: point, panel: panel) }
 #endif
         guard !isDragging && !pointerStartedOnIndicator else { panel.ignoresMouseEvents = false; return }
-        let radius = model?.style == .crab ? 0 : min(interactionRect.width, interactionRect.height) / 2
-        panel.ignoresMouseEvents = !CGPath(roundedRect: interactionRect, cornerWidth: radius, cornerHeight: radius, transform: nil).contains(point)
+        let radius = model?.style == .crab ? 0 : min(hitRect.width, hitRect.height) / 2
+        let isHovered = CGPath(roundedRect: hitRect, cornerWidth: radius, cornerHeight: radius, transform: nil).contains(point)
+        panel.ignoresMouseEvents = !isHovered
+        if model?.isHovered != isHovered { model?.isHovered = isHovered }
     }
 
     func cancelDrag() {
@@ -137,6 +144,10 @@ final class IndicatorPlacementController {
         let pointer = panel.convertPoint(toScreen: windowPoint)
         if !isDragging {
             isDragging = true
+            model.isDragging = true
+            panel.disableCursorRects()
+            NSCursor.closedHand.push()
+            hasDragCursor = true
             panel.ignoresMouseEvents = false
             originalFrame = panel.frame
             originalLevel = panel.level
@@ -183,6 +194,12 @@ final class IndicatorPlacementController {
     private func endDrag() {
         actionResumeAt = Date().addingTimeInterval(0.2)
         isDragging = false
+        model?.isDragging = false
+        if hasDragCursor {
+            NSCursor.pop()
+            panel?.enableCursorRects()
+            hasDragCursor = false
+        }
         dragOrigin = nil
         selectedTarget = nil
         hideGuides()

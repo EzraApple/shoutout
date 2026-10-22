@@ -291,6 +291,7 @@ struct AppOverlayView: View {
     var onCancel: (() -> Void)?
     var onCommit: (() -> Void)?
     var anchor: IndicatorAnchor = .right
+    var isHovered = false
     var onDragChanged: ((CGPoint, CGSize) -> Void)?
     var onDragEnded: (() -> Void)?
     var onInteractionRegionChanged: ((CGRect) -> Void)?
@@ -299,16 +300,18 @@ struct AppOverlayView: View {
         switch style {
         case .crab:
             CrabOverlayView(
-                state: state, height: crabHeight, anchor: anchor,
-                onDragChanged: onDragChanged, onDragEnded: onDragEnded,
+                state: state, height: crabHeight, anchor: anchor, isHovered: isHovered,
                 onInteractionRegionChanged: onInteractionRegionChanged
             )
                 .frame(width: CrabOverlayLayout.width, height: crabHeight)
+                .contentShape(Rectangle())
+                .simultaneousGesture(indicatorDragGesture(onChanged: onDragChanged, onEnded: onDragEnded))
         case .capsule, .glass:
             PillIndicatorView(
                 style: style, state: state, onCancel: onCancel, onCommit: onCommit,
-                anchor: anchor, onInteractionRegionChanged: onInteractionRegionChanged
+                anchor: anchor, isHovered: isHovered, onInteractionRegionChanged: onInteractionRegionChanged
             )
+                .contentShape(Rectangle())
                 .simultaneousGesture(indicatorDragGesture(onChanged: onDragChanged, onEnded: onDragEnded))
         case .off:
             EmptyView()
@@ -323,6 +326,9 @@ final class IndicatorOverlayModel: ObservableObject {
     @Published var state: IndicatorState
     @Published var crabHeight: CGFloat
     @Published var anchor: IndicatorAnchor = .right
+    @Published var isHovered = false
+    @Published var isDragging = false
+    @Published var dragRect = CGRect.zero
     var onDragChanged: ((CGPoint, CGSize) -> Void)?
     var onDragEnded: (() -> Void)?
     var onInteractionRegionChanged: ((CGRect) -> Void)?
@@ -372,11 +378,20 @@ struct IndicatorOverlayHostView: View {
             onCancel: model.onCancel,
             onCommit: model.onCommit,
             anchor: model.anchor,
+            isHovered: model.isHovered || model.isDragging,
             onDragChanged: model.onDragChanged,
             onDragEnded: model.onDragEnded,
             onInteractionRegionChanged: model.onInteractionRegionChanged
         )
         .coordinateSpace(name: "indicatorInteraction")
+        .background {
+            // WindowServer needs painted pixels in the extra grab area too.
+            RoundedRectangle(cornerRadius: model.style == .crab ? 8 : min(model.dragRect.width, model.dragRect.height) / 2)
+                .fill(.black.opacity(0.01))
+                .frame(width: model.dragRect.width, height: model.dragRect.height)
+                .position(x: model.dragRect.midX, y: model.dragRect.midY)
+                .allowsHitTesting(false)
+        }
         .allowsWindowActivationEvents(true)
 #if DEBUG
         .environment(\.classicPreviewReduceMotion, model.previewReduceMotion)
@@ -401,7 +416,7 @@ extension EnvironmentValues {
 private func indicatorDragGesture(
     onChanged: ((CGPoint, CGSize) -> Void)?, onEnded: (() -> Void)?
 ) -> some Gesture {
-    DragGesture(minimumDistance: 6, coordinateSpace: .global)
+    DragGesture(minimumDistance: 3, coordinateSpace: .global)
         .onChanged { onChanged?($0.location, $0.translation) }
         .onEnded { value in
             onChanged?(value.location, value.translation)
@@ -415,6 +430,7 @@ struct PillIndicatorView: View {
     var onCancel: (() -> Void)?
     var onCommit: (() -> Void)?
     var anchor: IndicatorAnchor = .right
+    var isHovered = false
     var onInteractionRegionChanged: ((CGRect) -> Void)?
     @AppStorage(Defaults.crabColorVariant) private var crabColorVariant = CrabColorVariant.ocean.rawValue
     @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
@@ -433,6 +449,9 @@ struct PillIndicatorView: View {
     var body: some View {
         ZStack(alignment: surfaceAlignment) {
             classicSurface
+                .overlay {
+                    Capsule().stroke(.white.opacity(isHovered ? (style == .glass ? 0.42 : 0.24) : 0), lineWidth: 1)
+                }
                 .onGeometryChange(for: CGRect.self) { proxy in
                     proxy.frame(in: .named("indicatorInteraction"))
                 } action: { onInteractionRegionChanged?($0) }
@@ -449,7 +468,7 @@ struct PillIndicatorView: View {
         .padding(anchor.isHorizontal ? .vertical : .horizontal, PillOverlayLayout.paintOutset)
         .accessibilityElement(children: .contain)
         .accessibilityLabel(accessibilityLabel)
-        .help(accessibilityLabel)
+        .help(state == .idle ? "Drag to move the indicator" : accessibilityLabel)
         .animation(reduceMotion ? nil : .easeOut(duration: 0.08), value: visualKind)
         .animation(
             reduceMotion ? nil : .timingCurve(0.16, 1, 0.3, 1, duration: 0.16),
@@ -485,7 +504,7 @@ struct PillIndicatorView: View {
 
     private var matteSurface: some View {
         Capsule(style: .circular)
-            .fill(Color(white: 0.075).opacity(0.96))
+            .fill(Color(white: isHovered ? 0.13 : 0.075).opacity(0.96))
             .overlay {
                 Capsule(style: .circular)
                     .stroke(Color.white.opacity(0.13), lineWidth: 0.6)
@@ -499,7 +518,18 @@ struct PillIndicatorView: View {
     private var statusContent: some View {
         switch state {
         case .idle:
-            EmptyView()
+            Canvas { context, _ in
+                for column in 0..<2 {
+                    for row in 0..<3 {
+                        let dot = CGRect(x: column * 4, y: row * 4, width: 2, height: 2)
+                        context.fill(Path(ellipseIn: dot), with: .color(.white.opacity(0.9)))
+                    }
+                }
+            }
+                .frame(width: 6, height: 10)
+                .rotationEffect(.degrees(anchor.isHorizontal ? 90 : 0))
+                .opacity(isHovered ? 1 : 0)
+                .accessibilityHidden(true)
         case .armed:
             recordingContent(mode: .hold)
         case .recording(_, let mode):
@@ -654,7 +684,7 @@ struct PillIndicatorView: View {
     private var verticalSurfaceSize: CGSize {
         switch state {
         case .idle:
-            return CGSize(width: 8, height: 30)
+            return isHovered ? CGSize(width: 16, height: 44) : CGSize(width: 8, height: 30)
         case .armed:
             return CGSize(width: 26, height: 64)
         case .recording(_, .hold):
@@ -705,8 +735,7 @@ private struct CrabOverlayView: View {
     let state: IndicatorState
     let height: CGFloat
     var anchor: IndicatorAnchor = .right
-    var onDragChanged: ((CGPoint, CGSize) -> Void)?
-    var onDragEnded: (() -> Void)?
+    var isHovered = false
     var onInteractionRegionChanged: ((CGRect) -> Void)?
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -724,14 +753,14 @@ private struct CrabOverlayView: View {
             )
             .scaleEffect(x: anchor == .left ? -1 : 1, y: 1)
             .contentShape(Rectangle())
-            .simultaneousGesture(indicatorDragGesture(onChanged: onDragChanged, onEnded: onDragEnded))
+            .help("Drag to move the indicator")
             .offset(y: idleOffset)
             .onGeometryChange(for: CGRect.self) { proxy in
                 proxy.frame(in: .named("indicatorInteraction"))
             } action: { onInteractionRegionChanged?($0) }
         }
         .frame(width: CrabOverlayLayout.width, height: height, alignment: anchor == .left ? .leading : .trailing)
-        .task(id: "\(state.showsBoomMic)-\(reduceMotion)") {
+        .task(id: "\(state.showsBoomMic)-\(reduceMotion)-\(isHovered)") {
             await animateCrab()
         }
         .task(id: state.isProcessing) {
@@ -747,6 +776,7 @@ private struct CrabOverlayView: View {
     }
 
     private func animateCrab() async {
+        if isHovered && !state.showsBoomMic { return }
         if reduceMotion {
             idleOffset = 0
             setSpriteFrame(

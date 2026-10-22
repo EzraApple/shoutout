@@ -1118,6 +1118,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             panel.hidesOnDeactivate = false
             panel.isReleasedWhenClosed = false
             panel.ignoresMouseEvents = true
+            panel.acceptsMouseMovedEvents = true
             panel.title = "ShoutOut indicator"
             panel.setAccessibilitySubrole(.floatingWindow)
 
@@ -1129,7 +1130,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 onCommit: onCommit
             )
             indicatorPlacement.attach(panel: panel, model: overlayModel)
-            let hostingView = NSHostingView<IndicatorOverlayHostView>(
+            let hostingView = IndicatorHostingView(
                 rootView: IndicatorOverlayHostView(model: overlayModel)
             )
             hostingView.sizingOptions = .intrinsicContentSize

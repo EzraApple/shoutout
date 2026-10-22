@@ -12,6 +12,7 @@ final class ClassicOverlayPreview: ObservableObject {
     @Published var playsSpeech = false
     @Published var anchor = IndicatorAnchor.right
     @Published var showsPlacementGuides = false
+    @Published var previewHover = false
     var onPlacementPreview: ((IndicatorAnchor, Bool) -> Void)?
     @Published private(set) var indicatorState = IndicatorState.idle
     @Published private(set) var caption = "Ready"
@@ -147,7 +148,8 @@ private struct ClassicPreviewControls: View {
                     VStack(spacing: 12) {
                         Text(style == .glass ? "Glass" : "Classic").font(.headline)
                         Text(style == .glass ? "Glass circle · fading edge" : "Dark pill · spinner").font(.caption).foregroundStyle(.secondary)
-                        AppOverlayView(style: style, state: model.indicatorState, crabHeight: 240, anchor: model.anchor)
+                        AppOverlayView(style: style, state: model.indicatorState, crabHeight: 240,
+                                       anchor: model.anchor, isHovered: model.previewHover)
                             .scaleEffect(2)
                             .frame(width: 240, height: PillOverlayLayout.size.height * 2)
                             .padding(.vertical, 8)
@@ -192,6 +194,7 @@ private struct ClassicPreviewControls: View {
                     }
                 }
                 Toggle("Show drop targets", isOn: $model.showsPlacementGuides)
+                Toggle("Hover preview", isOn: $model.previewHover)
             }
         }
         .padding(24)
