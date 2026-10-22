@@ -370,7 +370,7 @@ assert_contains "Text inserter can post paste to captured app PID" "$MACOS_DIR/S
 assert_not_contains "Text inserter does not retry an unverified paste" "$MACOS_DIR/Sources/Services/TextInserter.swift" "paste retry reason=unchanged"
 assert_contains "Text formatter ignores Claude placeholder text" "$MACOS_DIR/Sources/Core/TextInsertionFormatter.swift" "Type / for commands"
 assert_contains "Text formatter ignores Codex placeholder text" "$MACOS_DIR/Sources/Core/TextInsertionFormatter.swift" "Do anything"
-assert_contains "Core supports trailing fallback" "$MACOS_DIR/Sources/Core/TextInsertionFormatter.swift" "fallbackTrailing"
+assert_not_contains "Core avoids blind trailing-space fallback" "$MACOS_DIR/Sources/Core/TextInsertionFormatter.swift" "fallbackTrailing"
 assert_contains "Core formats insertion spacing" "$MACOS_DIR/Sources/Core/TextInsertionFormatter.swift" "TextInsertionFormatter"
 assert_contains "Core uses context window for insertion casing" "$MACOS_DIR/Sources/Core/TextInsertionFormatter.swift" "textBefore"
 assert_contains "WhisperKit cleans interrupted downloads" "$MACOS_DIR/Sources/Services/WhisperKitTranscriptionEngine.swift" "cleanupInterruptedDownloads"

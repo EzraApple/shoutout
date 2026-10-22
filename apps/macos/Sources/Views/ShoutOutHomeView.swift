@@ -492,7 +492,7 @@ struct ShoutOutHomeView: View {
                         .foregroundStyle(ShoutOutHomeTheme.muted)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 } else {
-                    Text("Light cleanup keeps your spelling, punctuation, and tone.")
+                    Text("Keeps your wording, with sentence capitalization and punctuation.")
                         .font(.subheadline)
                         .foregroundStyle(ShoutOutHomeTheme.muted)
                         .frame(maxWidth: .infinity, alignment: .leading)

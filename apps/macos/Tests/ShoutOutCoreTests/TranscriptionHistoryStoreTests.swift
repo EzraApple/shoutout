@@ -64,6 +64,20 @@ final class TranscriptionHistoryStoreTests: XCTestCase {
         XCTAssertTrue(entry.hasLanguagePassDetails)
     }
 
+    func testFormattedTranscriptKeepsRawMiniTraceSeparate() throws {
+        let fileURL = temporaryFileURL()
+        let store = TranscriptionHistoryStore(fileURL: fileURL)
+        try store.record(text: "We should send the notes.", duration: 2, model: "parakeet",
+                         languagePassInput: "Um, we should send the notes",
+                         languagePassCandidate: "we should send the notes",
+                         languagePassOutput: "we should send the notes",
+                         languagePassAccepted: true,
+                         languagePassModel: "native-mini-2026-10-21")
+        let entry = try XCTUnwrap(TranscriptionHistoryStore(fileURL: fileURL).recentEntries.first)
+        XCTAssertEqual(entry.text, "We should send the notes.")
+        XCTAssertEqual(entry.languagePassOutput, "we should send the notes")
+    }
+
     func testIgnoresBlankTranscriptText() throws {
         let store = TranscriptionHistoryStore(fileURL: temporaryFileURL())
 

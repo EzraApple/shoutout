@@ -4,7 +4,7 @@ This branch prepares ShoutOut 0.3.0 (build 21). It includes current main, the Mi
 
 ## App behavior
 
-The app, headless file transcription, and replay all use the bundled Mini KEEP/DELETE editor. It removes selected source words and retains the remaining spelling, capitalization, punctuation, and order. It does not run the old Llama output validator, tone formatter, or mechanical cleanup after Mini. Text insertion still handles spacing around the cursor. Model load or inference failure keeps the original text.
+The app, headless file transcription, and replay all use the bundled Mini KEEP/DELETE editor. It removes selected source words and retains the remaining spelling, capitalization, punctuation, and order. It does not run the old Llama output validator, tone formatter, or mechanical cleanup after Mini. Text insertion handles spacing around the cursor, capitalizes the first word at a clear sentence start, and adds a final period at the end of a text field when punctuation is missing. Existing punctuation, mixed-case names, and code/URL-like text are preserved. It keeps text unchanged when cursor context is unavailable; there is no blind trailing-space fallback. The earlier spoken-command pass no longer replaces the literal word “period.” History stores the formatted intended paste text and keeps the raw Mini output separately in its cleanup trace. Model load or inference failure keeps the original text.
 
 A one-time settings migration removes the old cleanup-model and tone choices. It preserves Text cleanup on/off, shortcuts, indicator choice, dictionary, and history. Old history keeps its original model and tone attribution. It does not delete old model caches or download a replacement cleanup model.
 

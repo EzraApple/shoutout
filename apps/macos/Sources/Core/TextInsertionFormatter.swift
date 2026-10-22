@@ -1,18 +1,18 @@
 import Foundation
 
 public struct TextInsertionFormattingOptions: Equatable, Sendable {
-    public var appendTrailingSpace: Bool
     public var useSmartSpacing: Bool
     public var fitCapitalization: Bool
+    public var appendSentencePeriod: Bool
 
     public init(
-        appendTrailingSpace: Bool = true,
         useSmartSpacing: Bool = true,
-        fitCapitalization: Bool = true
+        fitCapitalization: Bool = true,
+        appendSentencePeriod: Bool = true
     ) {
-        self.appendTrailingSpace = appendTrailingSpace
         self.useSmartSpacing = useSmartSpacing
         self.fitCapitalization = fitCapitalization
+        self.appendSentencePeriod = appendSentencePeriod
     }
 
     public static let `default` = TextInsertionFormattingOptions()
@@ -158,32 +158,35 @@ public enum TextInsertionFormatter {
         context: TextInsertionContext?,
         options: TextInsertionFormattingOptions = .default
     ) -> TextInsertionFormattingResult {
-        if options.useSmartSpacing, let context {
-            let fittedText = options.fitCapitalization ? fitCapitalization(text, context: context) : text
-            let prefix = shouldPrefixSpace(before: context.characterBefore, text: fittedText) ? " " : ""
-            let suffix = shouldSuffixSpace(after: context.characterAfter, text: fittedText) ? " " : ""
-            return TextInsertionFormattingResult(
-                text: prefix + fittedText + suffix,
-                strategy: "smart"
-            )
-        }
-
-        guard options.appendTrailingSpace else {
+        guard let context else {
             return TextInsertionFormattingResult(text: text, strategy: "exact")
         }
-
-        return TextInsertionFormattingResult(
-            text: fallbackTrailingSpace(for: text),
-            strategy: options.useSmartSpacing ? "fallbackTrailing" : "trailing"
-        )
+        var fittedText = options.fitCapitalization ? fitCapitalization(text, context: context) : text
+        if options.appendSentencePeriod {
+            fittedText = appendSentencePeriod(fittedText, context: context)
+        }
+        guard options.useSmartSpacing else {
+            return TextInsertionFormattingResult(text: fittedText, strategy: "exact")
+        }
+        let prefix = shouldPrefixSpace(before: context.characterBefore, text: fittedText) ? " " : ""
+        let suffix = shouldSuffixSpace(after: context.characterAfter, text: fittedText) ? " " : ""
+        return TextInsertionFormattingResult(text: prefix + fittedText + suffix, strategy: "smart")
     }
 
-    private static func fallbackTrailingSpace(for text: String) -> String {
-        guard let last = text.last, !last.isInsertionWhitespace else {
-            return text
+    private static func appendSentencePeriod(_ text: String, context: TextInsertionContext) -> String {
+        guard context.hasTextWindow,
+              context.textAfter.allSatisfy({ $0.isInsertionWhitespace }),
+              isLikelyNaturalText(text), isLikelyNaturalContext(context),
+              let last = text.lastIndex(where: { !$0.isInsertionWhitespace }) else { return text }
+        var contentEnd = last
+        while closingSentenceDelimiters.contains(text[contentEnd]) {
+            guard contentEnd > text.startIndex else { return text }
+            contentEnd = text.index(before: contentEnd)
         }
-
-        return text + " "
+        guard text[contentEnd].isLetter || text[contentEnd].isNumber else { return text }
+        var result = text
+        result.insert(".", at: result.index(after: last))
+        return result
     }
 
     private static func shouldPrefixSpace(before: Character?, text: String) -> Bool {
@@ -209,7 +212,10 @@ public enum TextInsertionFormatter {
         guard context.hasTextWindow else {
             return text
         }
-        guard text[..<firstLetterIndex].allSatisfy({ $0.isInsertionWhitespace || openingPunctuation.contains($0) || $0 == "\"" || $0 == "'" }) else {
+        guard text[..<firstLetterIndex].allSatisfy({
+            $0.isInsertionWhitespace || openingPunctuation.contains($0)
+                || $0 == "\"" || $0 == "'" || $0 == "“" || $0 == "‘"
+        }) else {
             return text
         }
         guard isLikelyNaturalText(text), isLikelyNaturalContext(context) else {
@@ -217,38 +223,11 @@ public enum TextInsertionFormatter {
         }
 
         let firstWord = firstWord(in: text, from: firstLetterIndex)
-        if shouldLowercaseFirstWord(firstWord, context: context) {
-            return replacingCharacter(at: firstLetterIndex, in: text) { Character(String($0).lowercased()) }
-        }
-
         if shouldUppercaseFirstWord(firstWord, context: context) {
             return replacingCharacter(at: firstLetterIndex, in: text) { Character(String($0).uppercased()) }
         }
 
         return text
-    }
-
-    private static func shouldLowercaseFirstWord(
-        _ firstWord: String,
-        context: TextInsertionContext
-    ) -> Bool {
-        guard let previous = lastNonWhitespace(in: context.textBefore) else {
-            return false
-        }
-        guard !trailingWhitespaceContainsNewline(context.textBefore) else {
-            return false
-        }
-        guard !sentenceTerminators.contains(previous) else {
-            return false
-        }
-        guard let first = firstWord.first, first.isUppercase else {
-            return false
-        }
-        let lowered = firstWord.lowercased()
-        guard lowercasedMidSentenceWords.contains(lowered) else {
-            return false
-        }
-        return true
     }
 
     private static func shouldUppercaseFirstWord(
@@ -258,14 +237,14 @@ public enum TextInsertionFormatter {
         guard let first = firstWord.first, first.isLowercase else {
             return false
         }
-        guard lowercasedMidSentenceWords.contains(firstWord.lowercased()) else {
+        guard firstWord == firstWord.lowercased() else {
             return false
         }
         if trailingWhitespaceContainsNewline(context.textBefore) {
             return true
         }
         guard let previous = lastNonWhitespace(in: context.textBefore) else {
-            return context.textBefore.isEmpty
+            return true
         }
         return sentenceTerminators.contains(previous)
     }
@@ -337,17 +316,10 @@ public enum TextInsertionFormatter {
         "(", "[", "{", "$", "#", "@",
     ]
 
+    private static let closingSentenceDelimiters: Set<Character> = ["\"", "'", "”", "’", ")", "]"]
+
     private static let sentenceTerminators: Set<Character> = [
         ".", "?", "!", "\n",
-    ]
-
-    private static let lowercasedMidSentenceWords: Set<String> = [
-        "a", "an", "and", "are", "as", "at", "be", "because", "but", "by", "can",
-        "could", "did", "do", "does", "for", "from", "had", "has", "have", "he",
-        "here", "if", "in", "is", "it", "its", "let", "make", "maybe", "of", "on",
-        "or", "please", "should", "so", "that", "the", "then", "there", "these",
-        "they", "this", "those", "to", "was", "we", "were", "which", "will",
-        "with", "would", "you",
     ]
 }
 
@@ -358,12 +330,6 @@ private extension Character {
 
     var isInsertionLetter: Bool {
         unicodeScalars.allSatisfy { CharacterSet.letters.contains($0) }
-    }
-
-    var isUppercase: Bool {
-        guard isInsertionLetter else { return false }
-        let value = String(self)
-        return value == value.uppercased() && value != value.lowercased()
     }
 
     var isLowercase: Bool {
