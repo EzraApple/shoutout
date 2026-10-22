@@ -29,7 +29,7 @@ public enum SettingsMigration {
         for key in [
             "transcriptionBackend", "selectedModel",
             "boringMode", "removeFillerWords", "smartSpacing",
-            "appendTrailingSpace", "showInDock", "dimSystemAudio",
+            "appendTrailingSpace", "showInDock",
         ] {
             defaults.removeObject(forKey: key)
         }
