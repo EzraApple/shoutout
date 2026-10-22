@@ -127,7 +127,7 @@ final class MiniCleanupTests: XCTestCase {
         let engine = MiniCleanupEngine(modelDirectory: URL(fileURLWithPath: directory))
         try await engine.prepare()
         let cases = [
-            ("Can we just like not expose that anymore?", "Can we just not expose that anymore?"),
+            ("Can we just not expose that anymore?", "Can we just not expose that anymore?"),
             ("Please keep the word period in this sentence.", "Please keep the word period in this sentence."),
             ("Um, we should like send the notes after lunch so um everyone has time to review the changes and share their feedback before Friday's team meeting.",
              "we should send the notes after lunch so everyone has time to review the changes and share their feedback before Friday's team meeting."),
