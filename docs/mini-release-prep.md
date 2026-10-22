@@ -1,39 +1,37 @@
-# Mini release preparation
+# Mini 0.3.0 release
 
-This branch prepares ShoutOut 0.3.0 (build 21). It includes current main, the Mini cleanup default, the settings migration, the Input Monitoring onboarding fix, and matching website copy. It has not been published.
+ShoutOut 0.3.0 (build 21) uses the bundled Mini KEEP/DELETE editor for optional cleanup. The app, file-transcription CLI, and replay use the same factory. The old generative validators and tone formatting do not run after Mini. Model load or inference failure keeps the input text.
 
-## App behavior
+A one-time migration removes legacy model and tone settings while preserving cleanup on/off, shortcuts, appearance, dictionary, and history. Older history retains its recorded model and tone attribution. Old model caches are not deleted during upgrade.
 
-The app, headless file transcription, and replay all use the bundled Mini KEEP/DELETE editor. It removes selected source words and retains the remaining spelling, capitalization, punctuation, and order. It does not run the old Llama output validator, tone formatter, or mechanical cleanup after Mini. Text insertion handles spacing around the cursor, capitalizes the first word at a clear sentence start, and leaves sentence-ending punctuation unchanged. Obvious emails and filenames skip capitalization. Existing punctuation, mixed-case names, and code/URL-like text are preserved. It keeps text unchanged when cursor context is unavailable; there is no blind trailing-space fallback. The earlier spoken-command pass no longer replaces the literal word “period.” History stores the formatted intended paste text and keeps the raw Mini output separately in its cleanup trace. Model load or inference failure keeps the original text.
+Insertion capitalizes the first word at a known sentence start and uses cursor-aware spacing. It skips obvious emails and filenames and does not add final periods or a blind trailing space. Unknown cursor context preserves the text exactly. The spoken-command pass preserves the literal word “period.” History records the intended formatted paste and keeps raw Mini output separately.
 
-A one-time settings migration removes the old cleanup-model and tone choices. It preserves Text cleanup on/off, shortcuts, indicator choice, dictionary, and history. Old history keeps its original model and tone attribution. It does not delete old model caches or download a replacement cleanup model.
+The Input Monitoring onboarding fix skips that page when access is available after granting Accessibility. Missing access keeps the page available without automatically opening System Settings.
 
-The onboarding fix from `839e22e` is included. After Accessibility is granted, setup resolves Input Monitoring access and skips its page if access is available. Missing access leaves that page available without automatically opening System Settings.
+## Build assets
 
-## Local build
-
-Set `MINI_CLEANUP_ASSET_DIR` to the frozen export containing only the three required model assets. The builder checks their pinned hashes before clearing an old build. It stages only `mini-fixed256.mlpackage`, `vocab.txt`, and `tokenizer-config.json`; other files in the export directory are never bundled.
+Fetch the frozen export for development and CI:
 
 ```sh
-MINI_CLEANUP_ASSET_DIR=/absolute/path/to/frozen-export \
+python3 apps/macos/scripts/mini-assets.py fetch "$PWD/.local-evals/mini-assets"
+export MINI_CLEANUP_ASSET_DIR="$PWD/.local-evals/mini-assets"
+```
+
+The archive checksum and all three asset hashes are pinned. The archive includes attribution and the upstream Apache license. Packaging copies only the model package, vocabulary, and tokenizer configuration, plus the notices from source. No transcript corpus is included. Users receive Mini inside the app and do not make a separate cleanup-model download.
+
+For local packaging without release credentials:
+
+```sh
 SHOUTOUT_SKIP_ENV=true SKIP_NOTARIZE=true UNIVERSAL=false \
 apps/macos/scripts/build-app.sh
 ```
 
-`SHOUTOUT_SKIP_ENV=true` skips release credentials in `.env`. Supply the existing public `SPARKLE_PUBLIC_ED_KEY` explicitly to configure the updater in a local candidate. Signing and notarization remain separate release steps. A locally verified ad-hoc build is not a notarized distributable.
+For distribution, follow the [app-update workflow](../.agents/skills/shoutout-app-update/SKILL.md). Supply the existing Sparkle public key and Developer ID identity; verify the updater key and HTTPS feed in the final signed bundle.
 
-## Verification and publication boundary
+## Release evidence
 
-Local evidence is in `.local-evals/mini-release-prep-2026-10-21/verification.json` and its adjacent logs and screenshots. The app and headless DMG are in `apps/macos/dist-mini-release/`. The app is ad-hoc signed; the DMG is not notarized. Both contain the pinned Mini assets and model attribution notices.
+The signed arm64 app and DMG were built from `79f7c8bf0f7f`, notarized, and stapled. Both passed signature and Gatekeeper checks. The final release feed is generated from that DMG. The release PR is [#13](https://github.com/EzraApple/shoutout/pull/13).
 
-Passed: 240 XCTest tests, 20 Swift Testing tests, 18 final focused tests, 168 exact development-output matches, 36 packaged migration combinations, and 285 repository checks. A synthetic speech test through the packaged ASR and cleanup removed a filler `like` when cleanup was enabled and kept it when disabled. An isolated app rendered the single cleanup toggle, preserved dictionary, Glass preference, and legacy history tone. The temporary QA app and its cache link were removed afterward. These are functional checks, not a new model-quality study or latency benchmark.
+Local checks passed 251 XCTest tests, 20 Swift Testing tests, the fixed 168-case development replay, 285 repository checks, and the website build. A packaged synthetic-speech check preserved “word period” and “auto period” through speech recognition and Mini. Public model smoke checks cover filler deletion and clean-text preservation. No weights or delete threshold changed during release preparation. The final model test was not opened.
 
-The sentence-formatting follow-up is recorded in `.local-evals/sentence-formatting/verification.json`. It passed 249 XCTest tests and 20 Swift Testing tests, including the unchanged 168-case Mini replay, plus the repository and website checks. It removes the implicit spoken “period” command, enabled context-based initial capitalization and final periods, and removed the trailing-space fallback. Those app and DMG artifacts predate the later request to drop automatic final periods.
-
-The current Mini Trial update removes automatic final periods, preserves capitalization and smart spacing, and skips capitalization for obvious emails, filenames, and paths. Its 54 focused formatting and text-processing tests pass. The literal-word “period” fix remains. No model weights or thresholds changed. The user authorized replacing and restarting only the installed Mini Trial, with its settings, dictionary, history, and speech-model cache preserved.
-
-Checks cover the release Swift tests, migration, the 168 authorized development cases through the production factory, pinned bundled assets, packaged CLI behavior, website build and rendered layout, and release version consistency. The final model test remains untouched.
-
-The six previously rendered onboarding scenarios used simulated macOS permission APIs. The underlying permission manager and onboarding view are unchanged from that verified fix and are compiled into this candidate. A fresh macOS account permission grant flow remains unverified; real permissions are not reset during release preparation.
-
-The download handlers, local download paths, and release notes are staged for 0.3.0. The public appcast still points to the published 0.2.0 artifact. Do not deploy this website by itself: sign and notarize the candidate, upload the matching app, generate the signed appcast, update production download configuration, and publish the coordinated app and website only after release approval. No upload, push, deploy, install, or running-app replacement is part of this preparation.
+Six onboarding scenarios previously passed with simulated permission APIs. A fresh macOS account permission-grant flow remains unverified; release work does not reset the user's permissions. Detailed local evidence is kept in the Git-ignored `.local-evals/` directory.
