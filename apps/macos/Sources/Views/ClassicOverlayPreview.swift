@@ -10,6 +10,9 @@ final class ClassicOverlayPreview: ObservableObject {
     @Published var reduceMotion = false
     @Published var level: Float = 0
     @Published var playsSpeech = false
+    @Published var anchor = IndicatorAnchor.right
+    @Published var showsPlacementGuides = false
+    var onPlacementPreview: ((IndicatorAnchor, Bool) -> Void)?
     @Published private(set) var indicatorState = IndicatorState.idle
     @Published private(set) var caption = "Ready"
     private var window: NSWindow?
@@ -56,6 +59,8 @@ final class ClassicOverlayPreview: ObservableObject {
         }
         indicatorState = state
         updateOverlay(state, reduceMotion)
+        if !IndicatorAnchor.allowed(for: style).contains(anchor) { anchor = .right }
+        onPlacementPreview?(anchor, showsPlacementGuides)
     }
 
     func setSpeechPlaying(_ plays: Bool) {
@@ -142,9 +147,9 @@ private struct ClassicPreviewControls: View {
                     VStack(spacing: 12) {
                         Text(style == .glass ? "Glass" : "Classic").font(.headline)
                         Text(style == .glass ? "Glass circle · fading edge" : "Dark pill · spinner").font(.caption).foregroundStyle(.secondary)
-                        AppOverlayView(style: style, state: model.indicatorState, crabHeight: 240)
+                        AppOverlayView(style: style, state: model.indicatorState, crabHeight: 240, anchor: model.anchor)
                             .scaleEffect(2)
-                            .frame(width: PillOverlayLayout.size.width * 2, height: PillOverlayLayout.size.height * 2)
+                            .frame(width: 240, height: PillOverlayLayout.size.height * 2)
                             .padding(.vertical, 8)
                     }
                     .frame(maxWidth: .infinity)
@@ -175,9 +180,18 @@ private struct ClassicPreviewControls: View {
                 Picker("Floating preview", selection: $model.style) {
                     Text("Glass").tag(OverlayStyle.glass)
                     Text("Classic").tag(OverlayStyle.capsule)
+                    Text("Crab").tag(OverlayStyle.crab)
                 }
                 Toggle("Play speech trace", isOn: Binding(get: { model.playsSpeech }, set: { model.setSpeechPlaying($0) }))
                 Toggle("Reduce Motion", isOn: $model.reduceMotion)
+            }
+            HStack {
+                Picker("Preview anchor", selection: $model.anchor) {
+                    ForEach(IndicatorAnchor.allowed(for: model.style), id: \.rawValue) { anchor in
+                        Text(anchor.rawValue.capitalized).tag(anchor)
+                    }
+                }
+                Toggle("Show drop targets", isOn: $model.showsPlacementGuides)
             }
         }
         .padding(24)
@@ -186,6 +200,8 @@ private struct ClassicPreviewControls: View {
         .onChange(of: model.phase) { model.refresh() }
         .onChange(of: model.level) { model.refresh() }
         .onChange(of: model.reduceMotion) { model.refresh() }
+        .onChange(of: model.anchor) { model.refresh() }
+        .onChange(of: model.showsPlacementGuides) { model.refresh() }
     }
 }
 #endif
