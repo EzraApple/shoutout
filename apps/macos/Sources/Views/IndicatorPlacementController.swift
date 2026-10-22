@@ -34,15 +34,21 @@ final class IndicatorPlacementController {
     }
 
     func attach(panel: NSPanel, model: IndicatorOverlayModel) {
+        tearDown()
         self.panel = panel
         self.model = model
-        model.onDragChanged = { [weak self] location, translation in
-            self?.dragIndicator(location: location, translation: translation)
+        model.onDragChanged = { [weak self, weak model] location, translation in
+            guard let self, self.model === model else { return }
+            self.dragIndicator(location: location, translation: translation)
         }
-        model.onDragEnded = { [weak self] in self?.finishDrag() }
-        model.onInteractionRegionChanged = { [weak self] rect in
-            self?.interactionRect = rect
-            self?.updateMouseRouting()
+        model.onDragEnded = { [weak self, weak model] in
+            guard let self, self.model === model else { return }
+            self.finishDrag()
+        }
+        model.onInteractionRegionChanged = { [weak self, weak model] rect in
+            guard let self, self.model === model else { return }
+            self.interactionRect = rect
+            self.updateMouseRouting()
         }
         observePointerEvents()
         let timer = Timer(timeInterval: 0.05, repeats: true) { [weak self] _ in
@@ -143,6 +149,17 @@ final class IndicatorPlacementController {
         if let globalPointerMonitor { NSEvent.removeMonitor(globalPointerMonitor) }
         localPointerMonitor = nil
         globalPointerMonitor = nil
+        model?.onDragChanged = nil
+        model?.onDragEnded = nil
+        model?.onInteractionRegionChanged = nil
+        model?.isHovered = false
+        model?.dragRect = .zero
+        interactionRect = .zero
+        sampledPointer = nil
+        pointerStartedOnIndicator = false
+        cancelledUntilRelease = false
+        panel = nil
+        model = nil
     }
 
     private func getAnchor(for style: OverlayStyle) -> IndicatorAnchor {

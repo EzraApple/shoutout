@@ -1101,6 +1101,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             _ = self?.stopRecordingAndTranscribe()
         }
 
+        if let model = indicatorOverlayModel, model.style != overlayStyle {
+            resetIndicatorPresentation()
+        }
         if indicatorPanel == nil {
             let panel = NSPanel(
                 contentRect: initialFrame,
@@ -1162,6 +1165,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func updateIndicator(state: IndicatorState) {
         showIndicator(state: state)
+    }
+
+    private func resetIndicatorPresentation() {
+        indicatorPlacement.tearDown()
+        indicatorPanel?.orderOut(nil)
+        indicatorPanel?.contentView = nil
+        indicatorPanel?.close()
+        indicatorPanel = nil
+        indicatorHostingView = nil
+        indicatorOverlayModel = nil
     }
 
     private func finishIndicator() {

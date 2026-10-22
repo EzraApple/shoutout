@@ -755,6 +755,8 @@ private struct CrabOverlayView: View {
                 attentionMessage: attentionMessage
             )
             .scaleEffect(x: anchor == .left ? -1 : 1, y: 1)
+            .shadow(color: .white.opacity(isHovered ? 0.32 : 0), radius: 5)
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: isHovered)
             .contentShape(Rectangle())
             .help("Drag to move the indicator")
             .offset(y: idleOffset)

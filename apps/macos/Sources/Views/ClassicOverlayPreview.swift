@@ -144,11 +144,11 @@ private struct ClassicPreviewControls: View {
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity)
             HStack(spacing: 16) {
-                ForEach([OverlayStyle.glass, .capsule], id: \.rawValue) { style in
+                ForEach(model.style == .crab ? [OverlayStyle.crab] : [.glass, .capsule], id: \.rawValue) { style in
                     VStack(spacing: 12) {
-                        Text(style == .glass ? "Glass" : "Classic").font(.headline)
-                        Text(style == .glass ? "Glass circle · fading edge" : "Dark pill · spinner").font(.caption).foregroundStyle(.secondary)
-                        AppOverlayView(style: style, state: model.indicatorState, crabHeight: 240,
+                        Text(style == .crab ? "Crab" : style == .glass ? "Glass" : "Classic").font(.headline)
+                        Text(style == .crab ? "Pauses and glows on hover" : style == .glass ? "Glass circle · fading edge" : "Dark pill · spinner").font(.caption).foregroundStyle(.secondary)
+                        AppOverlayView(style: style, state: model.indicatorState, crabHeight: 116,
                                        anchor: model.anchor, isHovered: model.previewHover)
                             .scaleEffect(2)
                             .frame(width: 240, height: PillOverlayLayout.size.height * 2)

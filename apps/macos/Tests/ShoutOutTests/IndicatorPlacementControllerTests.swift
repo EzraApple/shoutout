@@ -4,6 +4,52 @@ import XCTest
 
 @MainActor
 final class IndicatorPlacementControllerTests: XCTestCase {
+    func testOldPresentationCannotOverwriteNewGrabAreaOrStartADrag() throws {
+        let harness = try Harness(style: .glass)
+        defer { harness.close() }
+        let oldGeometry = harness.model.onInteractionRegionChanged
+        let oldDrag = harness.model.onDragChanged
+        let replacement = IndicatorOverlayModel(style: .crab, state: .idle, crabHeight: 362)
+        harness.controller.attach(panel: harness.panel, model: replacement)
+        harness.controller.placeIndicator()
+        replacement.onInteractionRegionChanged?(CGRect(x: 18, y: 143, width: 54, height: 76))
+        let grabArea = replacement.dragRect
+
+        oldGeometry?(CGRect(x: 29, y: 43, width: 8, height: 30))
+        oldDrag?(CGPoint(x: 30, y: 58), CGSize(width: 20, height: 0))
+
+        XCTAssertEqual(replacement.dragRect, grabArea)
+        XCTAssertGreaterThanOrEqual(replacement.dragRect.height, 92)
+        XCTAssertFalse(harness.controller.isDragging)
+        XCTAssertNil(harness.model.onInteractionRegionChanged)
+    }
+
+    func testRebuiltNativePresentationsReportTheirOwnGrabAreasAndHover() async throws {
+        var pointer = CGPoint.zero
+        let harness = try Harness(style: .glass, pointerLocation: { pointer })
+        defer { harness.close() }
+
+        for style in [OverlayStyle.crab, .glass, .capsule, .crab, .glass] {
+            pointer = .zero
+            let model = IndicatorOverlayModel(style: style, state: .idle, crabHeight: 362)
+            let view = IndicatorHostingView(rootView: IndicatorOverlayHostView(model: model))
+            view.sizingOptions = .intrinsicContentSize
+            view.autoresizingMask = [.width, .height]
+            harness.panel.contentView = view
+            harness.controller.attach(panel: harness.panel, model: model)
+            harness.controller.placeIndicator()
+            view.layoutSubtreeIfNeeded()
+            try await Task.sleep(for: .milliseconds(150))
+
+            XCTAssertGreaterThanOrEqual(model.dragRect.height, style == .crab ? 92 : 48, "\(style)")
+            pointer = harness.panel.convertPoint(toScreen: view.convert(
+                CGPoint(x: model.dragRect.midX, y: model.dragRect.midY), to: nil))
+            harness.controller.samplePointer()
+            XCTAssertTrue(model.isHovered, "\(style) should hover after replacing its presentation")
+            XCTAssertFalse(harness.panel.ignoresMouseEvents)
+        }
+    }
+
     func testNativeCrabMouseEventsMoveBetweenBothSides() throws {
         let harness = try Harness(style: .crab)
         defer { harness.close() }
