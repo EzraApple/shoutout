@@ -8,11 +8,13 @@ node_modules/
 # Web app
 apps/web/dist/
 apps/web/public/releases/*.dmg
+apps/web/public/releases/*.delta
 
 # macOS app
 apps/macos/.build/
 apps/macos/Packages/
 apps/macos/dist/
+apps/macos/.release-archives/
 apps/macos/dist-mini-trial/
 apps/macos/dist-mini-release/
 apps/macos/.swiftpm/
@@ -26,3 +28,6 @@ apps/macos/DerivedData/
 
 # Local Python build tools
 .venv/
+
+# Local Cloudflare state
+.wrangler/

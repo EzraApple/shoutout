@@ -4,15 +4,29 @@
         <title>ShoutOut</title>
         <item>
             <title>0.3.1</title>
-            <pubDate>Thu, 22 Oct 2026 19:32:36 -0700</pubDate>
+            <pubDate>Thu, 22 Oct 2026 20:08:13 -0700</pubDate>
             <link>https://shoutout.sh</link>
             <sparkle:fullReleaseNotesLink>https://shoutout.sh/version-history</sparkle:fullReleaseNotesLink>
             <sparkle:version>22</sparkle:version>
             <sparkle:shortVersionString>0.3.1</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <sparkle:releaseNotesLink>https://xhahmepifrbmvgrg.public.blob.vercel-storage.com/releases/ShoutOut-0.3.1.md</sparkle:releaseNotesLink>
-            <enclosure url="https://xhahmepifrbmvgrg.public.blob.vercel-storage.com/releases/ShoutOut-0.3.1.dmg" length="75203487" type="application/octet-stream" sparkle:edSignature="+yFE4Fh7IuEkZhiY2TnDtNngXA+DTmka6M1N0I9YbKsFuHDOitnVsfBWJJ4wOoUWGH9B+OzrK3Qm/Vg9uO9vCA=="/>
+            <sparkle:releaseNotesLink>https://downloads.shoutout.sh/releases/ShoutOut-0.3.1.md</sparkle:releaseNotesLink>
+            <enclosure url="https://downloads.shoutout.sh/releases/ShoutOut-0.3.1.dmg" length="75203487" type="application/octet-stream" sparkle:edSignature="+yFE4Fh7IuEkZhiY2TnDtNngXA+DTmka6M1N0I9YbKsFuHDOitnVsfBWJJ4wOoUWGH9B+OzrK3Qm/Vg9uO9vCA=="/>
+            <sparkle:deltas>
+                <enclosure url="https://downloads.shoutout.sh/releases/ShoutOut22-21.delta" sparkle:deltaFrom="21" length="1404470" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="atXb6MyfBvGg/CBXuPmGBNlf6/1VWr0qNO+2HA6z5L98MdrJQTMLdmcGVVIuJrC7KUFteH8UpYj1kcTktZCgDQ=="/>
+            </sparkle:deltas>
+        </item>
+        <item>
+            <title>0.3.0</title>
+            <pubDate>Thu, 22 Oct 2026 00:25:15 -0700</pubDate>
+            <link>https://shoutout.sh</link>
+            <sparkle:fullReleaseNotesLink>https://shoutout.sh/version-history</sparkle:fullReleaseNotesLink>
+            <sparkle:version>21</sparkle:version>
+            <sparkle:shortVersionString>0.3.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <enclosure url="https://downloads.shoutout.sh/releases/ShoutOut-0.3.0.dmg" length="75150917" type="application/octet-stream" sparkle:edSignature="LQVlyIFn3HxGyKpQa0fYIDnxU8S2MOagBne8Z4f2LDDrcjqvcmsYCYacmT95d0p67hNZekgqbFgvYeukS93GCA=="/>
         </item>
     </channel>
 </rss>

@@ -14,8 +14,8 @@ import zipfile
 VOCAB_SHA256 = "07eced375cec144d27c900241f3e339478dec958f92fddbc551f295c992038a3"
 CONFIG_SHA256 = "7a248d081af1990bbbb20e98f58f07759f13991aec65a97858bdfd593697efc8"
 PACKAGE_SHA256 = "6c62bb511b9f639998907e578b062d1932e6c79ad55dea6c94fa47f79edc93f5"
-ARCHIVE_URL = "https://xhahmepifrbmvgrg.public.blob.vercel-storage.com/models/native-mini-2026-10-21-fc95c7a39849.zip"
-ARCHIVE_SHA256 = "fc95c7a39849854d900dc02e364cc3675175810e589c0ba7a5a8407892b50791"
+ARCHIVE_URL = "https://downloads.shoutout.sh/models/native-mini-2026-10-21-9643d8c47fc0.zip"
+ARCHIVE_SHA256 = "9643d8c47fc0f15440fc0a8247055393a4845c39a09f965de275985e4e8ceece"
 
 
 def file_sha256(path: pathlib.Path) -> str:
@@ -86,7 +86,8 @@ def fetch(destination: pathlib.Path) -> None:
     with tempfile.TemporaryDirectory(prefix=".mini-download-", dir=destination.parent) as temporary:
         root = pathlib.Path(temporary)
         archive = root / "model.zip"
-        with urllib.request.urlopen(ARCHIVE_URL, timeout=120) as response, archive.open("wb") as output:
+        request = urllib.request.Request(ARCHIVE_URL, headers={"User-Agent": "ShoutOut-release-tools/1.0"})
+        with urllib.request.urlopen(request, timeout=120) as response, archive.open("wb") as output:
             shutil.copyfileobj(response, output)
         if file_sha256(archive) != ARCHIVE_SHA256:
             raise ValueError("Mini download hash differs from the frozen archive")
