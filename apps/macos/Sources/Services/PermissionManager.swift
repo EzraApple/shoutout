@@ -18,7 +18,7 @@ class PermissionManager: ObservableObject {
 
     private var lastSnapshot: PermissionSnapshot?
     private var refreshPollTask: Task<Void, Never>?
-    private var inputMonitoringResolvedWithAccessibility = false
+    private var inputMonitoring = InputMonitoringPermissionState()
 
     private init() {
         refresh()
@@ -70,12 +70,12 @@ class PermissionManager: ObservableObject {
 
     func refresh() {
         let accessibilityGranted = AXIsProcessTrusted()
-        if !accessibilityGranted {
-            inputMonitoringResolvedWithAccessibility = false
-        }
         let snapshot = PermissionSnapshot(
             hasAccessibility: accessibilityGranted,
-            hasInputMonitoring: CGPreflightListenEventAccess() || inputMonitoringResolvedWithAccessibility,
+            hasInputMonitoring: inputMonitoring.refresh(
+                accessibilityGranted: accessibilityGranted,
+                preflightGranted: CGPreflightListenEventAccess()
+            ),
             hasMicrophone: AVCaptureDevice.authorizationStatus(for: .audio) == .authorized,
             hasSpeechRecognition: SpeechAuthorization.currentStatus() == .authorized
         )
@@ -131,7 +131,8 @@ class PermissionManager: ObservableObject {
 
     func requestInputMonitoring() {
         RuntimeLog.write("permissions request inputMonitoring")
-        hasInputMonitoring = CGRequestListenEventAccess()
+        inputMonitoring.recordRequest(granted: CGRequestListenEventAccess())
+        refresh()
         RuntimeLog.write("permissions inputMonitoring result granted=\(hasInputMonitoring)")
         if !hasInputMonitoring {
             openInputMonitoringSettings()
@@ -145,7 +146,7 @@ class PermissionManager: ObservableObject {
         guard hasAccessibility, !hasInputMonitoring else { return }
 
         // Accessibility can satisfy the request even while preflight still returns false.
-        inputMonitoringResolvedWithAccessibility = CGRequestListenEventAccess()
+        inputMonitoring.recordRequest(granted: CGRequestListenEventAccess())
         refresh()
         RuntimeLog.write("permissions resolved inputMonitoring after accessibility granted=\(hasInputMonitoring)")
         beginPollingForPermissionChanges()
@@ -196,9 +197,11 @@ class PermissionManager: ObservableObject {
     }
 
     private var speechRecognitionIsRequired: Bool {
-        let backendRaw = UserDefaults.standard.string(forKey: Defaults.transcriptionBackend)
-        let backend = TranscriptionBackend(rawValue: backendRaw ?? "") ?? .defaultBackend
-        return backend.requiresSpeechRecognitionPermission
+        Self.requiresSpeechRecognition(defaults: .standard)
+    }
+
+    static func requiresSpeechRecognition(defaults: UserDefaults) -> Bool {
+        TranscriptionService.configuredBackend(defaults: defaults).requiresSpeechRecognitionPermission
     }
 
     func beginPollingForPermissionChanges() {
@@ -223,6 +226,21 @@ class PermissionManager: ObservableObject {
         guard let url = URL(string: pane.settingsURLString) else { return }
         NSWorkspace.shared.open(url)
         RuntimeLog.write("permissions opened pane=\(pane.rawValue)")
+    }
+}
+
+struct InputMonitoringPermissionState {
+    private var resolvedByRequest = false
+
+    mutating func recordRequest(granted: Bool) {
+        resolvedByRequest = resolvedByRequest || granted
+    }
+
+    mutating func refresh(accessibilityGranted: Bool, preflightGranted: Bool) -> Bool {
+        if !accessibilityGranted {
+            resolvedByRequest = false
+        }
+        return preflightGranted || resolvedByRequest
     }
 }
 
