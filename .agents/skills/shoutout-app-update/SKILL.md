@@ -5,7 +5,7 @@ description: Use when publishing a ShoutOut macOS app update, bumping Info.plist
 
 # ShoutOut App Update
 
-Treat an app update as a shipped Sparkle boundary, not just a code push. The update is only complete when version metadata, release notes, DMG, blob upload, appcast, validation, commit, and push all agree.
+Treat an app update as a shipped Sparkle boundary, not just a code push. The update is only complete when version metadata, release notes, DMG, R2 upload, appcast, validation, commit, and push all agree.
 
 ## Release Notes
 
@@ -54,29 +54,25 @@ make release-preflight
 ./scripts/test.sh
 npm --prefix apps/web run build
 SHOUTOUT_DMG_HEADLESS=true UNIVERSAL=false make release-dmg
-mkdir -p apps/macos/dist/sparkle
-cp apps/web/public/releases/ShoutOut-<version>.md apps/macos/dist/sparkle/ShoutOut-<version>.md
-make blob-upload-dmg
-make sparkle-appcast
+make r2-upload-release
 npm --prefix apps/web run build
 ```
 
 Notes:
 
 - Use the repo's current architecture policy. The public appcast has been arm64; do not switch to universal unless the release plan says so.
-- `make blob-upload-dmg` uploads the notarized DMG and release notes to Vercel Blob.
-- `make sparkle-appcast` signs the appcast and stages `apps/web/public/appcast.xml`.
+- `make r2-upload-release` generates the signed appcast and delta patches, uploads the notarized DMG, release notes, and referenced patches to the `shoutout-releases` R2 bucket with Wrangler, verifies their public lengths at `downloads.shoutout.sh`, then stages `apps/web/public/appcast.xml`.
+- Archive history lives in `apps/macos/.release-archives/sparkle/`, outside the cleared build output. Fresh checkouts restore and verify recent signed baseline DMGs from the committed feed. Keep older generated feed items so later releases can restore their baselines.
+- `make sparkle-appcast` is for manual hosting. Upload every file listed in `apps/macos/dist/sparkle-release.json` before publishing its staged feed. Do not run it separately before the R2 upload workflow. The manifest records the bucket and public URL prefix from release settings.
 - Keep generated DMG files out of git; `apps/web/public/releases/*.dmg` and `apps/macos/dist/` are ignored.
 
 ## Production Download Env
 
-The `/download` API can override committed defaults with production env vars. After Blob upload, update these before the production deploy:
+The `/download` API can override committed defaults with production env vars. After the R2 upload, update any such overrides before the production deploy:
 
 ```bash
-npx vercel env rm SHOUTOUT_RELEASE_VERSION production --yes
-printf '<version>' | npx vercel env add SHOUTOUT_RELEASE_VERSION production
-npx vercel env rm SHOUTOUT_DMG_URL production --yes
-printf 'https://.../releases/ShoutOut-<version>.dmg' | npx vercel env add SHOUTOUT_DMG_URL production
+npx vercel env update SHOUTOUT_RELEASE_VERSION --environment production --value '<version>' --yes
+npx vercel env update SHOUTOUT_DMG_URL --environment production --value 'https://downloads.shoutout.sh/releases/ShoutOut-<version>.dmg' --yes
 ```
 
 Then deploy or wait for the Git-backed production deployment, and verify:
@@ -102,7 +98,8 @@ git diff --check
 git status --short
 ```
 
-Confirm `apps/web/public/appcast.xml` points at the uploaded Blob URLs, includes the new Sparkle version/build, and has a non-empty `sparkle:edSignature`.
+Confirm `apps/web/public/appcast.xml` points at the uploaded R2 URLs, includes the new Sparkle version/build, and has a non-empty `sparkle:edSignature`.
+Confirm each `sparkle:deltas` enclosure has a signed, downloadable patch with the advertised length. Leave the full DMG enclosure in place for first installs and fallback updates. Do not commit generated DMGs or patches.
 
 ## Push
 
