@@ -290,15 +290,30 @@ struct AppOverlayView: View {
     let crabHeight: CGFloat
     var onCancel: (() -> Void)?
     var onCommit: (() -> Void)?
+    var anchor: IndicatorAnchor = .right
+    var isHovered = false
+    var crabPlacementRevision = 0
+    var onDragChanged: ((CGPoint, CGSize) -> Void)?
+    var onDragEnded: (() -> Void)?
+    var onInteractionRegionChanged: ((CGRect) -> Void)?
 
     var body: some View {
         switch style {
         case .crab:
-            CrabOverlayView(state: state, height: crabHeight)
+            CrabOverlayView(
+                state: state, height: crabHeight, anchor: anchor, isHovered: isHovered,
+                onInteractionRegionChanged: onInteractionRegionChanged
+            )
+                .id(crabPlacementRevision)
                 .frame(width: CrabOverlayLayout.width, height: crabHeight)
+                .contentShape(Rectangle())
         case .capsule, .glass:
-            PillIndicatorView(style: style, state: state, onCancel: onCancel, onCommit: onCommit)
-                .frame(width: PillOverlayLayout.size.width, height: PillOverlayLayout.size.height)
+            PillIndicatorView(
+                style: style, state: state, onCancel: onCancel, onCommit: onCommit,
+                anchor: anchor, isHovered: isHovered, onInteractionRegionChanged: onInteractionRegionChanged
+            )
+                .contentShape(Rectangle())
+                .simultaneousGesture(indicatorDragGesture(onChanged: onDragChanged, onEnded: onDragEnded))
         case .off:
             EmptyView()
                 .frame(width: 1, height: 1)
@@ -311,6 +326,14 @@ final class IndicatorOverlayModel: ObservableObject {
     @Published var style: OverlayStyle
     @Published var state: IndicatorState
     @Published var crabHeight: CGFloat
+    @Published var anchor: IndicatorAnchor = .right
+    @Published var isHovered = false
+    @Published var isDragging = false
+    @Published var dragRect = CGRect.zero
+    @Published var crabPlacementRevision = 0
+    var onDragChanged: ((CGPoint, CGSize) -> Void)?
+    var onDragEnded: (() -> Void)?
+    var onInteractionRegionChanged: ((CGRect) -> Void)?
 #if DEBUG
     @Published var previewReduceMotion: Bool?
 #endif
@@ -355,8 +378,24 @@ struct IndicatorOverlayHostView: View {
             state: model.state,
             crabHeight: model.crabHeight,
             onCancel: model.onCancel,
-            onCommit: model.onCommit
+            onCommit: model.onCommit,
+            anchor: model.anchor,
+            isHovered: model.isHovered || model.isDragging,
+            crabPlacementRevision: model.crabPlacementRevision,
+            onDragChanged: model.onDragChanged,
+            onDragEnded: model.onDragEnded,
+            onInteractionRegionChanged: model.onInteractionRegionChanged
         )
+        .coordinateSpace(name: "indicatorInteraction")
+        .background {
+            // WindowServer needs painted pixels in the extra grab area too.
+            RoundedRectangle(cornerRadius: model.style == .crab ? 8 : min(model.dragRect.width, model.dragRect.height) / 2)
+                .fill(.black.opacity(0.01))
+                .frame(width: model.dragRect.width, height: model.dragRect.height)
+                .position(x: model.dragRect.midX, y: model.dragRect.midY)
+                .allowsHitTesting(false)
+        }
+        .allowsWindowActivationEvents(true)
 #if DEBUG
         .environment(\.classicPreviewReduceMotion, model.previewReduceMotion)
 #endif
@@ -376,11 +415,26 @@ extension EnvironmentValues {
 }
 #endif
 
+@MainActor
+private func indicatorDragGesture(
+    onChanged: ((CGPoint, CGSize) -> Void)?, onEnded: (() -> Void)?
+) -> some Gesture {
+    DragGesture(minimumDistance: 3, coordinateSpace: .global)
+        .onChanged { onChanged?($0.location, $0.translation) }
+        .onEnded { value in
+            onChanged?(value.location, value.translation)
+            onEnded?()
+        }
+}
+
 struct PillIndicatorView: View {
     let style: OverlayStyle
     let state: IndicatorState
     var onCancel: (() -> Void)?
     var onCommit: (() -> Void)?
+    var anchor: IndicatorAnchor = .right
+    var isHovered = false
+    var onInteractionRegionChanged: ((CGRect) -> Void)?
     @AppStorage(Defaults.crabColorVariant) private var crabColorVariant = CrabColorVariant.ocean.rawValue
     @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
 #if DEBUG
@@ -396,22 +450,28 @@ struct PillIndicatorView: View {
     }
 
     var body: some View {
-        ZStack(alignment: .trailing) {
+        ZStack(alignment: surfaceAlignment) {
             classicSurface
+                .overlay {
+                    Capsule().stroke(.white.opacity(isHovered ? (style == .glass ? 0.42 : 0.24) : 0), lineWidth: 1)
+                }
+                .onGeometryChange(for: CGRect.self) { proxy in
+                    proxy.frame(in: .named("indicatorInteraction"))
+                } action: { onInteractionRegionChanged?($0) }
             statusContent
                 .frame(width: surfaceSize.width, height: surfaceSize.height)
                 .id(visualKind)
                 .transition(.opacity)
         }
         .frame(
-            width: PillOverlayLayout.contentSize.width,
-            height: PillOverlayLayout.contentSize.height,
-            alignment: .trailing
+            width: anchor.isHorizontal ? PillOverlayLayout.contentSize.height : PillOverlayLayout.contentSize.width,
+            height: anchor.isHorizontal ? PillOverlayLayout.contentSize.width : PillOverlayLayout.contentSize.height,
+            alignment: surfaceAlignment
         )
-        .padding(.horizontal, PillOverlayLayout.paintOutset)
+        .padding(anchor.isHorizontal ? .vertical : .horizontal, PillOverlayLayout.paintOutset)
         .accessibilityElement(children: .contain)
         .accessibilityLabel(accessibilityLabel)
-        .help(accessibilityLabel)
+        .help(state == .idle ? "Drag to move the indicator" : accessibilityLabel)
         .animation(reduceMotion ? nil : .easeOut(duration: 0.08), value: visualKind)
         .animation(
             reduceMotion ? nil : .timingCurve(0.16, 1, 0.3, 1, duration: 0.16),
@@ -447,7 +507,7 @@ struct PillIndicatorView: View {
 
     private var matteSurface: some View {
         Capsule(style: .circular)
-            .fill(Color(white: 0.075).opacity(0.96))
+            .fill(Color(white: isHovered ? 0.13 : 0.075).opacity(0.96))
             .overlay {
                 Capsule(style: .circular)
                     .stroke(Color.white.opacity(0.13), lineWidth: 0.6)
@@ -461,7 +521,18 @@ struct PillIndicatorView: View {
     private var statusContent: some View {
         switch state {
         case .idle:
-            EmptyView()
+            Canvas { context, _ in
+                for column in 0..<2 {
+                    for row in 0..<3 {
+                        let dot = CGRect(x: column * 4, y: row * 4, width: 2, height: 2)
+                        context.fill(Path(ellipseIn: dot), with: .color(.white.opacity(0.9)))
+                    }
+                }
+            }
+                .frame(width: 6, height: 10)
+                .rotationEffect(.degrees(anchor.isHorizontal ? 90 : 0))
+                .opacity(isHovered ? 1 : 0)
+                .accessibilityHidden(true)
         case .armed:
             recordingContent(mode: .hold)
         case .recording(_, let mode):
@@ -476,13 +547,18 @@ struct PillIndicatorView: View {
     }
 
     private func recordingContent(mode: IndicatorRecordingMode) -> some View {
-        VStack(spacing: mode == .handsFree ? 5 : 0) {
+        let layout = anchor.isHorizontal
+            ? AnyLayout(HStackLayout(spacing: mode == .handsFree ? 5 : 0))
+            : AnyLayout(VStackLayout(spacing: mode == .handsFree ? 5 : 0))
+        return layout {
             if mode == .handsFree {
                 overlayActionButton(symbol: "checkmark", label: "Finish dictation", action: onCommit)
                     .transition(.opacity)
             }
 
             recordingBars
+                .rotationEffect(.degrees(anchor.isHorizontal && !reduceMotion ? 90 : 0))
+                .frame(width: anchor.isHorizontal ? 36 : 18, height: anchor.isHorizontal ? 18 : 36)
 
             if mode == .handsFree {
                 overlayActionButton(symbol: "xmark", label: "Cancel dictation", action: onCancel)
@@ -594,10 +670,24 @@ struct PillIndicatorView: View {
         .help(label)
     }
 
+    private var surfaceAlignment: Alignment {
+        switch anchor {
+        case .left: .leading
+        case .right: .trailing
+        case .top: .top
+        case .bottom: .bottom
+        }
+    }
+
     private var surfaceSize: CGSize {
+        let size = verticalSurfaceSize
+        return anchor.isHorizontal ? CGSize(width: size.height, height: size.width) : size
+    }
+
+    private var verticalSurfaceSize: CGSize {
         switch state {
         case .idle:
-            return CGSize(width: 8, height: 30)
+            return isHovered ? CGSize(width: 16, height: 44) : CGSize(width: 8, height: 30)
         case .armed:
             return CGSize(width: 26, height: 64)
         case .recording(_, .hold):
@@ -647,6 +737,9 @@ struct PillIndicatorView: View {
 private struct CrabOverlayView: View {
     let state: IndicatorState
     let height: CGFloat
+    var anchor: IndicatorAnchor = .right
+    var isHovered = false
+    var onInteractionRegionChanged: ((CGRect) -> Void)?
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var spriteFrameName = CrabSpriteAssets.idleFrameNames[0]
@@ -654,23 +747,30 @@ private struct CrabOverlayView: View {
     @State private var processingRotation = 0.0
 
     var body: some View {
-        ZStack(alignment: .trailing) {
+        ZStack(alignment: anchor == .left ? .leading : .trailing) {
             SpriteWallCrab(
                 frameName: spriteFrameName,
                 showsProcessing: state.isProcessing,
                 processingRotation: processingRotation,
                 attentionMessage: attentionMessage
             )
+            .scaleEffect(x: anchor == .left ? -1 : 1, y: 1)
+            .shadow(color: .white.opacity(isHovered ? 0.32 : 0), radius: 5)
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: isHovered)
+            .contentShape(Rectangle())
+            .help("Drag to move the indicator")
             .offset(y: idleOffset)
+            .onGeometryChange(for: CGRect.self) { proxy in
+                proxy.frame(in: .named("indicatorInteraction"))
+            } action: { onInteractionRegionChanged?($0) }
         }
-        .frame(width: CrabOverlayLayout.width, height: height, alignment: .trailing)
-        .task(id: "\(state.showsBoomMic)-\(reduceMotion)") {
+        .frame(width: CrabOverlayLayout.width, height: height, alignment: anchor == .left ? .leading : .trailing)
+        .task(id: "\(state.showsBoomMic)-\(reduceMotion)-\(isHovered)") {
             await animateCrab()
         }
         .task(id: state.isProcessing) {
             await animateProcessingBadge()
         }
-        .allowsHitTesting(false)
     }
 
     private var attentionMessage: String? {
@@ -681,6 +781,7 @@ private struct CrabOverlayView: View {
     }
 
     private func animateCrab() async {
+        if isHovered && !state.showsBoomMic { return }
         if reduceMotion {
             idleOffset = 0
             setSpriteFrame(

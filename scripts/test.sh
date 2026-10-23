@@ -307,7 +307,8 @@ assert_contains "Home settings retain optional text cleanup" "$MACOS_DIR/Sources
 assert_contains "Home settings retain writing style" "$MACOS_DIR/Sources/Views/ShoutOutHomeView.swift" 'accessibilityLabel\("Writing style"'
 assert_contains "Home settings retain model progress" "$MACOS_DIR/Sources/Views/ShoutOutHomeView.swift" "ModelProgressBar"
 assert_contains "Home settings retain updates" "$MACOS_DIR/Sources/Views/ShoutOutHomeView.swift" "Check for updates"
-assert_not_contains "Home settings omit retired experimental controls" "$MACOS_DIR/Sources/Views/ShoutOutHomeView.swift" 'boringMode|selectedPreset|selectedModel|smartSpacing|appendTrailingSpace|dimSystemAudio'
+assert_not_contains "Home settings omit retired experimental controls" "$MACOS_DIR/Sources/Views/ShoutOutHomeView.swift" 'boringMode|selectedPreset|selectedModel|smartSpacing|appendTrailingSpace'
+assert_contains "Home settings expose recording audio dimming" "$MACOS_DIR/Sources/Views/ShoutOutHomeView.swift" 'dimSystemAudio'
 assert_contains "Home window exposes settings page" "$MACOS_DIR/Sources/Views/ShoutOutHomeView.swift" "case settings"
 assert_contains "Home window exposes shortcut picker" "$MACOS_DIR/Sources/Views/ShoutOutHomeView.swift" "HotkeyTrigger.allCases"
 assert_contains "Home window exposes diagnostics export" "$MACOS_DIR/Sources/Views/ShoutOutHomeView.swift" "Diagnostics"
@@ -422,8 +423,8 @@ assert_contains "App delegate defaults to crab overlay" "$MACOS_DIR/Sources/AppD
 assert_contains "App delegate keeps overlay above apps" "$MACOS_DIR/Sources/AppDelegate.swift" "panel.level = .statusBar"
 assert_contains "App delegate supports overlay preview mode" "$MACOS_DIR/Sources/AppDelegate.swift" "SHOUTOUT_OVERLAY_PREVIEW"
 assert_contains "App delegate creates overlay with concrete frame" "$MACOS_DIR/Sources/AppDelegate.swift" "initialIndicatorFrame"
-assert_contains "App delegate lets crab tips bleed past screen edge" "$MACOS_DIR/Sources/AppDelegate.swift" "CrabOverlayLayout.screenBleed"
-assert_contains "App delegate raises crab above center" "$MACOS_DIR/Sources/AppDelegate.swift" "CrabOverlayLayout.verticalOffset"
+assert_contains "Anchor layout lets crab tips bleed past screen edge" "$MACOS_DIR/Sources/Views/IndicatorAnchor.swift" "CrabOverlayLayout.screenBleed"
+assert_contains "Anchor layout raises crab above center" "$MACOS_DIR/Sources/Views/IndicatorAnchor.swift" "CrabOverlayLayout.verticalOffset"
 assert_contains "App delegate logs preview overlay visibility" "$MACOS_DIR/Sources/AppDelegate.swift" "shoutout-overlay-preview.log"
 assert_contains "App delegate can snapshot overlay previews" "$MACOS_DIR/Sources/AppDelegate.swift" "SHOUTOUT_OVERLAY_SNAPSHOT_PATH"
 assert_contains "Crab overlay has boom mic" "$MACOS_DIR/Sources/Views/FloatingIndicator.swift" "boomHoldFrameName"
@@ -995,10 +996,10 @@ assert_not_contains "Wall boom frames avoid reveal-mask animation" "$REPO_ROOT/s
 assert_contains "Classic overlay has compact layout" "$MACOS_DIR/Sources/Views/FloatingIndicator.swift" "PillOverlayLayout"
 assert_contains "Classic overlay has idle nub" "$MACOS_DIR/Sources/Views/FloatingIndicator.swift" "CGSize\\(width: 8, height: 30\\)"
 assert_contains "Classic overlay responds to audio level" "$MACOS_DIR/Sources/Views/FloatingIndicator.swift" "recordingWaveform.recordLevel"
-assert_contains "Classic overlay sits on right edge" "$MACOS_DIR/Sources/AppDelegate.swift" "positionClassicAtScreenRight"
+assert_contains "Indicator placement supports edge anchors" "$MACOS_DIR/Sources/Views/IndicatorAnchor.swift" "case left, right, top, bottom"
 assert_contains "Classic overlay keeps persistent host for morphs" "$MACOS_DIR/Sources/AppDelegate.swift" "indicatorOverlayModel\\?\\.update"
 assert_contains "Classic overlay has hands-free controls" "$MACOS_DIR/Sources/Views/FloatingIndicator.swift" "overlayActionButton"
-assert_contains "Classic hands-free controls receive clicks" "$MACOS_DIR/Sources/AppDelegate.swift" "shouldIgnoreIndicatorMouseEvents"
+assert_contains "Indicator keeps transparent areas click-through" "$MACOS_DIR/Sources/Views/IndicatorPlacementController.swift" "updateMouseRouting"
 assert_contains "Crab overlay has visible dark-surface halo" "$MACOS_DIR/Sources/Views/FloatingIndicator.swift" "white.opacity"
 
 if [[ "${SKIP_SWIFTPM:-false}" == "true" ]]; then

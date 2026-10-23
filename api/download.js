@@ -1,9 +1,9 @@
 const { randomUUID } = require("node:crypto");
 
 const DOWNLOAD_COOKIE = "shoutout_download_id";
-const DEFAULT_RELEASE_VERSION = "0.3.0";
+const DEFAULT_RELEASE_VERSION = "0.3.1";
 const DEFAULT_RELEASE_LOCATION =
-  "https://xhahmepifrbmvgrg.public.blob.vercel-storage.com/releases/ShoutOut-0.3.0.dmg";
+  "https://xhahmepifrbmvgrg.public.blob.vercel-storage.com/releases/ShoutOut-0.3.1.dmg";
 const DEFAULT_POSTHOG_HOST = "https://us.i.posthog.com";
 
 const parseCookies = (cookieHeader = "") =>

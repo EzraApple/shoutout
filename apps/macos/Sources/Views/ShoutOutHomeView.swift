@@ -49,6 +49,7 @@ struct ShoutOutHomeView: View {
     @AppStorage(Defaults.crabColorVariant) private var crabColorVariant = CrabColorVariant.ocean.rawValue
     @AppStorage(Defaults.hotkeyTrigger) private var hotkeyTrigger = HotkeyTrigger.defaultTrigger.rawValue
     @AppStorage(Defaults.overlayStyle) private var overlayStyle = OverlayStyle.crab.rawValue
+    @AppStorage(Defaults.dimSystemAudio) private var dimSystemAudio = true
     @State private var isShowingDiagnostics = false
     @State private var isOpeningPermissionSettings = false
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
@@ -549,6 +550,24 @@ struct ShoutOutHomeView: View {
                 HomeCrabColorMenu(selection: $crabColorVariant, width: 176) {
                     (NSApp.delegate as? AppDelegate)?.refreshOverlay()
                 }
+            }
+            Divider()
+            HomeControlRow(
+                title: "While recording",
+                detail: "Dim audio lowers system volume to 10% or less.",
+                systemImage: "speaker.wave.1"
+            ) {
+                HomeStringMenu(
+                    selection: Binding(
+                        get: { dimSystemAudio ? "dimAudio" : "doNothing" },
+                        set: { dimSystemAudio = $0 == "dimAudio" }
+                    ),
+                    choices: [
+                        HomeStringChoice(value: "doNothing", title: "Do nothing"),
+                        HomeStringChoice(value: "dimAudio", title: "Dim audio"),
+                    ],
+                    width: 176
+                ) {}
             }
             Divider()
             HomeToggleRow(title: "Launch at login", systemImage: "arrow.right.circle", isOn: $launchAtLogin)

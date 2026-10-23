@@ -1,4 +1,5 @@
 import Foundation
+import Darwin
 
 @MainActor
 final class SystemAudioDucker {
@@ -9,99 +10,114 @@ final class SystemAudioDucker {
     private var savedVolume: Int?
     private var isDucking = false
     private var duckingGeneration = 0
-    private var duckingTask: Task<Void, Never>?
+    private var volumeTask: Task<Void, Never>?
+    private let defaults: UserDefaults
+    private let readVolume: @Sendable () async -> Int?
+    private let setVolume: @Sendable (Int) async -> Bool
 
-    init() {
-        restorePersistedVolumeIfNeeded()
+    init(
+        defaults: UserDefaults = .standard,
+        readVolume: @escaping @Sendable () async -> Int? = { await readOutputVolume() },
+        setVolume: @escaping @Sendable (Int) async -> Bool = { await setOutputVolume($0) }
+    ) {
+        self.defaults = defaults
+        self.readVolume = readVolume
+        self.setVolume = setVolume
+        enqueueVolumeOperation { [self] in
+            await restorePersistedVolumeIfNeeded()
+        }
     }
 
     func beginDuckingIfEnabled() {
-        guard UserDefaults.standard.bool(forKey: Defaults.dimSystemAudio), !isDucking else {
+        guard defaults.bool(forKey: Defaults.dimSystemAudio), !isDucking else {
             return
         }
 
         duckingGeneration += 1
         let generation = duckingGeneration
         isDucking = true
-        duckingTask?.cancel()
-
-        duckingTask = Task { [weak self] in
-            guard let currentVolume = await Self.readOutputVolume() else {
-                self?.clearDuckingState(generation: generation)
-                return
-            }
-
-            guard self?.storeSavedVolume(currentVolume, generation: generation) == true else {
-                return
-            }
-
-            let duckedVolume = min(currentVolume, 25)
-            guard duckedVolume < currentVolume else {
-                return
-            }
-
-            let didSetVolume = await Self.setOutputVolume(duckedVolume)
-            if !didSetVolume {
-                self?.clearDuckingState(generation: generation)
-            }
+        enqueueVolumeOperation { [self] in
+            await beginDucking(generation: generation)
         }
     }
 
     func endDucking() {
-        guard isDucking else {
+        guard isDucking || savedVolume != nil || persistedSavedVolume != nil else {
             return
         }
 
         duckingGeneration += 1
-        duckingTask?.cancel()
-        duckingTask = nil
-
-        if let savedVolume {
-            Task {
-                _ = await Self.setOutputVolume(savedVolume)
+        isDucking = false
+        enqueueVolumeOperation { [self] in
+            if let savedVolume {
+                await restoreVolume(savedVolume)
+            } else {
+                await restorePersistedVolumeIfNeeded()
             }
         }
-        self.savedVolume = nil
-        isDucking = false
-        UserDefaults.standard.removeObject(forKey: DefaultsKey.savedVolume)
     }
 
-    private func storeSavedVolume(_ volume: Int, generation: Int) -> Bool {
-        guard generation == duckingGeneration, isDucking else {
-            return false
+    func waitForPendingOperations() async {
+        await volumeTask?.value
+    }
+
+    private var persistedSavedVolume: Int? {
+        defaults.object(forKey: DefaultsKey.savedVolume) as? Int
+    }
+
+    private func enqueueVolumeOperation(_ operation: @escaping @MainActor () async -> Void) {
+        let previousTask = volumeTask
+        volumeTask = Task {
+            await previousTask?.value
+            await operation()
         }
-
-        savedVolume = volume
-        UserDefaults.standard.set(volume, forKey: DefaultsKey.savedVolume)
-        return true
     }
 
-    private func clearDuckingState(generation: Int) {
-        guard generation == duckingGeneration else {
+    private func beginDucking(generation: Int) async {
+        guard generation == duckingGeneration, isDucking else { return }
+        await restorePersistedVolumeIfNeeded()
+        guard generation == duckingGeneration, isDucking else { return }
+        guard persistedSavedVolume == nil else {
+            isDucking = false
             return
         }
 
+        guard let currentVolume = await readVolume() else {
+            if generation == duckingGeneration { isDucking = false }
+            return
+        }
+        guard generation == duckingGeneration, isDucking else { return }
+
+        let duckedVolume = min(currentVolume, 10)
+        guard duckedVolume < currentVolume else { return }
+        savedVolume = currentVolume
+        defaults.set(currentVolume, forKey: DefaultsKey.savedVolume)
+        if !(await setVolume(duckedVolume)) {
+            await restoreVolume(currentVolume)
+            if generation == duckingGeneration { isDucking = false }
+        }
+    }
+
+    private func restoreVolume(_ volume: Int) async {
+        guard await setVolume(volume) else { return }
         savedVolume = nil
-        isDucking = false
-        duckingTask = nil
-        UserDefaults.standard.removeObject(forKey: DefaultsKey.savedVolume)
+        defaults.removeObject(forKey: DefaultsKey.savedVolume)
     }
 
-    private func restorePersistedVolumeIfNeeded() {
-        guard let savedVolume = UserDefaults.standard.object(forKey: DefaultsKey.savedVolume) as? Int else {
+    private func restorePersistedVolumeIfNeeded() async {
+        guard let volume = persistedSavedVolume else { return }
+        // Include the previous 25% cap when recovering an interrupted recording.
+        guard let currentVolume = await readVolume() else { return }
+        guard currentVolume <= 25 else {
+            savedVolume = nil
+            defaults.removeObject(forKey: DefaultsKey.savedVolume)
             return
         }
 
-        UserDefaults.standard.removeObject(forKey: DefaultsKey.savedVolume)
-        Task {
-            guard let currentVolume = await Self.readOutputVolume(),
-                currentVolume <= 25
-            else {
-                return
-            }
-
-            _ = await Self.setOutputVolume(savedVolume)
-            RuntimeLog.write("audio ducking restored persisted volume=\(savedVolume)")
+        if await setVolume(volume) {
+            savedVolume = nil
+            defaults.removeObject(forKey: DefaultsKey.savedVolume)
+            RuntimeLog.write("audio ducking restored persisted volume=\(volume)")
         }
     }
 
@@ -144,6 +160,14 @@ final class SystemAudioDucker {
 
                 guard !process.isRunning else {
                     process.terminate()
+                    let terminationDeadline = Date().addingTimeInterval(0.25)
+                    while process.isRunning, Date() < terminationDeadline {
+                        Thread.sleep(forTimeInterval: 0.02)
+                    }
+                    if process.isRunning {
+                        Darwin.kill(process.processIdentifier, SIGKILL)
+                    }
+                    process.waitUntilExit()
                     RuntimeLog.write("audio ducking osascript timed out")
                     continuation.resume(returning: nil)
                     return

@@ -267,6 +267,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Floating Indicator
 
+    private let indicatorPlacement = IndicatorPlacementController()
     private var indicatorPanel: NSPanel?
     private var indicatorSuppressedForScreenshot = false
     private var indicatorOverlayModel: IndicatorOverlayModel?
@@ -287,6 +288,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 #endif
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        audioRecorder.onInterruption = { [weak self] reason in
+            self?.discardActiveRecording(reason: reason)
+            self?.hotkeyManager.cancelRecording()
+        }
 #if DEBUG
         if ProcessInfo.processInfo.environment["SHOUTOUT_CLASSIC_PREVIEW"] != nil {
             setupMainMenu()
@@ -294,6 +299,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 guard let self else { return }
                 self.showIndicator(state: state)
                 self.indicatorOverlayModel?.previewReduceMotion = reduceMotion
+            }
+            classicPreview?.onPlacementPreview = { [weak self] anchor, showsGuides in
+                self?.indicatorPlacement.previewPlacement(anchor: anchor, showsGuides: showsGuides)
             }
             classicPreview?.show()
             return
@@ -400,6 +408,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        indicatorPlacement.tearDown()
         controlServer?.stop()
         RuntimeLog.write("app terminate")
         if let permissionChangeObserver {
@@ -414,9 +423,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             task.cancel()
         }
         transcriptionTasks.removeAll()
-        if audioRecorder.isRecording {
-            _ = audioRecorder.stopRecording()
-        }
+        audioRecorder.tearDown()
         recordingIsCommitted = false
         audioDucker.endDucking()
         if let token = activityToken {
@@ -452,6 +459,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             guard let self else { return }
             self.indicatorSuppressedForScreenshot = isSuppressed
             if isSuppressed {
+                self.indicatorPlacement.cancelDrag()
                 self.indicatorPanel?.orderOut(nil)
             } else {
                 self.showIndicator(state: self.currentIndicatorState, preservingDismissal: true)
@@ -634,8 +642,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             appState = .idle
             refreshMenuBarIcon()
             hotkeyManager.cancelRecording()
-            showTransientAttention("Mic failed")
-            activeDictationMetrics?.log(status: "recordStartFailed")
+            let microphoneChanging: Bool
+            if case AudioRecorderError.inputDeviceChanging = error {
+                microphoneChanging = true
+            } else {
+                microphoneChanging = false
+            }
+            showTransientAttention(microphoneChanging ? "Mic changing" : "Mic failed")
+            activeDictationMetrics?.log(
+                status: microphoneChanging ? "inputDeviceChanging" : "recordStartFailed"
+            )
             activeDictationMetrics = nil
             RuntimeLog.write("record start failed error=\(error)")
         }
@@ -1075,6 +1091,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         writeOverlaySnapshotIfRequested(style: overlayStyle, state: state, crabHeight: crabHeight)
 
         let onCancel: () -> Void = { [weak self] in
+            guard self?.indicatorPlacement.acceptsActions == true else { return }
 #if DEBUG
             if let preview = self?.classicPreview {
                 preview.cancel()
@@ -1084,6 +1101,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             _ = self?.discardActiveRecording(reason: "cancelled")
         }
         let onCommit: () -> Void = { [weak self] in
+            guard self?.indicatorPlacement.acceptsActions == true else { return }
 #if DEBUG
             if let preview = self?.classicPreview {
                 preview.finish()
@@ -1093,6 +1111,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             _ = self?.stopRecordingAndTranscribe()
         }
 
+        if let model = indicatorOverlayModel, model.style != overlayStyle {
+            resetIndicatorPresentation()
+        }
         if indicatorPanel == nil {
             let panel = NSPanel(
                 contentRect: initialFrame,
@@ -1109,10 +1130,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             ]
             panel.hidesOnDeactivate = false
             panel.isReleasedWhenClosed = false
-            panel.ignoresMouseEvents = shouldIgnoreIndicatorMouseEvents(
-                style: overlayStyle,
-                state: state
-            )
+            panel.ignoresMouseEvents = true
+            panel.acceptsMouseMovedEvents = true
+            panel.title = "ShoutOut indicator"
+            panel.setAccessibilitySubrole(.floatingWindow)
 
             let overlayModel = IndicatorOverlayModel(
                 style: overlayStyle,
@@ -1121,7 +1142,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 onCancel: onCancel,
                 onCommit: onCommit
             )
-            let hostingView = NSHostingView<IndicatorOverlayHostView>(
+            indicatorPlacement.attach(panel: panel, model: overlayModel)
+            let hostingView = IndicatorHostingView(
                 rootView: IndicatorOverlayHostView(model: overlayModel)
             )
             hostingView.sizingOptions = .intrinsicContentSize
@@ -1134,10 +1156,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             indicatorOverlayModel = overlayModel
             indicatorHostingView = hostingView
         } else {
-            indicatorPanel?.ignoresMouseEvents = shouldIgnoreIndicatorMouseEvents(
-                style: overlayStyle,
-                state: state
-            )
             indicatorOverlayModel?.update(
                 style: overlayStyle,
                 state: state,
@@ -1147,7 +1165,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             )
         }
 
-        positionIndicator(style: overlayStyle)
+        indicatorPlacement.placeIndicator()
         resizeIndicatorContent()
         indicatorPanel?.orderFrontRegardless()
         writeOverlayPreviewLog(
@@ -1159,12 +1177,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         showIndicator(state: state)
     }
 
-    private func shouldIgnoreIndicatorMouseEvents(style: OverlayStyle, state: IndicatorState) -> Bool {
-        guard style == .capsule || style == .glass else { return true }
-        if case .recording(_, .handsFree) = state {
-            return false
-        }
-        return true
+    private func resetIndicatorPresentation() {
+        indicatorPlacement.tearDown()
+        indicatorPanel?.orderOut(nil)
+        indicatorPanel?.contentView = nil
+        indicatorPanel?.close()
+        indicatorPanel = nil
+        indicatorHostingView = nil
+        indicatorOverlayModel = nil
     }
 
     private func finishIndicator() {
@@ -1224,6 +1244,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func hideIndicatorPanel() {
+        indicatorPlacement.cancelDrag()
         indicatorDismissTask?.cancel()
         indicatorDismissTask = nil
         indicatorPanel?.orderOut(nil)
@@ -1341,40 +1362,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func initialIndicatorFrame(style: OverlayStyle, crabHeight: CGFloat) -> NSRect {
-        switch style {
-        case .crab:
-            guard let screen = NSScreen.main else {
-                return NSRect(x: 0, y: 0, width: CrabOverlayLayout.width, height: crabHeight)
-            }
-
-            let screenFrame = screen.visibleFrame
-            return NSRect(
-                x: screenFrame.maxX - CrabOverlayLayout.width + CrabOverlayLayout.screenBleed,
-                y: screenFrame.minY + (screenFrame.height - crabHeight) / 2
-                    + CrabOverlayLayout.verticalOffset,
-                width: CrabOverlayLayout.width,
-                height: crabHeight
-            )
-        case .capsule, .glass:
-            guard let screen = NSScreen.main else {
-                return NSRect(
-                    x: 0,
-                    y: 0,
-                    width: PillOverlayLayout.size.width,
-                    height: PillOverlayLayout.size.height
-                )
-            }
-            let screenFrame = screen.visibleFrame
-            return NSRect(
-                x: screenFrame.maxX - PillOverlayLayout.size.width
-                    - PillOverlayLayout.panelScreenInset,
-                y: screenFrame.midY - PillOverlayLayout.size.height / 2,
-                width: PillOverlayLayout.size.width,
-                height: PillOverlayLayout.size.height
-            )
-        case .off:
-            return NSRect(x: 0, y: 0, width: 1, height: 1)
-        }
+        IndicatorAnchor.right.frame(in: NSScreen.main?.visibleFrame ?? .zero, style: style, crabHeight: crabHeight)
     }
 
     private func writeOverlayPreviewLog(_ message: String) {
@@ -1444,47 +1432,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             return 240
         }
         return max(screen.visibleFrame.height / 3, 220)
-    }
-
-    private func positionIndicator(style: OverlayStyle) {
-        switch style {
-        case .crab:
-            positionCrabAtScreenEdge()
-        case .capsule, .glass:
-            positionClassicAtScreenRight()
-        case .off:
-            break
-        }
-    }
-
-    private func positionCrabAtScreenEdge() {
-        guard let panel = indicatorPanel, let screen = NSScreen.main else { return }
-
-        let screenFrame = screen.visibleFrame
-        let height = currentCrabHeight()
-        let width = CrabOverlayLayout.width
-        let x = screenFrame.maxX - width + CrabOverlayLayout.screenBleed
-        let y = screenFrame.minY + (screenFrame.height - height) / 2
-            + CrabOverlayLayout.verticalOffset
-
-        panel.setFrame(
-            NSRect(x: x, y: y, width: width, height: height),
-            display: true
-        )
-    }
-
-    private func positionClassicAtScreenRight() {
-        guard let panel = indicatorPanel, let screen = NSScreen.main else { return }
-
-        let contentSize = PillOverlayLayout.size
-        let screenFrame = screen.visibleFrame
-        let x = screenFrame.maxX - contentSize.width - PillOverlayLayout.panelScreenInset
-        let y = screenFrame.midY - contentSize.height / 2
-
-        panel.setFrame(
-            NSRect(x: x, y: y, width: contentSize.width, height: contentSize.height),
-            display: true
-        )
     }
 
     private func resizeIndicatorContent() {
