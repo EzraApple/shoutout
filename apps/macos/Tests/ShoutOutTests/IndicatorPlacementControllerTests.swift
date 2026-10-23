@@ -185,10 +185,11 @@ final class IndicatorPlacementControllerTests: XCTestCase {
     }
 
     func testHoverStartsInThePaddedGrabAreaAndEndsOutsideIt() throws {
-        let harness = try Harness(style: .glass)
+        var pointer = CGPoint.zero
+        let harness = try Harness(style: .glass, pointerLocation: { pointer })
         defer { harness.close() }
-        let pointer = NSEvent.mouseLocation
-        harness.panel.setFrameOrigin(CGPoint(x: pointer.x - 10, y: pointer.y - 58))
+        let view = try XCTUnwrap(harness.panel.contentView)
+        pointer = harness.panel.convertPoint(toScreen: view.convert(CGPoint(x: 10, y: 58), to: nil))
 
         harness.model.onInteractionRegionChanged?(CGRect(x: 20, y: 43, width: 8, height: 30))
 
