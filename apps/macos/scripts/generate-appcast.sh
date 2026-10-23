@@ -10,6 +10,7 @@ for KEY in \
     SPARKLE_ARCHIVES_DIR \
     SPARKLE_DOWNLOAD_URL_PREFIX \
     SPARKLE_RELEASE_NOTES_URL_PREFIX \
+    SPARKLE_R2_BUCKET \
     SPARKLE_FULL_RELEASE_NOTES_URL \
     SPARKLE_PRODUCT_LINK \
     SPARKLE_KEY_ACCOUNT \
@@ -112,8 +113,9 @@ if [[ ! -f "$DMG_PATH" ]]; then
 fi
 
 ARCHIVES_DIR="${SPARKLE_ARCHIVES_DIR:-$PROJECT_DIR/.release-archives/sparkle}"
-DOWNLOAD_URL_PREFIX="${SPARKLE_DOWNLOAD_URL_PREFIX:-https://xhahmepifrbmvgrg.public.blob.vercel-storage.com/releases/}"
+DOWNLOAD_URL_PREFIX="${SPARKLE_DOWNLOAD_URL_PREFIX:-https://downloads.shoutout.sh/releases/}"
 RELEASE_NOTES_URL_PREFIX="${SPARKLE_RELEASE_NOTES_URL_PREFIX:-$DOWNLOAD_URL_PREFIX}"
+R2_BUCKET="${SPARKLE_R2_BUCKET:-shoutout-releases}"
 FULL_RELEASE_NOTES_URL="${SPARKLE_FULL_RELEASE_NOTES_URL:-https://shoutout.sh/version-history}"
 PRODUCT_LINK="${SPARKLE_PRODUCT_LINK:-https://shoutout.sh}"
 ACCOUNT="${SPARKLE_KEY_ACCOUNT:-ed25519}"
@@ -172,7 +174,8 @@ if [[ -f "$ARCHIVES_DIR/appcast.xml" ]]; then
     MANIFEST_PATH="$PROJECT_DIR/dist/sparkle-release.json"
     python3 "$SCRIPT_DIR/sparkle-release-artifacts.py" prepare \
         --archives "$ARCHIVES_DIR" --public "$WEB_PUBLIC_DIR" \
-        --version "$VERSION" --output "$MANIFEST_PATH"
+        --version "$VERSION" --output "$MANIFEST_PATH" \
+        --r2-bucket "$R2_BUCKET" --url-prefix "$DOWNLOAD_URL_PREFIX"
     echo -e "${GREEN}Appcast ready: $ARCHIVES_DIR/appcast.xml${NC}"
     if [[ "${SPARKLE_STAGE_WEB_PUBLIC:-true}" == "true" && -d "$WEB_PUBLIC_DIR" ]]; then
         python3 "$SCRIPT_DIR/sparkle-release-artifacts.py" stage "$MANIFEST_PATH"
@@ -186,7 +189,7 @@ if [[ -f "$ARCHIVES_DIR/appcast.xml" ]]; then
     echo -e "${GREEN}Publish appcast.xml at ${SPARKLE_FEED_URL:-https://shoutout.sh/appcast.xml}.${NC}"
     echo -e "${GREEN}Publish $(basename "$DMG_PATH") at ${DOWNLOAD_URL_PREFIX}$(basename "$DMG_PATH").${NC}"
     echo -e "${GREEN}Publish $(basename "$NOTES_PATH") at ${RELEASE_NOTES_URL_PREFIX}$(basename "$NOTES_PATH").${NC}"
-    echo -e "${GREEN}Upload every generated .delta before publishing appcast.xml (make blob-upload-dmg).${NC}"
+    echo -e "${GREEN}Upload every generated .delta before publishing appcast.xml (make r2-upload-release).${NC}"
 else
     echo -e "${RED}generate_appcast completed but appcast.xml was not found.${NC}" >&2
     exit 1

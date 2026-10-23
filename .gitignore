@@ -28,3 +28,6 @@ apps/macos/DerivedData/
 
 # Local Python build tools
 .venv/
+
+# Local Cloudflare state
+.wrangler/

@@ -64,7 +64,8 @@ def restore_archive(archive, archives_dir, sign_update, account):
     temporary_path = Path(temporary_path)
     try:
         with os.fdopen(descriptor, "wb") as output:
-            with urllib.request.urlopen(url, timeout=60) as response:
+            request = urllib.request.Request(url, headers={"User-Agent": "ShoutOut-release-tools/1.0"})
+            with urllib.request.urlopen(request, timeout=60) as response:
                 if urllib.parse.urlsplit(response.url).scheme != "https":
                     raise ValueError("Baseline download redirected away from HTTPS")
                 total = 0

@@ -3,6 +3,7 @@
 
 import importlib.util
 import io
+import json
 from pathlib import Path
 import subprocess
 import sys
@@ -117,9 +118,13 @@ class ArtifactTests(unittest.TestCase):
             path.write_bytes(b"data")
             self.assets.append({
                 "path": str(path), "size": 4,
-                "url": f"https://test.public.blob.vercel-storage.com/releases/{filename}",
+                "url": f"https://downloads.shoutout.sh/releases/{filename}",
             })
-        self.manifest = {"feed": str(self.feed), "public": str(self.public), "assets": self.assets}
+        self.manifest = {
+            "feed": str(self.feed), "public": str(self.public), "assets": self.assets,
+            "r2_bucket": "shoutout-releases",
+            "url_prefix": "https://downloads.shoutout.sh/releases/",
+        }
 
     def test_failed_upload_keeps_existing_feed(self):
         (self.public / "appcast.xml").write_text("old feed")
@@ -129,7 +134,14 @@ class ArtifactTests(unittest.TestCase):
         self.assertEqual((self.public / "appcast.xml").read_text(), "old feed")
 
     def test_mismatched_url_fails_before_upload(self):
-        self.assets[-1]["url"] = "https://example.com/elsewhere/notes.md"
+        self.assets[-1]["url"] = "https://downloads.shoutout.sh/elsewhere/notes.md"
+        with patch.object(artifacts.subprocess, "run") as upload:
+            with self.assertRaises(ValueError):
+                artifacts.upload_release(self.manifest)
+            upload.assert_not_called()
+
+    def test_invalid_bucket_fails_before_upload(self):
+        self.manifest["r2_bucket"] = "other-bucket/releases"
         with patch.object(artifacts.subprocess, "run") as upload:
             with self.assertRaises(ValueError):
                 artifacts.upload_release(self.manifest)
@@ -145,6 +157,21 @@ class ArtifactTests(unittest.TestCase):
             with patch.object(artifacts.urllib.request, "urlopen", side_effect=public_response):
                 artifacts.upload_release(self.manifest)
         self.assertEqual(upload.call_count, 3)
+        self.assertEqual(
+            [call.args[0][5] for call in upload.call_args_list],
+            [f"shoutout-releases/releases/{Path(asset['path']).name}" for asset in self.assets],
+        )
+        for asset, call in zip(self.assets, upload.call_args_list):
+            command = call.args[0]
+            self.assertEqual(command[:5], ["npx", "wrangler", "r2", "object", "put"])
+            self.assertIn("--remote", command)
+            self.assertEqual(command[command.index("--cache-control") + 1], artifacts.CACHE_CONTROL)
+            self.assertEqual(command[command.index("--file") + 1], asset["path"])
+            expected_type = "text/markdown" if asset["path"].endswith(".md") else (
+                "application/x-apple-diskimage" if asset["path"].endswith(".dmg")
+                else "application/octet-stream"
+            )
+            self.assertEqual(command[command.index("--content-type") + 1], expected_type)
         self.assertEqual((self.public / "appcast.xml").read_text(), "new feed")
         self.assertEqual((self.public / "releases/ShoutOut22-21.delta").read_bytes(), b"data")
 
@@ -157,9 +184,16 @@ class ArtifactTests(unittest.TestCase):
                     artifacts.upload_release(self.manifest)
         self.assertFalse((self.public / "appcast.xml").exists())
 
+    def test_failed_public_head_does_not_stage_feed(self):
+        with patch.object(artifacts.subprocess, "run"):
+            with patch.object(artifacts.urllib.request, "urlopen", side_effect=OSError("unavailable")):
+                with self.assertRaises(OSError):
+                    artifacts.upload_release(self.manifest)
+        self.assertFalse((self.public / "appcast.xml").exists())
+
     def test_manifest_includes_only_referenced_patches_and_rejects_missing_patch(self):
         (self.directory / "ShoutOut-old.delta").write_bytes(b"unused")
-        prefix = "https://test.public.blob.vercel-storage.com/releases/"
+        prefix = "https://downloads.shoutout.sh/releases/"
         self.feed.write_text(
             '<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle"><channel><item>'
             '<sparkle:shortVersionString>0.3.1</sparkle:shortVersionString>'
@@ -172,10 +206,35 @@ class ArtifactTests(unittest.TestCase):
         )
         manifest = artifacts.prepare_manifest(self.directory, self.public, "0.3.1")
         self.assertEqual(len(manifest["assets"]), 3)
+        self.assertEqual(manifest["r2_bucket"], "shoutout-releases")
+        self.assertEqual(manifest["url_prefix"], prefix)
         self.assertTrue(all(Path(asset["path"]).is_absolute() for asset in manifest["assets"]))
+        self.assertEqual({Path(asset["path"]).name for asset in manifest["assets"]}, {
+            "ShoutOut-0.3.1.dmg", "ShoutOut22-21.delta", "ShoutOut-0.3.1.md",
+        })
         (self.directory / "ShoutOut22-21.delta").unlink()
         with self.assertRaises(ValueError):
             artifacts.prepare_manifest(self.directory, self.public, "0.3.1")
+
+    def test_manifest_cli_records_bucket_override(self):
+        self.feed.write_text(
+            '<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle"><channel><item>'
+            '<sparkle:shortVersionString>0.3.1</sparkle:shortVersionString>'
+            '<enclosure url="https://cdn.example.com/releases/ShoutOut-0.3.1.dmg" length="4" '
+            'sparkle:edSignature="sig"/>'
+            '<sparkle:releaseNotesLink>https://cdn.example.com/releases/ShoutOut-0.3.1.md'
+            '</sparkle:releaseNotesLink></item></channel></rss>'
+        )
+        output = self.directory / "manifest.json"
+        with patch.object(sys, "argv", [
+            "sparkle-release-artifacts.py", "prepare", "--archives", str(self.directory),
+            "--public", str(self.public), "--version", "0.3.1", "--output", str(output),
+            "--r2-bucket", "staging-releases", "--url-prefix", "https://cdn.example.com/releases/",
+        ]):
+            artifacts.main()
+        manifest = json.loads(output.read_text())
+        self.assertEqual(manifest["r2_bucket"], "staging-releases")
+        self.assertEqual(manifest["url_prefix"], "https://cdn.example.com/releases/")
 
 
 if __name__ == "__main__":

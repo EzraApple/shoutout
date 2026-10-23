@@ -7,7 +7,7 @@ INSTALLED_APP := $$HOME/Applications/$(APP_NAME).app
 DIST_APP := $(MACOS_DIR)/dist/$(APP_NAME).app
 UNIVERSAL ?= false
 
-.PHONY: build sync-assets install install-local onboarding-local restart-local reset-permissions run test test-language-pass clean release-preflight release-verify-live release-dmg notary-credentials sparkle-public-key sparkle-appcast blob-upload-dmg web-check web-build web-dev
+.PHONY: build sync-assets install install-local onboarding-local restart-local reset-permissions run test test-language-pass clean release-preflight release-verify-live release-dmg notary-credentials sparkle-public-key sparkle-appcast r2-upload-release blob-upload-dmg web-check web-build web-dev
 
 sync-assets:
 	python3 ./scripts/sync-mascot-assets.py
@@ -89,17 +89,11 @@ sparkle-public-key:
 sparkle-appcast:
 	cd "$(MACOS_DIR)" && ./scripts/generate-appcast.sh
 
-blob-upload-dmg:
+r2-upload-release:
 	SPARKLE_STAGE_WEB_PUBLIC=false $(MAKE) sparkle-appcast
-	@set -euo pipefail; \
-	ENV_FILE="$$(mktemp)"; \
-	trap 'rm -f "$$ENV_FILE"' EXIT; \
-	cd apps/web; \
-	npx vercel env pull "$$ENV_FILE" --environment production --yes; \
-	set -a; \
-	source "$$ENV_FILE"; \
-	set +a; \
-	python3 ../macos/scripts/sparkle-release-artifacts.py upload ../macos/dist/sparkle-release.json
+	python3 apps/macos/scripts/sparkle-release-artifacts.py upload apps/macos/dist/sparkle-release.json
+
+blob-upload-dmg: r2-upload-release
 
 web-check:
 	test -f apps/web/index.html

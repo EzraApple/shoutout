@@ -5,6 +5,13 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 ROOT_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 
+PRESERVED_ENV_VALUES=()
+for KEY in SPARKLE_FEED_URL SPARKLE_DOWNLOAD_URL_PREFIX SPARKLE_RELEASE_NOTES_URL_PREFIX SPARKLE_R2_BUCKET; do
+    if [[ -n "${!KEY+x}" ]]; then
+        PRESERVED_ENV_VALUES+=("$KEY=${!KEY}")
+    fi
+done
+
 for ENV_FILE in "$ROOT_DIR/.env" "$PROJECT_DIR/.env"; do
     if [[ -f "$ENV_FILE" ]]; then
         set -a
@@ -14,6 +21,12 @@ for ENV_FILE in "$ROOT_DIR/.env" "$PROJECT_DIR/.env"; do
         break
     fi
 done
+
+if [[ ${#PRESERVED_ENV_VALUES[@]} -gt 0 ]]; then
+    for PAIR in "${PRESERVED_ENV_VALUES[@]}"; do
+        export "$PAIR"
+    done
+fi
 
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
@@ -145,10 +158,30 @@ else
     fail "Sparkle feed URL must use HTTPS"
 fi
 
-if [[ "${SPARKLE_DOWNLOAD_URL_PREFIX:-https://shoutout.sh/releases/}" == https://* ]]; then
-    pass "Sparkle download URL prefix uses HTTPS"
+download_prefix="${SPARKLE_DOWNLOAD_URL_PREFIX:-https://downloads.shoutout.sh/releases/}"
+notes_prefix="${SPARKLE_RELEASE_NOTES_URL_PREFIX:-$download_prefix}"
+if [[ "$download_prefix" == https://*/releases/ ]]; then
+    pass "Sparkle download URL prefix uses HTTPS and the releases path"
 else
-    fail "Sparkle download URL prefix must use HTTPS"
+    fail "Sparkle download URL prefix must be HTTPS and end in /releases/"
+fi
+
+if [[ "$notes_prefix" == "$download_prefix" ]]; then
+    pass "Sparkle release notes use the R2 download URL prefix"
+else
+    fail "Sparkle release notes URL prefix must match the R2 download URL prefix"
+fi
+
+if [[ "${SPARKLE_R2_BUCKET:-shoutout-releases}" =~ ^[a-z0-9][a-z0-9-]*[a-z0-9]$ ]]; then
+    pass "R2 release bucket is configured (${SPARKLE_R2_BUCKET:-shoutout-releases})"
+else
+    fail "SPARKLE_R2_BUCKET must be a valid R2 bucket name"
+fi
+
+if has_command npx; then
+    pass "npx is available for Wrangler R2 uploads"
+else
+    fail "npx is required for Wrangler R2 uploads"
 fi
 
 if [[ -f "$ROOT_DIR/.env" || -f "$PROJECT_DIR/.env" ]]; then
