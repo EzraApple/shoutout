@@ -14,6 +14,9 @@ for KEY in \
     SPARKLE_PRODUCT_LINK \
     SPARKLE_KEY_ACCOUNT \
     SPARKLE_MAXIMUM_VERSIONS \
+    SPARKLE_MAXIMUM_DELTAS \
+    SPARKLE_RESTORE_ARCHIVES \
+    SPARKLE_TOOLS_DIR \
     SPARKLE_PRIVATE_ED_KEY \
     SPARKLE_WEB_PUBLIC_DIR \
     SPARKLE_STAGE_WEB_PUBLIC \
@@ -48,6 +51,12 @@ NC='\033[0m'
 tool_path() {
     local tool="$1"
     local path
+    if [[ -n "${SPARKLE_TOOLS_DIR:-}" ]]; then
+        path="$SPARKLE_TOOLS_DIR/$tool"
+        [[ -x "$path" ]] || { echo "Missing Sparkle tool: $path" >&2; exit 1; }
+        printf '%s\n' "$path"
+        return
+    fi
     path="$(find "$PROJECT_DIR/.build/artifacts/sparkle/Sparkle/bin" -type f -name "$tool" -print -quit 2>/dev/null || true)"
     if [[ -z "$path" ]]; then
         echo -e "${BLUE}Resolving Sparkle tools...${NC}" >&2
@@ -98,34 +107,45 @@ fi
 DMG_PATH="$PROJECT_DIR/dist/ShoutOut-$VERSION.dmg"
 if [[ ! -f "$DMG_PATH" ]]; then
     echo -e "${RED}Missing DMG: $DMG_PATH${NC}" >&2
-    echo "Run UNIVERSAL=true make release-dmg before generating the appcast." >&2
+    echo "Run make release-dmg before generating the appcast." >&2
     exit 1
 fi
 
-ARCHIVES_DIR="${SPARKLE_ARCHIVES_DIR:-$PROJECT_DIR/dist/sparkle}"
-DOWNLOAD_URL_PREFIX="${SPARKLE_DOWNLOAD_URL_PREFIX:-https://shoutout.sh/releases/}"
+ARCHIVES_DIR="${SPARKLE_ARCHIVES_DIR:-$PROJECT_DIR/.release-archives/sparkle}"
+DOWNLOAD_URL_PREFIX="${SPARKLE_DOWNLOAD_URL_PREFIX:-https://xhahmepifrbmvgrg.public.blob.vercel-storage.com/releases/}"
 RELEASE_NOTES_URL_PREFIX="${SPARKLE_RELEASE_NOTES_URL_PREFIX:-$DOWNLOAD_URL_PREFIX}"
 FULL_RELEASE_NOTES_URL="${SPARKLE_FULL_RELEASE_NOTES_URL:-https://shoutout.sh/version-history}"
 PRODUCT_LINK="${SPARKLE_PRODUCT_LINK:-https://shoutout.sh}"
 ACCOUNT="${SPARKLE_KEY_ACCOUNT:-ed25519}"
 WEB_PUBLIC_DIR="${SPARKLE_WEB_PUBLIC_DIR:-$ROOT_DIR/apps/web/public}"
+[[ "$ARCHIVES_DIR" = /* ]] || ARCHIVES_DIR="$ROOT_DIR/$ARCHIVES_DIR"
+[[ "$WEB_PUBLIC_DIR" = /* ]] || WEB_PUBLIC_DIR="$ROOT_DIR/$WEB_PUBLIC_DIR"
 
 mkdir -p "$ARCHIVES_DIR"
+if [[ ! -f "$ARCHIVES_DIR/appcast.xml" && -f "$WEB_PUBLIC_DIR/appcast.xml" ]]; then
+    cp "$WEB_PUBLIC_DIR/appcast.xml" "$ARCHIVES_DIR/appcast.xml"
+fi
+if [[ "${SPARKLE_RESTORE_ARCHIVES:-true}" == "true" && -f "$WEB_PUBLIC_DIR/appcast.xml" ]]; then
+    python3 "$SCRIPT_DIR/restore-sparkle-archives.py" \
+        --feed "$WEB_PUBLIC_DIR/appcast.xml" \
+        --archives "$ARCHIVES_DIR" \
+        --build "$(plutil -extract CFBundleVersion raw -o - "$PROJECT_DIR/Resources/Info.plist")" \
+        --maximum-deltas "${SPARKLE_MAXIMUM_DELTAS:-5}" \
+        --sign-update "$(tool_path sign_update)" \
+        --account "$ACCOUNT"
+fi
 cp "$DMG_PATH" "$ARCHIVES_DIR/$(basename "$DMG_PATH")"
 
 NOTES_PATH="$ARCHIVES_DIR/ShoutOut-$VERSION.md"
-if [[ ! -f "$NOTES_PATH" ]]; then
-    STAGED_NOTES_PATH="$WEB_PUBLIC_DIR/releases/ShoutOut-$VERSION.md"
-    if [[ -f "$STAGED_NOTES_PATH" ]]; then
-        cp "$STAGED_NOTES_PATH" "$NOTES_PATH"
-    else
-        cat > "$NOTES_PATH" <<EOF
-# ShoutOut $VERSION
-
-- Local-first macOS dictation update.
-- Signed and notarized DMG release.
-EOF
-    fi
+STAGED_NOTES_PATH="$WEB_PUBLIC_DIR/releases/ShoutOut-$VERSION.md"
+if [[ ! -f "$STAGED_NOTES_PATH" ]]; then
+    STAGED_NOTES_PATH="$PROJECT_DIR/dist/sparkle/ShoutOut-$VERSION.md"
+fi
+if [[ -f "$STAGED_NOTES_PATH" ]]; then
+    cp "$STAGED_NOTES_PATH" "$NOTES_PATH"
+elif [[ ! -f "$NOTES_PATH" ]]; then
+    echo "Missing authored release notes for ShoutOut $VERSION" >&2
+    exit 1
 fi
 
 GENERATE_APPCAST="$(tool_path generate_appcast)"
@@ -136,6 +156,7 @@ ARGS=(
     --full-release-notes-url "$FULL_RELEASE_NOTES_URL"
     --link "$PRODUCT_LINK"
     --maximum-versions "${SPARKLE_MAXIMUM_VERSIONS:-5}"
+    --maximum-deltas "${SPARKLE_MAXIMUM_DELTAS:-5}"
     "$ARCHIVES_DIR"
 )
 
@@ -148,12 +169,13 @@ fi
 
 if [[ -f "$ARCHIVES_DIR/appcast.xml" ]]; then
     ensure_full_release_notes_link "$ARCHIVES_DIR/appcast.xml" "$FULL_RELEASE_NOTES_URL"
+    MANIFEST_PATH="$PROJECT_DIR/dist/sparkle-release.json"
+    python3 "$SCRIPT_DIR/sparkle-release-artifacts.py" prepare \
+        --archives "$ARCHIVES_DIR" --public "$WEB_PUBLIC_DIR" \
+        --version "$VERSION" --output "$MANIFEST_PATH"
     echo -e "${GREEN}Appcast ready: $ARCHIVES_DIR/appcast.xml${NC}"
     if [[ "${SPARKLE_STAGE_WEB_PUBLIC:-true}" == "true" && -d "$WEB_PUBLIC_DIR" ]]; then
-        mkdir -p "$WEB_PUBLIC_DIR/releases"
-        cp "$ARCHIVES_DIR/appcast.xml" "$WEB_PUBLIC_DIR/appcast.xml"
-        cp "$ARCHIVES_DIR/$(basename "$DMG_PATH")" "$WEB_PUBLIC_DIR/releases/$(basename "$DMG_PATH")"
-        cp "$NOTES_PATH" "$WEB_PUBLIC_DIR/releases/$(basename "$NOTES_PATH")"
+        python3 "$SCRIPT_DIR/sparkle-release-artifacts.py" stage "$MANIFEST_PATH"
         echo -e "${GREEN}Staged appcast: $WEB_PUBLIC_DIR/appcast.xml${NC}"
         echo -e "${GREEN}Staged DMG: $WEB_PUBLIC_DIR/releases/$(basename "$DMG_PATH")${NC}"
         echo -e "${GREEN}Staged release notes: $WEB_PUBLIC_DIR/releases/$(basename "$NOTES_PATH")${NC}"
@@ -164,6 +186,7 @@ if [[ -f "$ARCHIVES_DIR/appcast.xml" ]]; then
     echo -e "${GREEN}Publish appcast.xml at ${SPARKLE_FEED_URL:-https://shoutout.sh/appcast.xml}.${NC}"
     echo -e "${GREEN}Publish $(basename "$DMG_PATH") at ${DOWNLOAD_URL_PREFIX}$(basename "$DMG_PATH").${NC}"
     echo -e "${GREEN}Publish $(basename "$NOTES_PATH") at ${RELEASE_NOTES_URL_PREFIX}$(basename "$NOTES_PATH").${NC}"
+    echo -e "${GREEN}Upload every generated .delta before publishing appcast.xml (make blob-upload-dmg).${NC}"
 else
     echo -e "${RED}generate_appcast completed but appcast.xml was not found.${NC}" >&2
     exit 1

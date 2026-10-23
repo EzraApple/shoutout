@@ -54,18 +54,16 @@ make release-preflight
 ./scripts/test.sh
 npm --prefix apps/web run build
 SHOUTOUT_DMG_HEADLESS=true UNIVERSAL=false make release-dmg
-mkdir -p apps/macos/dist/sparkle
-cp apps/web/public/releases/ShoutOut-<version>.md apps/macos/dist/sparkle/ShoutOut-<version>.md
 make blob-upload-dmg
-make sparkle-appcast
 npm --prefix apps/web run build
 ```
 
 Notes:
 
 - Use the repo's current architecture policy. The public appcast has been arm64; do not switch to universal unless the release plan says so.
-- `make blob-upload-dmg` uploads the notarized DMG and release notes to Vercel Blob.
-- `make sparkle-appcast` signs the appcast and stages `apps/web/public/appcast.xml`.
+- `make blob-upload-dmg` generates the signed appcast and delta patches, uploads the notarized DMG, release notes, and referenced patches to Vercel Blob, verifies public lengths, then stages `apps/web/public/appcast.xml`.
+- Archive history lives in `apps/macos/.release-archives/sparkle/`, outside the cleared build output. Fresh checkouts restore and verify recent signed baseline DMGs from the committed feed. Keep older generated feed items so later releases can restore their baselines.
+- `make sparkle-appcast` is for manual hosting. Upload every file listed in `apps/macos/dist/sparkle-release.json` before publishing its staged feed. Do not run it separately before the Blob upload workflow.
 - Keep generated DMG files out of git; `apps/web/public/releases/*.dmg` and `apps/macos/dist/` are ignored.
 
 ## Production Download Env
@@ -103,6 +101,7 @@ git status --short
 ```
 
 Confirm `apps/web/public/appcast.xml` points at the uploaded Blob URLs, includes the new Sparkle version/build, and has a non-empty `sparkle:edSignature`.
+Confirm each `sparkle:deltas` enclosure has a signed, downloadable patch with the advertised length. Leave the full DMG enclosure in place for first installs and fallback updates. Do not commit generated DMGs or patches.
 
 ## Push
 

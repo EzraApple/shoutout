@@ -282,6 +282,11 @@ if "$PYTHON_BIN" "$REPO_ROOT/scripts/check-release-metadata.py"; then
 else
   record_fail "Release metadata stays version-aligned"
 fi
+if "$PYTHON_BIN" "$REPO_ROOT/scripts/test-sparkle-archives.py"; then
+  record_pass "Sparkle archives and artifact publishing pass behavior tests"
+else
+  record_fail "Sparkle archives and artifact publishing pass behavior tests"
+fi
 assert_contains "Makefile has live release verification" "$REPO_ROOT/Makefile" "^release-verify-live:"
 assert_contains "Release preflight verifies the current live release" "$REPO_ROOT/Makefile" "scripts/verify-live-release.sh"
 assert_contains "Live release verification compares redirect with appcast" "$REPO_ROOT/scripts/verify-live-release.sh" "Download redirect mismatch"

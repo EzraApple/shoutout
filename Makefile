@@ -90,11 +90,8 @@ sparkle-appcast:
 	cd "$(MACOS_DIR)" && ./scripts/generate-appcast.sh
 
 blob-upload-dmg:
+	SPARKLE_STAGE_WEB_PUBLIC=false $(MAKE) sparkle-appcast
 	@set -euo pipefail; \
-	VERSION="$$(plutil -extract CFBundleShortVersionString raw -o - "$(MACOS_DIR)/Resources/Info.plist")"; \
-	DMG_PATH="$(MACOS_DIR)/dist/$(APP_NAME)-$$VERSION.dmg"; \
-	NOTES_PATH="$(MACOS_DIR)/dist/sparkle/$(APP_NAME)-$$VERSION.md"; \
-	test -f "$$DMG_PATH"; \
 	ENV_FILE="$$(mktemp)"; \
 	trap 'rm -f "$$ENV_FILE"' EXIT; \
 	cd apps/web; \
@@ -102,18 +99,7 @@ blob-upload-dmg:
 	set -a; \
 	source "$$ENV_FILE"; \
 	set +a; \
-	env -u VERCEL_OIDC_TOKEN npx vercel blob put "../../$$DMG_PATH" \
-		--pathname "releases/$(APP_NAME)-$$VERSION.dmg" \
-		--access public \
-		--allow-overwrite true \
-		--content-type application/x-apple-diskimage; \
-	if [[ -f "../../$$NOTES_PATH" ]]; then \
-		env -u VERCEL_OIDC_TOKEN npx vercel blob put "../../$$NOTES_PATH" \
-			--pathname "releases/$(APP_NAME)-$$VERSION.md" \
-			--access public \
-			--allow-overwrite true \
-			--content-type text/markdown; \
-	fi
+	python3 ../macos/scripts/sparkle-release-artifacts.py upload ../macos/dist/sparkle-release.json
 
 web-check:
 	test -f apps/web/index.html

@@ -194,8 +194,7 @@ fi
 
 echo -e "${BLUE}Creating compressed DMG image...${NC}"
 hdiutil convert "$DMG_RW" \
-    -format UDZO \
-    -imagekey zlib-level=9 \
+    -format ULMO \
     -ov \
     -o "$DMG_FINAL"
 
