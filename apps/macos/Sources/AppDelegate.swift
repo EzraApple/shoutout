@@ -11,6 +11,7 @@ enum Defaults {
     static let crabColorVariant = "crabColorVariant"
     static let hasCompletedOnboarding = "hasCompletedOnboarding"
     static let onboardingStep = "onboardingStep"
+    static let onboardingPage = "onboardingPage"
     static let requestPermissionsOnLaunch = "requestPermissionsOnLaunch"
     static let transcriptionBackend = "transcriptionBackend"
     static let streamingTranscriptionEnabled = "streamingTranscriptionEnabled"
@@ -1942,6 +1943,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private func closeOnboarding() {
         UserDefaults.standard.set(true, forKey: Defaults.hasCompletedOnboarding)
         UserDefaults.standard.removeObject(forKey: Defaults.onboardingStep)
+        UserDefaults.standard.removeObject(forKey: Defaults.onboardingPage)
         onboardingWindow?.orderOut(nil)
         onboardingWindow?.close()
         onboardingWindow = nil
@@ -1949,6 +1951,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             NSApp.setActivationPolicy(.accessory)
         }
         setupHotkey()
+        showHome()
         startUpdaterIfNeeded(reason: "onboardingComplete")
     }
 
@@ -1964,7 +1967,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         -> Bool
     {
         if !flag {
-            showHome()
+            if isOnboardingInProgress {
+                showOnboarding()
+            } else {
+                showHome()
+            }
         }
         return true
     }

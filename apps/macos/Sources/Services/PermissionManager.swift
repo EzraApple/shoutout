@@ -18,6 +18,7 @@ class PermissionManager: ObservableObject {
 
     private var lastSnapshot: PermissionSnapshot?
     private var refreshPollTask: Task<Void, Never>?
+    private var inputMonitoringResolvedWithAccessibility = false
 
     private init() {
         refresh()
@@ -68,9 +69,13 @@ class PermissionManager: ObservableObject {
     }
 
     func refresh() {
+        let accessibilityGranted = AXIsProcessTrusted()
+        if !accessibilityGranted {
+            inputMonitoringResolvedWithAccessibility = false
+        }
         let snapshot = PermissionSnapshot(
-            hasAccessibility: AXIsProcessTrusted(),
-            hasInputMonitoring: CGPreflightListenEventAccess(),
+            hasAccessibility: accessibilityGranted,
+            hasInputMonitoring: CGPreflightListenEventAccess() || inputMonitoringResolvedWithAccessibility,
             hasMicrophone: AVCaptureDevice.authorizationStatus(for: .audio) == .authorized,
             hasSpeechRecognition: SpeechAuthorization.currentStatus() == .authorized
         )
@@ -140,7 +145,8 @@ class PermissionManager: ObservableObject {
         guard hasAccessibility, !hasInputMonitoring else { return }
 
         // Accessibility can satisfy the request even while preflight still returns false.
-        hasInputMonitoring = CGRequestListenEventAccess()
+        inputMonitoringResolvedWithAccessibility = CGRequestListenEventAccess()
+        refresh()
         RuntimeLog.write("permissions resolved inputMonitoring after accessibility granted=\(hasInputMonitoring)")
         beginPollingForPermissionChanges()
     }
