@@ -11,7 +11,7 @@ struct GlassIndicatorSurface: View {
         glassSurface
             .overlay {
                 if !reduceTransparency {
-                    Capsule(style: .circular).fill(.black.opacity(0.34))
+                    Capsule(style: .circular).fill(.black.opacity(0.46))
                 }
             }
             .overlay {
