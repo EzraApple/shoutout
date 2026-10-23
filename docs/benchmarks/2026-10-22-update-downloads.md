@@ -18,3 +18,15 @@ The updated pipeline restored the public 0.3.0 baseline from its prior committed
 The speech model already lives in Application Support and survives replacement of the app. Its current pinned GGUF is 731,357,568 bytes. Mini cleanup is bundled: 44,512,792 bytes of model files plus 232,064 bytes of vocabulary and configuration. Delta updates reuse its unchanged contents while preserving offline cleanup.
 
 These are transfer-size measurements for one real update, not a guarantee for every release or a measure of end-to-end update latency. Model or framework changes can increase patch size. Users without a matching patch, or with a patch failure, still get the full DMG through Sparkle's fallback. The original signed 0.3.0 and 0.3.1 DMGs and the signed delta were subsequently uploaded to R2 without changing their bytes. No installed app was replaced and no new app version was signed or notarized. LZMA compression takes effect on the next app release. Live Sparkle UI installation, slower networks, and the oldest supported macOS were not tested.
+
+## Release 0.3.2 (build 23)
+
+Measured October 23, 2026 after signing, notarization, and stapling. The installer uses LZMA.
+
+| Artifact | Bytes |
+| --- | ---: |
+| Full installer | 63,745,734 |
+| Delta from 0.3.1 (build 22) | 1,265,938 |
+| Delta from 0.3.0 (build 21) | 1,627,310 |
+
+Each patch reproduced all 573 regular files, 705 total entries, symlink targets, and POSIX modes in the new signed app. Strict code signatures and stapled tickets passed for the built, mounted, and patched apps. Gatekeeper accepted the app and DMG. Public R2 GETs matched every uploaded artifact by SHA-256. The full installer is 15.24% smaller than the public 0.3.1 installer; the patch from 0.3.1 is 98.01% smaller than the new full installer. Live Sparkle installation and a real macOS permission grant/restart cycle remain unverified.
