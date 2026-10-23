@@ -121,7 +121,7 @@ struct OnboardingView: View {
                         Task { _ = await permissions.requestMicrophone() }
                     }
                     OnboardingPermissionRow(icon: "hand.raised.fingers.spread", title: "Accessibility", detail: "Paste your words into other apps.", granted: permissions.hasAccessibility, actionTitle: "Open Settings") {
-                        permissions.openAccessibilitySettings()
+                        permissions.requestAccessibility()
                     }
                     OnboardingPermissionRow(icon: "keyboard", title: "Input Monitoring", detail: permissions.hasAccessibility ? "Use Fn while other apps are focused." : "Allow Accessibility first. We’ll check this for you.", granted: permissions.hasInputMonitoring, actionTitle: "Open Settings") {
                         permissions.requestInputMonitoring()
