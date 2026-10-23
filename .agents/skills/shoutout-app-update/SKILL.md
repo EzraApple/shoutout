@@ -71,10 +71,8 @@ Notes:
 The `/download` API can override committed defaults with production env vars. After the R2 upload, update any such overrides before the production deploy:
 
 ```bash
-npx vercel env rm SHOUTOUT_RELEASE_VERSION production --yes
-printf '<version>' | npx vercel env add SHOUTOUT_RELEASE_VERSION production
-npx vercel env rm SHOUTOUT_DMG_URL production --yes
-printf 'https://downloads.shoutout.sh/releases/ShoutOut-<version>.dmg' | npx vercel env add SHOUTOUT_DMG_URL production
+npx vercel env update SHOUTOUT_RELEASE_VERSION --environment production --value '<version>' --yes
+npx vercel env update SHOUTOUT_DMG_URL --environment production --value 'https://downloads.shoutout.sh/releases/ShoutOut-<version>.dmg' --yes
 ```
 
 Then deploy or wait for the Git-backed production deployment, and verify:
