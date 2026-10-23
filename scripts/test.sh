@@ -173,10 +173,10 @@ assert_file_regex \
   "Input Monitoring request falls back to System Settings" \
   "$MACOS_DIR/Sources/Services/PermissionManager.swift" \
   'func requestInputMonitoring\(\).*?if !hasInputMonitoring \{.*?openInputMonitoringSettings\(\).*?return.*?\}'
-assert_contains \
-  "Onboarding describes Input Monitoring action as opening Settings" \
+assert_file_regex \
+  "Onboarding Input Monitoring checklist opens access after Accessibility" \
   "$MACOS_DIR/Sources/Views/OnboardingView.swift" \
-  'OnboardingPillButton\("Open Settings"\)'
+  'OnboardingPermissionRow\(icon: "keyboard", title: "Input Monitoring",.*?actionTitle: "Open Settings"\) \{\s*permissions\.requestInputMonitoring\(\)\s*\}\s*\.disabled\(!permissions\.hasAccessibility && !permissions\.hasInputMonitoring\)'
 assert_not_contains "README avoids GitHub Actions install guidance" "$REPO_ROOT/README.md" "SHOUTOUT_RUN_ID|GitHub Actions"
 assert_contains "README links development guide" "$REPO_ROOT/README.md" "docs/development.md"
 assert_contains "README links troubleshooting" "$REPO_ROOT/README.md" "TROUBLESHOOTING.md"

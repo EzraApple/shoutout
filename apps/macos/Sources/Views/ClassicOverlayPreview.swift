@@ -13,6 +13,7 @@ final class ClassicOverlayPreview: ObservableObject {
     @Published var anchor = IndicatorAnchor.right
     @Published var showsPlacementGuides = false
     @Published var previewHover = false
+    @Published var lightBackground = true
     var onPlacementPreview: ((IndicatorAnchor, Bool) -> Void)?
     @Published private(set) var indicatorState = IndicatorState.idle
     @Published private(set) var caption = "Ready"
@@ -157,10 +158,8 @@ private struct ClassicPreviewControls: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 16)
                     .background {
-                        RoundedRectangle(cornerRadius: 14).fill(.white.opacity(0.06))
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(LinearGradient(colors: [.clear, .white.opacity(0.08), .clear], startPoint: .topLeading, endPoint: .bottomTrailing))
-                            .frame(height: 150)
+                        RoundedRectangle(cornerRadius: 14)
+                            .fill(model.lightBackground ? Color.white : Color(white: 0.08))
                     }
                 }
             }
@@ -195,6 +194,7 @@ private struct ClassicPreviewControls: View {
                 }
                 Toggle("Show drop targets", isOn: $model.showsPlacementGuides)
                 Toggle("Hover preview", isOn: $model.previewHover)
+                Toggle("White background", isOn: $model.lightBackground)
             }
         }
         .padding(24)

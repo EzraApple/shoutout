@@ -1,465 +1,294 @@
 import AppKit
+import ShoutOutCore
 import SwiftUI
-
-// MARK: - Onboarding View
 
 struct OnboardingView: View {
     let onComplete: () -> Void
 
     @EnvironmentObject var transcription: TranscriptionService
     @EnvironmentObject var permissions: PermissionManager
-    @AppStorage(Defaults.onboardingStep) private var step = 0
+    @AppStorage(Defaults.onboardingPage) private var savedPage = ""
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    private let totalSteps = 7
+    private var page: OnboardingPage {
+        OnboardingPage.restore(
+            savedPage: savedPage,
+            legacyStep: UserDefaults.standard.integer(forKey: Defaults.onboardingStep)
+        )
+    }
 
     var body: some View {
         ZStack {
             OnboardingBackground()
-
             VStack(spacing: 0) {
-                ZStack {
-                    switch step {
-                    case 0: welcomeStep.transition(.asymmetric(
-                        insertion: .move(edge: .trailing).combined(with: .opacity),
-                        removal: .move(edge: .leading).combined(with: .opacity)
-                    ))
-                    case 1: microphoneStep.transition(.asymmetric(
-                        insertion: .move(edge: .trailing).combined(with: .opacity),
-                        removal: .move(edge: .leading).combined(with: .opacity)
-                    ))
-                    case 2: speechRecognitionStep.transition(.asymmetric(
-                        insertion: .move(edge: .trailing).combined(with: .opacity),
-                        removal: .move(edge: .leading).combined(with: .opacity)
-                    ))
-                    case 3: accessibilityStep.transition(.asymmetric(
-                        insertion: .move(edge: .trailing).combined(with: .opacity),
-                        removal: .move(edge: .leading).combined(with: .opacity)
-                    ))
-                    case 4: inputMonitoringStep.transition(.asymmetric(
-                        insertion: .move(edge: .trailing).combined(with: .opacity),
-                        removal: .move(edge: .leading).combined(with: .opacity)
-                    ))
-                    case 5: modelStep.transition(.asymmetric(
-                        insertion: .move(edge: .trailing).combined(with: .opacity),
-                        removal: .move(edge: .leading).combined(with: .opacity)
-                    ))
-                    case 6: doneStep.transition(.asymmetric(
-                        insertion: .move(edge: .trailing).combined(with: .opacity),
-                        removal: .move(edge: .leading).combined(with: .opacity)
-                    ))
-                    default: EmptyView()
+                Group {
+                    switch page {
+                    case .welcome: welcomePage
+                    case .howItWorks: howItWorksPage
+                    case .permissions: permissionsPage
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .animation(.spring(response: 0.45, dampingFraction: 0.85), value: step)
 
-                if step > 0 && step < totalSteps - 1 {
-                    OnboardingPageIndicator(current: step, total: totalSteps)
-                        .padding(.bottom, 20)
-                }
+                OnboardingPageIndicator(
+                    current: OnboardingPage.allCases.firstIndex(of: page) ?? 0,
+                    total: OnboardingPage.allCases.count
+                )
+                .padding(.bottom, 20)
             }
         }
         .frame(width: 560, height: 540)
         .onAppear {
-            if step < 0 || step >= totalSteps {
-                step = 0
-            }
-            if step == 4 {
-                advancePastAccessibility()
+            savedPage = page.rawValue
+            permissions.refresh()
+        }
+        .onChange(of: permissions.hasAccessibility) { _, granted in
+            if page == .permissions && granted {
+                permissions.resolveInputMonitoringAfterAccessibility()
             }
         }
-        .onChange(of: permissions.hasInputMonitoring) { _, granted in
-            if step == 4 && granted {
-                withAnimation { step = 5 }
+        .onChange(of: permissions.hasSpeechRecognition) { _, granted in
+            guard granted, transcription.selectedBackend.requiresSpeechRecognitionPermission else { return }
+            if case .error = transcription.modelState {
+                Task { await transcription.loadModel() }
             }
         }
     }
 
-    private func advancePastAccessibility() {
-        permissions.resolveInputMonitoringAfterAccessibility()
-        withAnimation { step = permissions.hasInputMonitoring ? 5 : 4 }
-    }
-
-    // MARK: - Step 0: Welcome
-
-    private var welcomeStep: some View {
+    private var welcomePage: some View {
         VStack(spacing: 0) {
             Spacer()
-
             VStack(spacing: 24) {
                 WelcomeIcon()
-
-                VStack(spacing: 8) {
+                VStack(spacing: 10) {
                     Text("Welcome to ShoutOut")
                         .font(.system(size: 34, weight: .heavy, design: .rounded))
                         .foregroundStyle(OnboardingTheme.ink)
-
-                    Text("Local dictation for macOS — let's get you set up")
+                    Text("Instant transcription. Right where you type.")
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(OnboardingTheme.muted)
                 }
             }
-
             Spacer()
-
-            OnboardingPillButton("Get Started") {
-                withAnimation { step = 1 }
-            }
-            .padding(.bottom, 8)
+            OnboardingPillButton("Get Started") { showPage(.howItWorks) }
         }
-        .padding(.horizontal, 48)
-        .padding(.vertical, 40)
+        .padding(.horizontal, 40)
+        .padding(.vertical, 32)
     }
 
-    // MARK: - Step 1: Microphone
-
-    private var microphoneStep: some View {
-        VStack(spacing: 0) {
-            Spacer()
-
-            VStack(spacing: 24) {
-                OnboardingStepIcon(systemName: "mic", background: OnboardingTheme.coral)
-
-                VStack(spacing: 8) {
-                    Text("Microphone")
-                        .font(.system(size: 26, weight: .heavy, design: .rounded))
-                        .foregroundStyle(OnboardingTheme.ink)
-
-                    Text("ShoutOut needs your microphone to hear your voice for dictation")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(OnboardingTheme.muted)
-                        .multilineTextAlignment(.center)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                OnboardingPermissionBadge(granted: permissions.hasMicrophone)
+    private var howItWorksPage: some View {
+        VStack(spacing: 18) {
+            Spacer(minLength: 0)
+            OnboardingStepIcon(systemName: "keyboard", background: OnboardingTheme.panelBlue)
+            Text("How ShoutOut works")
+                .font(.system(size: 26, weight: .heavy, design: .rounded))
+                .foregroundStyle(OnboardingTheme.ink)
+            VStack(spacing: 18) {
+                OnboardingInstructionRow(icon: "fn", title: "Hold Fn", detail: "Place your cursor where you want to type.")
+                OnboardingInstructionRow(icon: "waveform", title: "Speak naturally", detail: "ShoutOut transcribes on your Mac.")
+                OnboardingInstructionRow(icon: "text.cursor", title: "Release to paste", detail: "Your words appear at your cursor.")
             }
-
-            Spacer()
-
+            Text("Double-press Fn for hands-free dictation.\nPress Fn again to finish.")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(OnboardingTheme.muted)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
             VStack(spacing: 12) {
-                if permissions.hasMicrophone {
-                    OnboardingPillButton("Continue") {
-                        withAnimation { step = 2 }
-                    }
-                } else {
-                    OnboardingPillButton("Grant Permission") {
-                        Task { await permissions.requestMicrophone() }
-                    }
-
-                    Button(action: { withAnimation { step = 2 } }) {
-                        Text("Skip for now")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(OnboardingTheme.muted)
-                    }
-                    .buttonStyle(.plain)
-                }
+                OnboardingPillButton("Continue") { showPage(.permissions) }
+                backButton(to: .welcome)
             }
-            .padding(.bottom, 8)
         }
         .padding(.horizontal, 48)
-        .padding(.vertical, 40)
+        .padding(.vertical, 20)
     }
 
-    // MARK: - Step 2: Speech Recognition
-
-    private var speechRecognitionStep: some View {
-        VStack(spacing: 0) {
-            Spacer()
-
-            VStack(spacing: 24) {
-                OnboardingStepIcon(systemName: "waveform", background: OnboardingTheme.panelMint)
-
-                VStack(spacing: 8) {
-                    Text("Speech Recognition")
-                        .font(.system(size: 26, weight: .heavy, design: .rounded))
-                        .foregroundStyle(OnboardingTheme.ink)
-
-                    Text("Required for Apple's local transcription engines")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(OnboardingTheme.muted)
-                        .multilineTextAlignment(.center)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                OnboardingPermissionBadge(granted: permissions.hasSpeechRecognition)
+    private var permissionsPage: some View {
+        VStack(spacing: 16) {
+            VStack(spacing: 8) {
+                Text("Set up ShoutOut")
+                    .font(.system(size: 26, weight: .heavy, design: .rounded))
+                    .foregroundStyle(OnboardingTheme.ink)
+                Text("Allow access below. If macOS asks you to quit,\nreopen ShoutOut to continue here.")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(OnboardingTheme.muted)
+                    .multilineTextAlignment(.center)
             }
 
-            Spacer()
-
-            VStack(spacing: 12) {
-                if permissions.hasSpeechRecognition {
-                    OnboardingPillButton("Continue") {
-                        withAnimation { step = 3 }
+            ScrollView {
+                VStack(spacing: 0) {
+                    OnboardingPermissionRow(icon: "mic", title: "Microphone", detail: "Hear your voice while you dictate.", granted: permissions.hasMicrophone, actionTitle: "Allow") {
+                        Task { _ = await permissions.requestMicrophone() }
                     }
-                } else {
-                    OnboardingPillButton("Grant Permission") {
-                        Task { await permissions.requestSpeechRecognition() }
-                    }
-
-                    Button(action: { withAnimation { step = 3 } }) {
-                        Text("Skip for now")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(OnboardingTheme.muted)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .padding(.bottom, 8)
-        }
-        .padding(.horizontal, 48)
-        .padding(.vertical, 40)
-    }
-
-    // MARK: - Step 3: Accessibility
-
-    private var accessibilityStep: some View {
-        VStack(spacing: 0) {
-            Spacer()
-
-            VStack(spacing: 24) {
-                OnboardingStepIcon(
-                    systemName: "hand.raised.fingers.spread",
-                    background: OnboardingTheme.panelLilac
-                )
-
-                VStack(spacing: 8) {
-                    Text("Accessibility")
-                        .font(.system(size: 26, weight: .heavy, design: .rounded))
-                        .foregroundStyle(OnboardingTheme.ink)
-
-                    Text("Required for the global shortcut and pasting text into other apps")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(OnboardingTheme.muted)
-                        .multilineTextAlignment(.center)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                OnboardingPermissionBadge(granted: permissions.hasAccessibility)
-            }
-
-            Spacer()
-
-            VStack(spacing: 12) {
-                if permissions.hasAccessibility {
-                    OnboardingPillButton("Continue") {
-                        advancePastAccessibility()
-                    }
-                } else {
-                    OnboardingPillButton("Grant Permission") {
+                    OnboardingPermissionRow(icon: "hand.raised.fingers.spread", title: "Accessibility", detail: "Paste your words into other apps.", granted: permissions.hasAccessibility, actionTitle: "Open Settings") {
                         permissions.requestAccessibility()
                     }
-
-                    Button(action: { advancePastAccessibility() }) {
-                        Text("Skip for now")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(OnboardingTheme.muted)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .padding(.bottom, 8)
-        }
-        .padding(.horizontal, 48)
-        .padding(.vertical, 40)
-    }
-
-    // MARK: - Step 4: Input Monitoring
-
-    private var inputMonitoringStep: some View {
-        VStack(spacing: 0) {
-            Spacer()
-
-            VStack(spacing: 24) {
-                OnboardingStepIcon(systemName: "keyboard", background: OnboardingTheme.panelBlue)
-
-                VStack(spacing: 8) {
-                    Text("Input Monitoring")
-                        .font(.system(size: 26, weight: .heavy, design: .rounded))
-                        .foregroundStyle(OnboardingTheme.ink)
-
-                    Text("Required to detect your shortcut while other apps are focused")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(OnboardingTheme.muted)
-                        .multilineTextAlignment(.center)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                OnboardingPermissionBadge(granted: permissions.hasInputMonitoring)
-            }
-
-            Spacer()
-
-            VStack(spacing: 12) {
-                if permissions.hasInputMonitoring {
-                    OnboardingPillButton("Continue") {
-                        withAnimation { step = 5 }
-                    }
-                } else {
-                    OnboardingPillButton("Open Settings") {
+                    OnboardingPermissionRow(icon: "keyboard", title: "Input Monitoring", detail: permissions.hasAccessibility ? "Use Fn while other apps are focused." : "Allow Accessibility first. We’ll check this for you.", granted: permissions.hasInputMonitoring, actionTitle: "Open Settings") {
                         permissions.requestInputMonitoring()
                     }
+                    .disabled(!permissions.hasAccessibility && !permissions.hasInputMonitoring)
 
-                    Button(action: { withAnimation { step = 5 } }) {
-                        Text("Skip for now")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(OnboardingTheme.muted)
+                    if transcription.selectedBackend.requiresSpeechRecognitionPermission {
+                        OnboardingPermissionRow(icon: "waveform", title: "Speech Recognition", detail: "Use Apple’s on-device dictation.", granted: permissions.hasSpeechRecognition, actionTitle: "Allow") {
+                            Task { _ = await permissions.requestSpeechRecognition() }
+                        }
                     }
-                    .buttonStyle(.plain)
                 }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 6)
+                .onboardingPixelBox(background: OnboardingTheme.panel)
+                .padding(2)
+
+                modelStatusView
+                    .font(.system(size: 12, weight: .semibold))
+                    .padding(.top, 12)
             }
-            .padding(.bottom, 8)
+            .scrollBounceBehavior(.basedOnSize)
+
+            VStack(spacing: 12) {
+                OnboardingPillButton("Start Dictating") {
+                    permissions.refresh()
+                    if setupIsReady { onComplete() }
+                }
+                .disabled(!setupIsReady)
+                .opacity(setupIsReady ? 1 : 0.45)
+                backButton(to: .howItWorks)
+            }
         }
-        .padding(.horizontal, 48)
-        .padding(.vertical, 40)
+        .padding(.horizontal, 32)
+        .padding(.top, 24)
+        .padding(.bottom, 16)
+        .onAppear {
+            permissions.resolveInputMonitoringAfterAccessibility()
+            permissions.beginPollingForPermissionChanges()
+        }
     }
 
-    // MARK: - Step 5: Model Download
-
-    private var modelStep: some View {
-        VStack(spacing: 0) {
-            Spacer()
-
-            VStack(spacing: 24) {
-                OnboardingStepIcon(systemName: "cpu", background: OnboardingTheme.panelMint)
-
-                VStack(spacing: 8) {
-                    Text("Dictation Setup")
-                        .font(.system(size: 26, weight: .heavy, design: .rounded))
-                        .foregroundStyle(OnboardingTheme.ink)
-
-                    modelStatusView
-                }
-            }
-
-            Spacer()
-
-            if transcription.modelState == .ready {
-                OnboardingPillButton("Continue") {
-                    withAnimation { step = 6 }
-                }
-                .padding(.bottom, 8)
-            } else if case .error = transcription.modelState {
-                OnboardingPillButton("Retry") {
-                    Task { await transcription.loadModel() }
-                }
-                .padding(.bottom, 8)
-            }
-        }
-        .padding(.horizontal, 48)
-        .padding(.vertical, 40)
-        .onAppear {
-            if transcription.modelState == .unloaded {
-                Task { await transcription.loadModel() }
-            }
-        }
+    private var setupIsReady: Bool {
+        permissions.hasMicrophone && permissions.hasAccessibility && permissions.hasInputMonitoring
+            && (!transcription.selectedBackend.requiresSpeechRecognitionPermission || permissions.hasSpeechRecognition)
+            && transcription.modelState == .ready
     }
 
     @ViewBuilder
     private var modelStatusView: some View {
         switch transcription.modelState {
         case .ready:
-            VStack(spacing: 12) {
-                Text("English dictation is ready")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(OnboardingTheme.muted)
-
-                OnboardingPermissionBadge(granted: true)
+            Label("On-device dictation is ready", systemImage: "checkmark.circle.fill")
+                .foregroundStyle(OnboardingTheme.granted)
+        case .unloaded, .loading:
+            HStack(spacing: 8) {
+                ProgressView().controlSize(.small)
+                Text("Preparing on-device dictation…")
             }
-        case .loading:
-            VStack(spacing: 12) {
-                Text("Preparing dictation...")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(OnboardingTheme.muted)
-                ModelProgressBar(progress: 1)
-                    .frame(width: 220)
-            }
+            .foregroundStyle(OnboardingTheme.muted)
         case .downloading(let progress):
-            VStack(spacing: 12) {
-                Text("Downloading local dictation model \(Int(progress * 100))%")
-                    .font(.system(size: 14, weight: .semibold))
+            VStack(spacing: 6) {
+                Text("Preparing on-device dictation · \(Int(progress * 100))%")
                     .foregroundStyle(OnboardingTheme.muted)
-                ModelProgressBar(progress: progress)
-                    .frame(width: 220)
+                ModelProgressBar(progress: progress).frame(width: 220)
             }
-        case .error(let msg):
+        case .error(let message):
             VStack(spacing: 8) {
-                Text(msg)
-                    .font(.system(size: 12, weight: .semibold))
+                Text(message)
                     .foregroundStyle(OnboardingTheme.warning)
                     .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                Button("Retry") { Task { await transcription.loadModel() } }
+                    .buttonStyle(OnboardingSecondaryButtonStyle())
             }
-        case .unloaded:
-            Text("Preparing...")
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(OnboardingTheme.muted)
         }
     }
 
-    // MARK: - Step 6: Done
-
-    private var doneStep: some View {
-        VStack(spacing: 0) {
-            Spacer()
-
-            VStack(spacing: 24) {
-                DoneCheckmark()
-
-                VStack(spacing: 8) {
-                    Text("You're all set")
-                        .font(.system(size: 34, weight: .heavy, design: .rounded))
-                        .foregroundStyle(OnboardingTheme.ink)
-
-                    Text("Hold your shortcut to dictate, release to paste")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(OnboardingTheme.muted)
-                }
-
-                VStack(spacing: 2) {
-                    OnboardingSummaryRow(
-                        icon: "mic",
-                        title: "Microphone",
-                        granted: permissions.hasMicrophone
-                    )
-                    OnboardingSummaryRow(
-                        icon: "waveform",
-                        title: "Speech Recognition",
-                        granted: permissions.hasSpeechRecognition
-                    )
-                    OnboardingSummaryRow(
-                        icon: "hand.raised.fingers.spread",
-                        title: "Accessibility",
-                        granted: permissions.hasAccessibility
-                    )
-                    OnboardingSummaryRow(
-                        icon: "keyboard",
-                        title: "Input Monitoring",
-                        granted: permissions.hasInputMonitoring
-                    )
-                    OnboardingSummaryRow(
-                        icon: "cpu",
-                        title: "English dictation",
-                        granted: transcription.modelState == .ready
-                    )
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
-                .onboardingPixelBox(background: OnboardingTheme.panel, border: OnboardingTheme.ink)
-            }
-
-            Spacer()
-
-            OnboardingPillButton("Start Dictating") {
-                onComplete()
-            }
-            .padding(.bottom, 8)
+    private func showPage(_ page: OnboardingPage) {
+        withAnimation(reduceMotion ? nil : .easeOut(duration: 0.2)) {
+            savedPage = page.rawValue
         }
-        .padding(.horizontal, 48)
-        .padding(.vertical, 40)
+    }
+
+    private func backButton(to page: OnboardingPage) -> some View {
+        Button("Back") { showPage(page) }
+            .buttonStyle(.plain)
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundStyle(OnboardingTheme.muted)
     }
 }
 
-// MARK: - Shared Components
+private struct OnboardingInstructionRow: View {
+    let icon: String
+    let title: String
+    let detail: String
+
+    var body: some View {
+        HStack(spacing: 14) {
+            Image(systemName: icon)
+                .font(.system(size: 22, weight: .semibold))
+                .frame(width: 30)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title).font(.system(size: 15, weight: .bold))
+                Text(detail)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(OnboardingTheme.muted)
+            }
+            Spacer(minLength: 0)
+        }
+        .foregroundStyle(OnboardingTheme.ink)
+    }
+}
+
+private struct OnboardingPermissionRow: View {
+    let icon: String
+    let title: String
+    let detail: String
+    let granted: Bool
+    let actionTitle: String
+    let action: () -> Void
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon)
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(OnboardingTheme.ink)
+                .frame(width: 26)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundStyle(OnboardingTheme.ink)
+                Text(detail)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(OnboardingTheme.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+            if granted {
+                Label("Granted", systemImage: "checkmark.circle.fill")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(OnboardingTheme.granted)
+            } else {
+                Button(actionTitle, action: action)
+                    .buttonStyle(OnboardingSecondaryButtonStyle())
+                    .accessibilityLabel("\(actionTitle) for \(title)")
+            }
+        }
+        .padding(.vertical, 6)
+    }
+}
+
+private struct OnboardingSecondaryButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 12, weight: .bold))
+            .foregroundStyle(OnboardingTheme.ink.opacity(isEnabled ? 1 : 0.45))
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .onboardingPixelBox(
+                background: configuration.isPressed ? OnboardingTheme.panelMint : OnboardingTheme.panelBlue
+            )
+            .opacity(isEnabled ? 1 : 0.5)
+    }
+}
 
 private struct OnboardingBackground: View {
     var body: some View {
@@ -541,52 +370,6 @@ private struct WelcomeIcon: View {
     }
 }
 
-private struct DoneCheckmark: View {
-    @State private var appeared = false
-
-    var body: some View {
-        Image(systemName: "checkmark")
-            .font(.system(size: 26, weight: .semibold))
-            .foregroundStyle(.white)
-            .frame(width: 64, height: 64)
-            .onboardingPixelBox(
-                background: OnboardingTheme.ink,
-                border: OnboardingTheme.ink,
-                shadow: OnboardingTheme.muted,
-                shadowOffset: CGSize(width: 5, height: 5)
-            )
-            .scaleEffect(appeared ? 1.0 : 0.3)
-            .opacity(appeared ? 1.0 : 0.0)
-            .onAppear {
-                withAnimation(.spring(response: 0.5, dampingFraction: 0.6).delay(0.15)) {
-                    appeared = true
-                }
-            }
-    }
-}
-
-private struct OnboardingPermissionBadge: View {
-    let granted: Bool
-
-    var body: some View {
-        HStack(spacing: 6) {
-            Circle()
-                .fill(granted ? .white : OnboardingTheme.warning)
-                .frame(width: 8, height: 8)
-            Text(granted ? "Granted" : "Not Granted")
-                .font(.system(size: 12, weight: .heavy, design: .rounded))
-                .foregroundStyle(granted ? .white : OnboardingTheme.ink)
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 7)
-        .onboardingPixelBox(
-            background: granted ? OnboardingTheme.ink : OnboardingTheme.panel,
-            border: OnboardingTheme.ink
-        )
-        .animation(.easeOut(duration: 0.25), value: granted)
-    }
-}
-
 private struct OnboardingPageIndicator: View {
     let current: Int
     let total: Int
@@ -601,34 +384,6 @@ private struct OnboardingPageIndicator: View {
                     .animation(.easeOut(duration: 0.2), value: current)
             }
         }
-    }
-}
-
-private struct OnboardingSummaryRow: View {
-    let icon: String
-    let title: String
-    let granted: Bool
-
-    var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: icon)
-                .font(.system(size: 12))
-                .foregroundStyle(OnboardingTheme.muted)
-                .frame(width: 20)
-
-            Text(title)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(OnboardingTheme.ink)
-
-            Spacer()
-
-            Image(systemName: granted ? "checkmark" : "xmark.circle")
-                .font(.system(size: 14))
-                .foregroundStyle(granted ? .white : OnboardingTheme.warning)
-                .frame(width: 20, height: 20)
-                .background(granted ? OnboardingTheme.ink : .clear, in: Circle())
-        }
-        .padding(.vertical, 6)
     }
 }
 
@@ -651,6 +406,7 @@ private struct OnboardingStepIcon: View {
 }
 
 private enum OnboardingTheme {
+    static let granted = Color(red: 0.08, green: 0.43, blue: 0.24)
     static let ink = Color(red: 0.03, green: 0.09, blue: 0.18)
     static let muted = Color(red: 0.25, green: 0.33, blue: 0.46)
     static let background = Color(red: 0.78, green: 0.87, blue: 0.97)
