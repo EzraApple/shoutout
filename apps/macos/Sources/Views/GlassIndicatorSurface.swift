@@ -10,13 +10,25 @@ struct GlassIndicatorSurface: View {
     var body: some View {
         glassSurface
             .overlay {
-                Capsule(style: .circular).stroke(.white.opacity(0.16), lineWidth: 0.6)
+                if !reduceTransparency {
+                    Capsule(style: .circular).fill(.black.opacity(0.34))
+                }
+            }
+            .overlay {
+                Capsule(style: .circular)
+                    .strokeBorder(.black.opacity(0.24), lineWidth: 0.75)
+                    .overlay {
+                        Capsule(style: .circular)
+                            .inset(by: 0.75)
+                            .strokeBorder(.white.opacity(0.16), lineWidth: 0.5)
+                    }
             }
             .overlay {
                 if isProcessing {
                     GlassLoadingBorder(accent: accent, reduceMotion: reduceMotion)
                 }
             }
+            .shadow(color: .black.opacity(0.22), radius: 3, y: 1)
     }
 
     @ViewBuilder

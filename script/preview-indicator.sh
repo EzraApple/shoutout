@@ -8,7 +8,9 @@ swift build --package-path "$macos" --product ShoutOut
 bin="$(swift build --package-path "$macos" --show-bin-path)"
 mkdir -p "$bundle/Contents/MacOS" "$bundle/Contents/Resources" "$bundle/Contents/Frameworks"
 cp "$bin/ShoutOut" "$bundle/Contents/MacOS/ShoutOut"
-cp "$bin/mlx.metallib" "$bundle/Contents/MacOS/mlx.metallib"
+if [[ -f "$bin/mlx.metallib" ]]; then
+    cp "$bin/mlx.metallib" "$bundle/Contents/MacOS/mlx.metallib"
+fi
 cp "$macos/Resources/Info.plist" "$bundle/Contents/Info.plist"
 plutil -replace CFBundleIdentifier -string com.ezraapple.shoutout.indicator-preview "$bundle/Contents/Info.plist"
 plutil -replace CFBundleName -string "Indicator Preview" "$bundle/Contents/Info.plist"
