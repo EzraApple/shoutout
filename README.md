@@ -12,4 +12,8 @@ Requires **Apple Silicon and macOS 15+**. First use downloads a **731 MB** speec
 
 [Development](docs/development.md) · [Troubleshooting](TROUBLESHOOTING.md)
 
-No open-source license is granted for the source code or project files.
+## Credits and source licensing
+
+ShoutOut started from [Inputalk](https://github.com/sebi75/inputalk), an MIT-licensed macOS dictation app by the Inputalk contributors. See [third-party notices](THIRD_PARTY_NOTICES.md) and the [original Inputalk license](LICENSES/Inputalk-MIT.txt).
+
+ShoutOut-specific source code and project files are not offered under an open-source license. Inputalk-derived portions and other third-party components retain their original licenses.

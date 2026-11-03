@@ -150,6 +150,11 @@ mkdir -p "$APP_BUNDLE/Contents/MacOS"
 mkdir -p "$APP_BUNDLE/Contents/Resources"
 mkdir -p "$APP_BUNDLE/Contents/Frameworks"
 
+# Preserve upstream attribution in every app bundle, including DMG releases.
+mkdir -p "$APP_BUNDLE/Contents/Resources/ThirdPartyNotices"
+cp "$ROOT_DIR/THIRD_PARTY_NOTICES.md" "$APP_BUNDLE/Contents/Resources/ThirdPartyNotices/"
+cp -R "$ROOT_DIR/LICENSES" "$APP_BUNDLE/Contents/Resources/ThirdPartyNotices/"
+
 # Copy binary
 cp "$BUILD_DIR/$EXECUTABLE_NAME" "$APP_BUNDLE/Contents/MacOS/$EXECUTABLE_NAME"
 
@@ -409,3 +414,7 @@ else
 fi
 
 echo -e "${GREEN}Build complete!${NC}"
+
+# Verify the distributed notices match the source files exactly.
+cmp "$ROOT_DIR/THIRD_PARTY_NOTICES.md" "$APP_BUNDLE/Contents/Resources/ThirdPartyNotices/THIRD_PARTY_NOTICES.md"
+cmp "$ROOT_DIR/LICENSES/Inputalk-MIT.txt" "$APP_BUNDLE/Contents/Resources/ThirdPartyNotices/LICENSES/Inputalk-MIT.txt"

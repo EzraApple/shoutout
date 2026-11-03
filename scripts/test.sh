@@ -148,24 +148,18 @@ assert_plist_key() {
   fi
 }
 
-assert_path_missing() {
-  local name="$1"
-  local path="$2"
-  if [[ ! -e "$path" ]]; then
-    record_pass "$name"
-  else
-    record_fail "$name"
-  fi
-}
-
 assert_contains "README names ShoutOut" "$REPO_ROOT/README.md" "^# ShoutOut"
 assert_contains "README describes Mac dictation" "$REPO_ROOT/README.md" "dictation for Mac"
 assert_contains "Development guide documents mascot asset sync" "$REPO_ROOT/docs/development.md" "scripts/sync-mascot-assets.py"
 assert_contains "Development guide documents release prep scripts" "$REPO_ROOT/docs/development.md" "make release-preflight"
-assert_not_contains "README avoids settled open-source license claim" "$REPO_ROOT/README.md" "released under the MIT license|MIT license"
-assert_contains "README documents no source license grant" "$REPO_ROOT/README.md" "No open-source license is granted"
-assert_path_missing "LICENSE file is intentionally absent" "$REPO_ROOT/LICENSE"
-assert_not_contains "README does not mention stale source branding" "$REPO_ROOT/README.md" "[Ii]nputalk"
+assert_contains "README credits Inputalk" "$REPO_ROOT/README.md" "https://github.com/sebi75/inputalk"
+assert_contains "README distinguishes ShoutOut-specific licensing" "$REPO_ROOT/README.md" "ShoutOut-specific source code"
+assert_contains "README links third-party notices" "$REPO_ROOT/README.md" "THIRD_PARTY_NOTICES.md"
+assert_contains "Inputalk notice identifies inherited code" "$REPO_ROOT/THIRD_PARTY_NOTICES.md" "contains code derived"
+assert_contains "Inputalk license preserves original copyright" "$REPO_ROOT/LICENSES/Inputalk-MIT.txt" "Copyright \(c\) 2026 Inputalk"
+assert_contains "Inputalk license preserves permission grant" "$REPO_ROOT/LICENSES/Inputalk-MIT.txt" "Permission is hereby granted"
+assert_contains "App bundle includes third-party notices" "$MACOS_DIR/scripts/build-app.sh" 'cp "\$ROOT_DIR/THIRD_PARTY_NOTICES.md"'
+assert_contains "App bundle includes original licenses" "$MACOS_DIR/scripts/build-app.sh" 'cp -R "\$ROOT_DIR/LICENSES"'
 assert_contains "README documents Microphone" "$REPO_ROOT/README.md" "Microphone"
 assert_contains "README documents Accessibility" "$REPO_ROOT/README.md" "Accessibility"
 assert_contains "README documents Input Monitoring" "$REPO_ROOT/README.md" "Input Monitoring"
