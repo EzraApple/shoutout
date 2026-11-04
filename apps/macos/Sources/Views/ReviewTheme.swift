@@ -138,7 +138,6 @@ struct ReviewCollectionHeader<Actions: View>: View {
             if let itemTitle {
                 Button(action: goBack) {
                     Text(title)
-                        .font(.system(size: 19, weight: .semibold))
                         .foregroundStyle(isBackHovered ? ReviewTheme.text : ReviewTheme.muted)
                         .underline(isBackHovered)
                 }
@@ -158,17 +157,18 @@ struct ReviewCollectionHeader<Actions: View>: View {
                     .foregroundStyle(ReviewTheme.subtle)
                     .accessibilityHidden(true)
                 Text(itemTitle)
-                    .font(.system(size: 16, weight: .medium))
                     .foregroundStyle(ReviewTheme.text)
                     .lineLimit(1)
                     .accessibilityAddTraits(.isHeader)
             } else {
-                ReviewPageHeader(title: title, size: 19)
+                Text(title)
+                    .foregroundStyle(ReviewTheme.text)
                     .accessibilityAddTraits(.isHeader)
             }
             Spacer(minLength: 8)
             actions()
         }
+        .font(.system(size: 19, weight: .semibold))
         .frame(maxWidth: ReviewTheme.detailWidth)
         .frame(height: 32)
         .padding(.horizontal, 28)
