@@ -159,7 +159,10 @@ struct ReviewSettingsView: View {
                 section("Model") {
                     if let progress = transcription.modelState.startupProgress {
                         ProgressView(value: progress)
-                            .accessibilityLabel("Preparing dictation")
+                            .accessibilityLabel("Downloading dictation model")
+                    } else if transcription.modelState == .loading {
+                        ProgressView("Preparing dictation")
+                            .controlSize(.small)
                     } else if case .error(let message) = transcription.modelState {
                         settingRow("Dictation model unavailable", detail: message) {
                             Button("Try again") { Task { await transcription.loadModel() } }
