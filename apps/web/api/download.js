@@ -1,9 +1,9 @@
 import { randomUUID } from "node:crypto";
 
 const DOWNLOAD_COOKIE = "shoutout_download_id";
-const DEFAULT_RELEASE_VERSION = "0.3.3";
+const DEFAULT_RELEASE_VERSION = "0.3.4";
 const DEFAULT_RELEASE_LOCATION =
-  "https://downloads.shoutout.sh/releases/ShoutOut-0.3.3.dmg";
+  "https://downloads.shoutout.sh/releases/ShoutOut-0.3.4.dmg";
 const DEFAULT_POSTHOG_HOST = "https://us.i.posthog.com";
 
 const parseCookies = (cookieHeader = "") =>
