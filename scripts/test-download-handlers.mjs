@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 
 import webHandler from "../apps/web/api/download.js";
@@ -6,8 +7,10 @@ import webHandler from "../apps/web/api/download.js";
 const require = createRequire(import.meta.url);
 const productionHandler = require("../api/download.js");
 
-const DEFAULT_RELEASE_LOCATION =
-  "https://downloads.shoutout.sh/releases/ShoutOut-0.3.2.dmg";
+const infoPlist = readFileSync(new URL("../apps/macos/Resources/Info.plist", import.meta.url), "utf8");
+const releaseVersion = infoPlist.match(/<key>CFBundleShortVersionString<\/key>\s*<string>(\d+\.\d+\.\d+)<\/string>/)?.[1];
+assert.ok(releaseVersion, "Info.plist declares a release version");
+const DEFAULT_RELEASE_LOCATION = `https://downloads.shoutout.sh/releases/ShoutOut-${releaseVersion}.dmg`;
 const ENV_KEYS = [
   "POSTHOG_PROJECT_API_KEY",
   "SHOUTOUT_DMG_URL",
