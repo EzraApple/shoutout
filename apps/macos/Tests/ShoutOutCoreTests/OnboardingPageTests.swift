@@ -9,6 +9,7 @@ final class OnboardingPageTests: XCTestCase {
     }
 
     func testMigratesInProgressSetupToPermissions() {
+        XCTAssertEqual(OnboardingPage.restore(savedPage: "howItWorks", legacyStep: 0), .permissions)
         for step in 1...6 {
             XCTAssertEqual(OnboardingPage.restore(savedPage: "", legacyStep: step), .permissions)
         }

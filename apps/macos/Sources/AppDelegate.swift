@@ -1927,12 +1927,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func showOnboarding() {
         if onboardingWindow == nil {
             let window = NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 480, height: 500),
+                contentRect: NSRect(x: 0, y: 0, width: 560, height: 540),
                 styleMask: [.titled, .closable, .fullSizeContentView],
                 backing: .buffered,
                 defer: false
             )
             window.title = "Welcome to ShoutOut"
+            window.appearance = NSAppearance(named: .darkAqua)
+            window.backgroundColor = NSColor(ReviewTheme.background)
             window.center()
             window.contentView = NSHostingView(
                 rootView: OnboardingView(onComplete: { [weak self] in
