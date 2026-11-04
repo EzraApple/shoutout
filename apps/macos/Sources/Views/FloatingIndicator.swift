@@ -288,6 +288,8 @@ struct AppOverlayView: View {
     let style: OverlayStyle
     let state: IndicatorState
     let crabHeight: CGFloat
+    var customTint: NSColor? = nil
+    var reduceMotionOverride: Bool? = nil
     var onCancel: (() -> Void)?
     var onCommit: (() -> Void)?
     var anchor: IndicatorAnchor = .right
@@ -302,6 +304,7 @@ struct AppOverlayView: View {
         case .crab:
             CrabOverlayView(
                 state: state, height: crabHeight, anchor: anchor, isHovered: isHovered,
+                customTint: customTint, reduceMotionOverride: reduceMotionOverride,
                 onInteractionRegionChanged: onInteractionRegionChanged
             )
                 .id(crabPlacementRevision)
@@ -310,7 +313,9 @@ struct AppOverlayView: View {
         case .capsule, .glass:
             PillIndicatorView(
                 style: style, state: state, onCancel: onCancel, onCommit: onCommit,
-                anchor: anchor, isHovered: isHovered, onInteractionRegionChanged: onInteractionRegionChanged
+                anchor: anchor, isHovered: isHovered, customTint: customTint,
+                reduceMotionOverride: reduceMotionOverride,
+                onInteractionRegionChanged: onInteractionRegionChanged
             )
                 .contentShape(Rectangle())
                 .simultaneousGesture(indicatorDragGesture(onChanged: onDragChanged, onEnded: onDragEnded))
@@ -371,12 +376,15 @@ final class IndicatorOverlayModel: ObservableObject {
 
 struct IndicatorOverlayHostView: View {
     @ObservedObject var model: IndicatorOverlayModel
+    @AppStorage(Defaults.customIndicatorTint) private var customHex = "#8C7AF5"
+    @AppStorage(Defaults.usesCustomIndicatorTint) private var usesCustomTint = false
 
     var body: some View {
         AppOverlayView(
             style: model.style,
             state: model.state,
             crabHeight: model.crabHeight,
+            customTint: usesCustomTint ? ReviewTheme.nativeColor(hex: customHex) : nil,
             onCancel: model.onCancel,
             onCommit: model.onCommit,
             anchor: model.anchor,
@@ -434,6 +442,8 @@ struct PillIndicatorView: View {
     var onCommit: (() -> Void)?
     var anchor: IndicatorAnchor = .right
     var isHovered = false
+    var customTint: NSColor? = nil
+    var reduceMotionOverride: Bool? = nil
     var onInteractionRegionChanged: ((CGRect) -> Void)?
     @AppStorage(Defaults.crabColorVariant) private var crabColorVariant = CrabColorVariant.ocean.rawValue
     @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
@@ -443,6 +453,7 @@ struct PillIndicatorView: View {
     @State private var recordingWaveform = ClassicWaveform()
 
     private var reduceMotion: Bool {
+        if let reduceMotionOverride { return reduceMotionOverride }
 #if DEBUG
         if let previewReduceMotion { return previewReduceMotion }
 #endif
@@ -611,7 +622,8 @@ struct PillIndicatorView: View {
 
     private var recordingAccent: Color {
         let variant = CrabColorVariant(rawValue: crabColorVariant) ?? .ocean
-        let color = NSColor(variant.swatchColor).blended(withFraction: 0.72, of: .white) ?? .white
+        let baseColor = customTint ?? NSColor(variant.swatchColor)
+        let color = baseColor.blended(withFraction: 0.72, of: .white) ?? .white
         return Color(nsColor: color)
     }
 
@@ -739,12 +751,16 @@ private struct CrabOverlayView: View {
     let height: CGFloat
     var anchor: IndicatorAnchor = .right
     var isHovered = false
+    var customTint: NSColor? = nil
+    var reduceMotionOverride: Bool? = nil
     var onInteractionRegionChanged: ((CGRect) -> Void)?
 
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
     @State private var spriteFrameName = CrabSpriteAssets.idleFrameNames[0]
     @State private var idleOffset: CGFloat = 0
     @State private var processingRotation = 0.0
+
+    private var reduceMotion: Bool { reduceMotionOverride ?? systemReduceMotion }
 
     var body: some View {
         ZStack(alignment: anchor == .left ? .leading : .trailing) {
@@ -752,7 +768,8 @@ private struct CrabOverlayView: View {
                 frameName: spriteFrameName,
                 showsProcessing: state.isProcessing,
                 processingRotation: processingRotation,
-                attentionMessage: attentionMessage
+                attentionMessage: attentionMessage,
+                customTint: customTint
             )
             .scaleEffect(x: anchor == .left ? -1 : 1, y: 1)
             .shadow(color: .white.opacity(isHovered ? 0.32 : 0), radius: 5)
@@ -881,6 +898,7 @@ private struct SpriteWallCrab: View {
     let showsProcessing: Bool
     let processingRotation: Double
     let attentionMessage: String?
+    let customTint: NSColor?
 
     @Environment(\.displayScale) private var displayScale
     @AppStorage(Defaults.crabColorVariant) private var crabColorVariant = CrabColorVariant.ocean.rawValue
@@ -941,7 +959,7 @@ private struct SpriteWallCrab: View {
     }
 
     private var currentImage: NSImage? {
-        return CrabSpriteAssets.image(named: frameName, variant: colorVariant)
+        return CrabSpriteAssets.image(named: frameName, variant: colorVariant, customTint: customTint)
     }
 
     private var boomScale: CGFloat {
@@ -980,14 +998,30 @@ private enum CrabSpriteAssets {
     static let boomHoldFrameName = "recording-hold"
 
     @MainActor private static var imageCache: [String: NSImage] = [:]
+    @MainActor private static let tintedImageCache: NSCache<NSString, NSImage> = {
+        let cache = NSCache<NSString, NSImage>()
+        cache.countLimit = 80
+        return cache
+    }()
 
     static func isBoomFrame(_ frameName: String) -> Bool {
         frameName.hasPrefix("recording-")
     }
 
     @MainActor
-    static func image(named name: String, variant: CrabColorVariant) -> NSImage? {
-        image(named: name, subdirectory: "CrabSpriteWallVariants/\(variant.rawValue)")
+    static func image(named name: String, variant: CrabColorVariant, customTint: NSColor? = nil) -> NSImage? {
+        if let customTint, let rgb = customTint.usingColorSpace(.sRGB) {
+            let tintKey = "\(rgb.redComponent)-\(rgb.greenComponent)-\(rgb.blueComponent)-\(rgb.alphaComponent)"
+            let cacheKey = "CrabSpriteWallTint/\(tintKey)/\(name)" as NSString
+            if let cachedImage = tintedImageCache.object(forKey: cacheKey) { return cachedImage }
+            guard let source = image(named: name, subdirectory: "CrabSpriteWallVariants/ocean")
+                ?? image(named: name, subdirectory: "CrabSpritesWall"),
+                let tinted = IndicatorSpriteTint.tintedImage(source, color: rgb)
+            else { return nil }
+            tintedImageCache.setObject(tinted, forKey: cacheKey)
+            return tinted
+        }
+        return image(named: name, subdirectory: "CrabSpriteWallVariants/\(variant.rawValue)")
             ?? image(named: name, subdirectory: "CrabSpritesWall")
     }
 

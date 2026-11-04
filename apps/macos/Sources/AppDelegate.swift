@@ -9,6 +9,8 @@ enum Defaults {
     static let dimSystemAudio = "dimSystemAudio"
     static let overlayStyle = "overlayStyle"
     static let crabColorVariant = "crabColorVariant"
+    static let customIndicatorTint = "reviewCustomTint"
+    static let usesCustomIndicatorTint = "reviewUsesCustomTint"
     static let hasCompletedOnboarding = "hasCompletedOnboarding"
     static let onboardingStep = "onboardingStep"
     static let onboardingPage = "onboardingPage"
@@ -238,9 +240,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     let hotkeyManager = HotkeyManager()
     let screenshotMonitor = ScreenshotMonitor()
     let permissions = PermissionManager.shared
-    let usageStats = UsageStatsStore.defaultStore()
+    lazy var usageStats = UsageStatsStore.defaultStore()
     let transcriptionHistory = TranscriptionHistoryStore.defaultStore()
-    let dictionaryStore = DictionaryStore.defaultStore()
+    lazy var dictionaryStore = DictionaryStore.defaultStore()
     let audioDucker = SystemAudioDucker()
 
     var mainWindow: NSWindow?
@@ -1198,6 +1200,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    func refreshIndicatorPlacement() {
+        indicatorPlacement.placeIndicator()
+        resizeIndicatorContent()
+    }
+
     func refreshOverlay() {
         applyApplicationIconVariant()
 
@@ -1868,7 +1875,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func showHome() {
-        showMainWindow(section: .dashboard)
+        showMainWindow(section: .history)
     }
 
     func showSettings() {
@@ -1892,16 +1899,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 defer: false
             )
             window.title = MiniTrialConfiguration.appName
-            window.minSize = NSSize(width: 820, height: 620)
+            window.appearance = NSAppearance(named: .darkAqua)
+            window.backgroundColor = NSColor(ReviewTheme.background)
+            window.contentMinSize = ShoutOutHomeView.minimumSize
             window.center()
             window.contentView = NSHostingView(
-                rootView: ShoutOutHomeView(model: homeWindowModel)
+                rootView: ShoutOutHomeView(
+                    model: homeWindowModel,
+                    getUsageStats: { [unowned self] in usageStats },
+                    getDictionary: { [unowned self] in dictionaryStore }
+                )
                     .environmentObject(transcriptionService)
                     .environmentObject(languagePassService)
                     .environmentObject(permissions)
-                    .environmentObject(usageStats)
                     .environmentObject(transcriptionHistory)
-                    .environmentObject(dictionaryStore)
             )
             window.isReleasedWhenClosed = false
             window.delegate = self
