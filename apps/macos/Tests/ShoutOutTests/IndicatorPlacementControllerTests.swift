@@ -207,6 +207,14 @@ final class IndicatorPlacementControllerTests: XCTestCase {
         let harness = try Harness(style: .crab, pointerLocation: { pointer })
         defer { harness.close() }
 
+        func waitForHover(_ expected: Bool) async throws {
+            let clock = ContinuousClock()
+            let deadline = clock.now + .seconds(3)
+            while harness.model.isHovered != expected, clock.now < deadline {
+                try await Task.sleep(for: .milliseconds(25))
+            }
+        }
+
         for style in [OverlayStyle.glass, .capsule] {
             harness.model.style = style
             harness.controller.placeIndicator()
@@ -214,13 +222,13 @@ final class IndicatorPlacementControllerTests: XCTestCase {
             harness.model.onInteractionRegionChanged?(CGRect(x: 29, y: 43, width: 8, height: 30))
             pointer = harness.panel.convertPoint(toScreen: view.convert(CGPoint(x: 22, y: 58), to: nil))
 
-            try await Task.sleep(for: .milliseconds(150))
+            try await waitForHover(true)
 
             XCTAssertTrue(harness.model.isHovered, "\(style) should hover without an NSEvent")
             XCTAssertFalse(harness.panel.ignoresMouseEvents)
 
             pointer = CGPoint(x: harness.screen.visibleFrame.midX, y: harness.screen.visibleFrame.midY)
-            try await Task.sleep(for: .milliseconds(150))
+            try await waitForHover(false)
 
             XCTAssertFalse(harness.model.isHovered)
             XCTAssertTrue(harness.panel.ignoresMouseEvents)
