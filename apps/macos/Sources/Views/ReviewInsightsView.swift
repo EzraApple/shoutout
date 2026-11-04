@@ -84,9 +84,9 @@ struct ReviewInsightsView: View {
 
     private func activityChart(_ report: UsageInsightsReport) -> some View {
         let buckets = report.buckets
-        let maximum = max(buckets.map(\.wordCount).max() ?? 0, 1)
         let unit = bucketUnitText(report)
         let peak = buckets.max { $0.wordCount < $1.wordCount }
+        let plotInset: CGFloat = 8
         return VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .firstTextBaseline) {
                 Text("Words per \(unit)").font(.system(size: 15, weight: .semibold))
@@ -103,26 +103,15 @@ struct ReviewInsightsView: View {
                 }
                 .frame(height: 150)
             } else {
-                HStack(alignment: .bottom, spacing: 4) {
-                    ForEach(buckets) { bucket in
-                        GeometryReader { geometry in
-                            VStack(spacing: 0) {
-                                Spacer(minLength: 0)
-                                RoundedRectangle(cornerRadius: 2)
-                                    .fill(tint.opacity(bucket.isCurrent ? 1 : 0.40))
-                                    .frame(width: min(48, geometry.size.width), height: bucket.wordCount == 0 ? 0 : max(2, geometry.size.height * CGFloat(bucket.wordCount) / CGFloat(maximum)))
-                            }
-                            .frame(maxWidth: .infinity)
-                        }
-                        .help("\(bucketLabel(bucket.date, report: report)) · \(bucket.wordCount.formatted()) words · \(bucket.sessionCount) \(bucket.sessionCount == 1 ? "dictation" : "dictations")")
-                        .accessibilityElement(children: .ignore)
-                        .accessibilityLabel(bucketLabel(bucket.date, report: report))
-                        .accessibilityValue("\(bucket.wordCount.formatted()) words, \(bucket.sessionCount) \(bucket.sessionCount == 1 ? "dictation" : "dictations")")
+                InsightsActivityBars(buckets: buckets, unit: report.bucketUnit, tint: tint)
+                    .id(range)
+                    .padding(.horizontal, plotInset)
+                    .overlay(alignment: .bottom) {
+                        Rectangle().fill(ReviewTheme.line).frame(height: 1)
+                            .allowsHitTesting(false)
                     }
-                }
-                .frame(height: 150)
-                .overlay(alignment: .bottom) { Rectangle().fill(ReviewTheme.line).frame(height: 1) }
                 chartDateLabels(report)
+                    .padding(.horizontal, plotInset)
             }
             if report.summary.sessionCount > 0 {
                 HStack {
@@ -142,11 +131,11 @@ struct ReviewInsightsView: View {
     private func chartDateLabels(_ report: UsageInsightsReport) -> some View {
         GeometryReader { geometry in
             let count = report.buckets.count
-            let width = max(0, (geometry.size.width - CGFloat(max(count - 1, 0)) * 4) / CGFloat(max(count, 1)))
+            let width = geometry.size.width / CGFloat(max(count, 1))
             let indices = Array(Set([0, count / 2, max(count - 1, 0)])).sorted()
             ForEach(indices, id: \.self) { index in
                 if index < count {
-                    let center = width / 2 + CGFloat(index) * (width + 4)
+                    let center = (CGFloat(index) + 0.5) * width
                     Text(bucketLabel(report.buckets[index].date, report: report))
                         .font(.system(size: 13)).monospacedDigit().foregroundStyle(ReviewTheme.muted)
                         .lineLimit(1).frame(width: 90, alignment: index == 0 ? .leading : index == count - 1 ? .trailing : .center)
@@ -212,5 +201,98 @@ struct ReviewInsightsView: View {
     private func bucketLabel(_ date: Date, report: UsageInsightsReport) -> String {
         report.bucketUnit == .month ? date.formatted(.dateTime.month(.abbreviated).year(.twoDigits))
             : date.formatted(.dateTime.month(.abbreviated).day())
+    }
+}
+
+private struct InsightsActivityBars: View {
+    @Environment(\.controlActiveState) private var activeState
+    @State private var hoveredBucket: Date?
+
+    let buckets: [UsageInsightsReport.Bucket]
+    let unit: UsageInsightsReport.BucketUnit
+    let tint: Color
+
+    var body: some View {
+        let maximum = max(buckets.map(\.wordCount).max() ?? 0, 1)
+        GeometryReader { geometry in
+            let width = geometry.size.width
+            let columnWidth = width / CGFloat(max(buckets.count, 1))
+            let barWidth = min(64, columnWidth - min(2, columnWidth * 0.2))
+
+            HStack(alignment: .bottom, spacing: 0) {
+                ForEach(buckets) { bucket in
+                    let isHovered = bucket.id == hoveredBucket
+                    let opacity = bucket.isCurrent ? (isHovered ? 1 : 0.92) : (isHovered ? 0.76 : 0.40)
+                    let height = geometry.size.height * CGFloat(bucket.wordCount) / CGFloat(maximum)
+                    VStack(spacing: 0) {
+                        Spacer(minLength: 0)
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(tint.opacity(opacity))
+                            .frame(width: barWidth, height: bucket.wordCount == 0 ? 0 : max(2, height))
+                    }
+                    .frame(width: columnWidth)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(periodLabel(bucket.start))
+                    .accessibilityValue(bucketSummary(bucket))
+                }
+            }
+            .contentShape(Rectangle())
+            .onContinuousHover { phase in
+                switch phase {
+                case .active(let location):
+                    guard columnWidth > 0, !buckets.isEmpty else { return }
+                    let index = min(max(0, Int(location.x / columnWidth)), buckets.count - 1)
+                    let id = buckets[index].id
+                    if hoveredBucket != id { hoveredBucket = id }
+                case .ended:
+                    hoveredBucket = nil
+                }
+            }
+            .overlay(alignment: .topLeading) {
+                if let index = buckets.firstIndex(where: { $0.id == hoveredBucket }) {
+                    let center = (CGFloat(index) + 0.5) * columnWidth
+                    bucketPreview(buckets[index])
+                        .visualEffect { content, proxy in
+                            let gap = barWidth / 2 + 8
+                            let x = center < width / 2 ? center + gap : center - gap - proxy.size.width
+                            return content.offset(x: max(0, min(x, width - proxy.size.width)), y: 8)
+                        }
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                }
+            }
+        }
+        .frame(height: 150)
+        .onChange(of: activeState) { _, state in
+            if state == .inactive { hoveredBucket = nil }
+        }
+    }
+
+    private func bucketPreview(_ bucket: UsageInsightsReport.Bucket) -> some View {
+        let shape = RoundedRectangle(cornerRadius: 6)
+        return VStack(alignment: .leading, spacing: 4) {
+            Text(periodLabel(bucket.start)).font(.system(size: 13, weight: .semibold))
+            Text(bucketSummary(bucket)).font(.system(size: 12)).foregroundStyle(ReviewTheme.muted)
+        }
+        .monospacedDigit()
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .frame(maxWidth: 240, alignment: .leading)
+        .fixedSize()
+        .background(ReviewTheme.raised, in: shape)
+        .overlay(shape.strokeBorder(.white.opacity(0.12)))
+        .shadow(color: .black.opacity(0.3), radius: 8, y: 3)
+    }
+
+    private func periodLabel(_ date: Date) -> String {
+        switch unit {
+        case .day: date.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day().year())
+        case .week: "Week of \(date.formatted(.dateTime.month(.abbreviated).day().year()))"
+        case .month: date.formatted(.dateTime.month(.wide).year())
+        }
+    }
+
+    private func bucketSummary(_ bucket: UsageInsightsReport.Bucket) -> String {
+        "\(bucket.wordCount.formatted()) \(bucket.wordCount == 1 ? "word" : "words") · \(bucket.sessionCount.formatted()) \(bucket.sessionCount == 1 ? "dictation" : "dictations")"
     }
 }
