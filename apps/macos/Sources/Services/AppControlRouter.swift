@@ -110,6 +110,7 @@ final class AppControlRouter {
         case "color":
             guard CrabColorVariant(rawValue: value) != nil else { throw invalid("Unknown crab color: \(value)") }
             defaults.set(value, forKey: Defaults.crabColorVariant)
+            defaults.set(false, forKey: Defaults.usesCustomIndicatorTint)
         default:
             throw invalid("Unknown setting: \(key)")
         }

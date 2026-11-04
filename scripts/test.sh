@@ -301,17 +301,18 @@ assert_contains "WhisperKit is behind an engine" "$MACOS_DIR/Sources/Services/Wh
 assert_contains "Apple Speech backend requires on-device recognition" "$MACOS_DIR/Sources/Services/AppleSpeechTranscriptionEngine.swift" "requiresOnDeviceRecognition = true"
 assert_contains "Apple Dictation backend uses SpeechAnalyzer" "$MACOS_DIR/Sources/Services/AppleDictationTranscriptionEngine.swift" "SpeechAnalyzer"
 assert_contains "Apple Dictation backend uses range reconciliation" "$MACOS_DIR/Sources/Services/AppleDictationTranscriptionEngine.swift" "TimeRangeTranscript"
-assert_contains "Home window has dashboard surface" "$MACOS_DIR/Sources/Views/ShoutOutHomeView.swift" "ShoutOutHomeView"
-assert_contains "Home settings retain optional text cleanup" "$MACOS_DIR/Sources/Views/ShoutOutHomeView.swift" 'isOn: \$languagePass.isEnabled'
-assert_contains "Home settings retain writing style" "$MACOS_DIR/Sources/Views/ShoutOutHomeView.swift" 'accessibilityLabel\("Writing style"'
-assert_contains "Home settings retain model progress" "$MACOS_DIR/Sources/Views/ShoutOutHomeView.swift" "ModelProgressBar"
-assert_contains "Home settings retain updates" "$MACOS_DIR/Sources/Views/ShoutOutHomeView.swift" "Check for updates"
-assert_not_contains "Home settings omit retired experimental controls" "$MACOS_DIR/Sources/Views/ShoutOutHomeView.swift" 'boringMode|selectedPreset|selectedModel|smartSpacing|appendTrailingSpace'
-assert_contains "Home settings expose recording audio dimming" "$MACOS_DIR/Sources/Views/ShoutOutHomeView.swift" 'dimSystemAudio'
-assert_contains "Home window exposes settings page" "$MACOS_DIR/Sources/Views/ShoutOutHomeView.swift" "case settings"
-assert_contains "Home window exposes shortcut picker" "$MACOS_DIR/Sources/Views/ShoutOutHomeView.swift" "HotkeyTrigger.allCases"
-assert_contains "Home window exposes diagnostics export" "$MACOS_DIR/Sources/Views/ShoutOutHomeView.swift" "Diagnostics"
-assert_contains "Home window exposes app version helper" "$MACOS_DIR/Sources/Views/ShoutOutHomeView.swift" "AppVersionInfo.diagnosticsSummary"
+assert_contains "App opens the native workspace" "$MACOS_DIR/Sources/AppDelegate.swift" 'rootView: ShoutOutHomeView'
+assert_contains "Home opens History" "$MACOS_DIR/Sources/AppDelegate.swift" 'showMainWindow\(section: \.history\)'
+assert_contains "Home window exposes settings page" "$MACOS_DIR/Sources/Views/ShoutOutHomeView.swift" "case .settings"
+assert_contains "Home settings retain optional text cleanup" "$MACOS_DIR/Sources/Views/ReviewSettingsView.swift" 'isOn: \$languagePass.isEnabled'
+assert_contains "Home settings retain writing style" "$MACOS_DIR/Sources/Views/ReviewSettingsView.swift" 'Picker\("Writing style"'
+assert_contains "Home settings retain model recovery" "$MACOS_DIR/Sources/Views/ReviewSettingsView.swift" 'await transcription.loadModel\('
+assert_contains "Home settings retain updates" "$MACOS_DIR/Sources/Views/ReviewSettingsView.swift" "Check for updates"
+assert_not_contains "Home settings omit retired experimental controls" "$MACOS_DIR/Sources/Views/ReviewSettingsView.swift" 'boringMode|selectedPreset|selectedModel|smartSpacing|appendTrailingSpace'
+assert_contains "Home settings expose recording audio dimming" "$MACOS_DIR/Sources/Views/ReviewSettingsView.swift" 'dimSystemAudio'
+assert_contains "Home settings expose shortcut picker" "$MACOS_DIR/Sources/Views/ReviewSettingsView.swift" "HotkeyTrigger.allCases"
+assert_contains "Home settings expose diagnostics export" "$MACOS_DIR/Sources/Views/ReviewSettingsView.swift" "Export diagnostics"
+assert_contains "Home settings expose app version helper" "$MACOS_DIR/Sources/Views/ReviewSettingsView.swift" "AppVersionInfo.diagnosticsSummary"
 assert_contains "Diagnostics exporter avoids transcript data" "$MACOS_DIR/Sources/Services/DiagnosticsExporter.swift" "clipboard contents"
 assert_contains "Diagnostics exporter copies runtime log" "$MACOS_DIR/Sources/Services/DiagnosticsExporter.swift" "RuntimeLog.logURL"
 assert_contains "Diagnostics exporter sanitizes legacy language pass text" "$MACOS_DIR/Sources/Services/DiagnosticsExporter.swift" "sanitizeLegacyLanguagePassFields"
@@ -323,20 +324,15 @@ assert_contains "App updater stays disabled without public key" "$MACOS_DIR/Sour
 assert_contains "Status menu uses square popover panel" "$MACOS_DIR/Sources/AppDelegate.swift" "SharpPopoverPanel"
 assert_contains "Status popover disables rounded host corners" "$MACOS_DIR/Sources/AppDelegate.swift" "cornerRadius = 0"
 assert_not_contains "Status menu avoids rounded NSMenu popover" "$MACOS_DIR/Sources/AppDelegate.swift" "showContextMenu"
-assert_contains "Home window confirms stats deletion" "$MACOS_DIR/Sources/Views/ShoutOutHomeView.swift" "Clear local stats\\?"
-assert_contains "Home menus highlight hovered rows" "$MACOS_DIR/Sources/Views/ShoutOutHomeView.swift" "onHover"
-assert_contains "Home settings toggles use stable app-drawn switch" "$MACOS_DIR/Sources/Views/ShoutOutHomeView.swift" "HomePixelToggleStyle"
-assert_contains "Home settings toggles keep binding-based switch state" "$MACOS_DIR/Sources/Views/ShoutOutHomeView.swift" "configuration\\.isOn"
-assert_not_contains "Home settings toggles avoid inactive system switch tint" "$MACOS_DIR/Sources/Views/ShoutOutHomeView.swift" "\\.toggleStyle\\(\\.switch\\)"
-assert_contains "Home history cleanup summary uses display copy" "$MACOS_DIR/Sources/Views/ShoutOutHomeView.swift" "LanguagePassDisplayCopy\\.status"
-assert_contains "Home history cleanup details include compact reason" "$MACOS_DIR/Sources/Views/ShoutOutHomeView.swift" "cleanupTraceRow\\(title: \"Reason\""
-assert_contains "Home history cleanup details include selected tone" "$MACOS_DIR/Sources/Views/ShoutOutHomeView.swift" "cleanupTraceRow\\(title: \"Tone\""
-assert_not_contains "Home history avoids raw cleanup fallback slugs" "$MACOS_DIR/Sources/Views/ShoutOutHomeView.swift" "languagePassFallbackReason \\?\\? "
+assert_contains "Home window confirms stats deletion" "$MACOS_DIR/Sources/Views/ReviewSettingsView.swift" "Clear usage stats\?"
+assert_contains "Home menus highlight hovered rows" "$MACOS_DIR/Sources/Views/ReviewTheme.swift" "onHover"
+assert_contains "Home settings use native switches" "$MACOS_DIR/Sources/Views/ShoutOutHomeView.swift" "\.toggleStyle\(\.switch\)"
+assert_contains "Home history displays cleanup differences" "$MACOS_DIR/Sources/Views/ReviewHistoryView.swift" "TranscriptTextDiff.segments"
 assert_contains "Language cleanup dropped-content copy is friendly" "$MACOS_DIR/Sources/Core/LanguagePassDisplayCopy.swift" "No cleanup necessary"
 assert_contains "Language cleanup reason copy is compact" "$MACOS_DIR/Sources/Core/LanguagePassDisplayCopy.swift" "Meaning preserved · Tone applied"
 assert_contains "Home brand mark uses colored crab" "$MACOS_DIR/Sources/Views/ShoutOutHomeView.swift" "crabColorVariant"
-assert_contains "Home brand mark uses tinted crab variants" "$MACOS_DIR/Sources/Views/ShoutOutHomeView.swift" "CrabSpriteVariants"
-assert_contains "Home crab color menu previews colors" "$MACOS_DIR/Sources/Views/ShoutOutHomeView.swift" "ColorPreviewTile"
+assert_contains "Home brand mark uses tinted crab variants" "$MACOS_DIR/Sources/Views/ReviewTheme.swift" "CrabSpriteVariants"
+assert_contains "Home crab color menu previews colors" "$MACOS_DIR/Sources/Views/ReviewIndicatorColorPicker.swift" "swatchColor"
 assert_contains "Model picker uses plain-English choices" "$MACOS_DIR/Sources/Services/TranscriptionModelOption.swift" "Large v3 Turbo"
 assert_contains "Model picker exposes benchmark turbo candidate" "$MACOS_DIR/Sources/Services/TranscriptionModelOption.swift" "large-v3-v20240930_turbo_632MB"
 assert_contains "App delegate keeps app alive after closing windows" "$MACOS_DIR/Sources/AppDelegate.swift" "applicationShouldTerminateAfterLastWindowClosed"
