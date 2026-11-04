@@ -123,10 +123,11 @@ private struct ReviewIndicatorColorPalette: View {
                     .buttonStyle(.plain)
                     .focusable(true)
                     .focused($focusedSwatch, equals: index)
+                    .focusEffectDisabled()
                     .overlay {
                         if focusedSwatch == index {
-                            RoundedRectangle(cornerRadius: ReviewTheme.navigationRadius)
-                                .stroke(ReviewTheme.text, style: StrokeStyle(lineWidth: 1.5, dash: [3, 2]))
+                            Circle()
+                                .strokeBorder(ReviewTheme.muted.opacity(0.75), lineWidth: 1)
                                 .frame(width: 36, height: 36)
                                 .allowsHitTesting(false)
                         }
