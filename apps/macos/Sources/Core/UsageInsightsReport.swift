@@ -1,3 +1,4 @@
+import Charts
 import Foundation
 
 public enum UsageInsightsRange: String, CaseIterable, Identifiable, Sendable {
@@ -45,21 +46,16 @@ public struct UsageInsightsReport: Sendable {
         }
     }
 
-    public enum BucketUnit: Sendable {
-        case day
-        case week
-        case month
-    }
-
     public struct Bucket: Identifiable, Sendable {
         public let start: Date
         public let end: Date
         public let wordCount: Int
         public let sessionCount: Int
+        public let dayCount: Int
         public let isCurrent: Bool
 
         public var id: Date { start }
-        public var date: Date { start }
+        public var wordsPerDay: Double { Double(wordCount) / Double(dayCount) }
     }
 
     public enum DayPart: String, CaseIterable, Sendable {
@@ -85,8 +81,8 @@ public struct UsageInsightsReport: Sendable {
     public let periodEnd: Date
     public let summary: Summary
     public let previousSummary: Summary?
-    public let bucketUnit: BucketUnit
     public let buckets: [Bucket]
+    public let activityTrend: [Double]
     public let medianDuration: Double?
     public let medianWordCount: Double?
     public let mostActiveWeekday: Int?
@@ -125,47 +121,48 @@ public struct UsageInsightsReport: Sendable {
             previousSummary = nil
         }
 
-        let unit: BucketUnit
-        if range != .allTime || calendar.dateComponents([.day], from: start, to: today).day! < 31 {
-            unit = .day
+        let tomorrow = calendar.date(byAdding: .day, value: 1, to: today)!
+        let dayCount = calendar.dateComponents([.day], from: start, to: tomorrow).day!
+        let bins: DateBins
+        if range != .allTime || dayCount <= 30 {
+            let boundaries = (0...dayCount).map { calendar.date(byAdding: .day, value: $0, to: start)! }
+            bins = DateBins(thresholds: boundaries)
         } else {
-            let firstWeek = calendar.dateInterval(of: .weekOfYear, for: start)!.start
-            let currentWeek = calendar.dateInterval(of: .weekOfYear, for: now)!.start
-            let weeks = calendar.dateComponents([.weekOfYear], from: firstWeek, to: currentWeek).weekOfYear!
-            unit = weeks < 26 ? .week : .month
+            let automatic = DateBins(range: start...today, desiredCount: 24, calendar: calendar)
+            let interior = automatic.thresholds.filter { $0 > start && $0 < tomorrow }
+            bins = DateBins(thresholds: [start] + interior + [tomorrow])
         }
-        bucketUnit = unit
-        let component: Calendar.Component = switch unit {
-        case .day: .day
-        case .week: .weekOfYear
-        case .month: .month
-        }
-        let firstBucket = calendar.dateInterval(of: component, for: start)!.start
-        let currentBucket = calendar.dateInterval(of: component, for: now)!.start
-        var counts: [Date: (words: Int, sessions: Int)] = [:]
+
+        var counts = Array(repeating: (words: 0, sessions: 0), count: bins.count)
         for session in selected {
-            let bucketStart = calendar.dateInterval(of: component, for: session.date)!.start
-            var count = counts[bucketStart] ?? (0, 0)
-            let (words, overflow) = count.words.addingReportingOverflow(session.wordCount)
-            count.words = overflow ? Int.max : words
-            count.sessions += 1
-            counts[bucketStart] = count
+            let index = bins.index(for: session.date)
+            let (words, overflow) = counts[index].words.addingReportingOverflow(session.wordCount)
+            counts[index].words = overflow ? Int.max : words
+            counts[index].sessions += 1
         }
-        var filledBuckets: [Bucket] = []
-        var bucketStart = firstBucket
-        while bucketStart <= currentBucket {
-            let bucketEnd = calendar.date(byAdding: component, value: 1, to: bucketStart)!
-            let count = counts[bucketStart] ?? (0, 0)
-            filledBuckets.append(Bucket(
-                start: bucketStart,
-                end: bucketEnd,
-                wordCount: count.words,
-                sessionCount: count.sessions,
-                isCurrent: bucketStart == currentBucket
-            ))
-            bucketStart = bucketEnd
+        let activity = bins.indices.map { index in
+            let lower = bins.thresholds[index]
+            let upper = bins.thresholds[index + 1]
+            return Bucket(
+                start: lower,
+                end: upper,
+                wordCount: counts[index].words,
+                sessionCount: counts[index].sessions,
+                dayCount: max(1, calendar.dateComponents([.day], from: lower, to: upper).day!),
+                isCurrent: index == bins.endIndex - 1
+            )
         }
-        buckets = filledBuckets
+        buckets = activity
+        if range == .allTime, activity.count >= 3, summary.wordCount > 0 {
+            activityTrend = activity.indices.map { index in
+                let window = activity[max(0, index - 2)...index]
+                let words = window.reduce(0.0) { $0 + Double($1.wordCount) }
+                let days = window.reduce(0) { $0 + $1.dayCount }
+                return words / Double(days)
+            }
+        } else {
+            activityTrend = []
+        }
 
         let activeDays = Set(selected.map { calendar.startOfDay(for: $0.date) })
         if selected.count >= 10 && activeDays.count >= 5 {

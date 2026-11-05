@@ -84,15 +84,29 @@ struct ReviewInsightsView: View {
 
     private func activityChart(_ report: UsageInsightsReport) -> some View {
         let buckets = report.buckets
-        let unit = bucketUnitText(report)
-        let peak = buckets.max { $0.wordCount < $1.wordCount }
+        let allTime = report.range == .allTime
+        let peak = buckets.max { $0.wordsPerDay < $1.wordsPerDay }
+        let current = buckets.last
+        let currentLabel = allTime && (current?.dayCount ?? 1) > 1 ? "Latest period" : "Today"
         let plotInset: CGFloat = 8
         return VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .firstTextBaseline) {
-                Text("Words per \(unit)").font(.system(size: 15, weight: .semibold))
+                Text(allTime ? "Average words per day" : "Words per day")
+                    .font(.system(size: 15, weight: .semibold))
                 Spacer()
-                Text(range == .allTime ? "All time" : "Last \(range.dayCount ?? 30) calendar days")
+                if !report.activityTrend.isEmpty {
+                    HStack(spacing: 6) {
+                        Capsule().fill(ReviewTheme.muted).frame(width: 14, height: 1.5)
+                            .accessibilityHidden(true)
+                        Text("Trend")
+                    }
                     .font(.system(size: 13)).foregroundStyle(ReviewTheme.muted)
+                    .help("Rolling average over up to three chart periods")
+                    .accessibilityLabel("Trend, rolling average over up to three chart periods")
+                } else if let days = range.dayCount {
+                    Text("Last \(days) calendar days")
+                        .font(.system(size: 13)).foregroundStyle(ReviewTheme.muted)
+                }
             }
             if report.summary.sessionCount == 0 {
                 VStack(spacing: 0) {
@@ -103,7 +117,7 @@ struct ReviewInsightsView: View {
                 }
                 .frame(height: 150)
             } else {
-                InsightsActivityBars(buckets: buckets, unit: report.bucketUnit, tint: tint)
+                InsightsActivityBars(buckets: buckets, trend: report.activityTrend, showsDailyAverage: allTime, tint: tint)
                     .id(range)
                     .padding(.horizontal, plotInset)
                     .overlay(alignment: .bottom) {
@@ -115,28 +129,31 @@ struct ReviewInsightsView: View {
             }
             if report.summary.sessionCount > 0 {
                 HStack {
-                    Text(peak.map { "Peak \($0.wordCount.formatted()) words" } ?? "Peak —")
+                    Text(peak.map { "Peak \(activityValue($0, allTime: allTime))" } ?? "Peak —")
                     Spacer()
-                    Text("\(currentBucketText(report)) \(buckets.first(where: \.isCurrent)?.wordCount.formatted() ?? "0")")
+                    Text("\(currentLabel) \(current.map { activityValue($0, allTime: allTime) } ?? "—")")
                 }
                 .font(.system(size: 13)).monospacedDigit().foregroundStyle(ReviewTheme.muted)
             }
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel(report.summary.sessionCount == 0
-            ? "Words per \(unit), \(range.label.lowercased()). No dictations."
-            : "Words per \(unit), \(range.label.lowercased()). Peak \(peak?.wordCount ?? 0) words\(peak.map { " on \(bucketLabel($0.date, report: report))" } ?? "").")
+            ? "Words per day, \(range.label.lowercased()). No dictations."
+            : "Words per day, \(range.label.lowercased()). Peak \(peak.map { activityValue($0, allTime: allTime) } ?? "—").")
     }
 
     private func chartDateLabels(_ report: UsageInsightsReport) -> some View {
         GeometryReader { geometry in
             let count = report.buckets.count
+            let showsYear = report.buckets.contains { $0.dayCount >= 28 }
             let width = geometry.size.width / CGFloat(max(count, 1))
             let indices = Array(Set([0, count / 2, max(count - 1, 0)])).sorted()
             ForEach(indices, id: \.self) { index in
                 if index < count {
                     let center = (CGFloat(index) + 0.5) * width
-                    Text(bucketLabel(report.buckets[index].date, report: report))
+                    let date = report.buckets[index].start
+                    Text(showsYear ? date.formatted(.dateTime.month(.abbreviated).year())
+                         : date.formatted(.dateTime.month(.abbreviated).day()))
                         .font(.system(size: 13)).monospacedDigit().foregroundStyle(ReviewTheme.muted)
                         .lineLimit(1).frame(width: 90, alignment: index == 0 ? .leading : index == count - 1 ? .trailing : .center)
                         .position(x: min(max(center, 45), geometry.size.width - 45), y: 7)
@@ -190,17 +207,8 @@ struct ReviewInsightsView: View {
         return "\(seconds / 3600)h \((seconds % 3600) / 60)m"
     }
 
-    private func bucketUnitText(_ report: UsageInsightsReport) -> String {
-        switch report.bucketUnit { case .day: "day"; case .week: "week"; case .month: "month" }
-    }
-
-    private func currentBucketText(_ report: UsageInsightsReport) -> String {
-        switch report.bucketUnit { case .day: "Today"; case .week: "This week"; case .month: "This month" }
-    }
-
-    private func bucketLabel(_ date: Date, report: UsageInsightsReport) -> String {
-        report.bucketUnit == .month ? date.formatted(.dateTime.month(.abbreviated).year(.twoDigits))
-            : date.formatted(.dateTime.month(.abbreviated).day())
+    private func activityValue(_ bucket: UsageInsightsReport.Bucket, allTime: Bool) -> String {
+        allTime ? "\(dailyAverageText(bucket)) words/day" : "\(bucket.wordCount.formatted()) words"
     }
 }
 
@@ -209,11 +217,12 @@ private struct InsightsActivityBars: View {
     @State private var hoveredBucket: Date?
 
     let buckets: [UsageInsightsReport.Bucket]
-    let unit: UsageInsightsReport.BucketUnit
+    let trend: [Double]
+    let showsDailyAverage: Bool
     let tint: Color
 
     var body: some View {
-        let maximum = max(buckets.map(\.wordCount).max() ?? 0, 1)
+        let maximum = max(buckets.map(\.wordsPerDay).max() ?? 0, 1)
         GeometryReader { geometry in
             let width = geometry.size.width
             let columnWidth = width / CGFloat(max(buckets.count, 1))
@@ -223,7 +232,7 @@ private struct InsightsActivityBars: View {
                 ForEach(buckets) { bucket in
                     let isHovered = bucket.id == hoveredBucket
                     let opacity = bucket.isCurrent ? (isHovered ? 1 : 0.92) : (isHovered ? 0.76 : 0.40)
-                    let height = geometry.size.height * CGFloat(bucket.wordCount) / CGFloat(maximum)
+                    let height = geometry.size.height * CGFloat(bucket.wordsPerDay / maximum)
                     VStack(spacing: 0) {
                         Spacer(minLength: 0)
                         RoundedRectangle(cornerRadius: 2)
@@ -232,8 +241,22 @@ private struct InsightsActivityBars: View {
                     }
                     .frame(width: columnWidth)
                     .accessibilityElement(children: .ignore)
-                    .accessibilityLabel(periodLabel(bucket.start))
+                    .accessibilityLabel(periodLabel(bucket))
                     .accessibilityValue(bucketSummary(bucket))
+                }
+            }
+            .overlay {
+                if !trend.isEmpty {
+                    Path { path in
+                        for (index, value) in trend.enumerated() {
+                            let point = CGPoint(x: (CGFloat(index) + 0.5) * columnWidth,
+                                                y: geometry.size.height * CGFloat(1 - value / maximum))
+                            if index == 0 { path.move(to: point) } else { path.addLine(to: point) }
+                        }
+                    }
+                    .stroke(ReviewTheme.muted, style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round))
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
                 }
             }
             .contentShape(Rectangle())
@@ -271,7 +294,7 @@ private struct InsightsActivityBars: View {
     private func bucketPreview(_ bucket: UsageInsightsReport.Bucket) -> some View {
         let shape = RoundedRectangle(cornerRadius: 6)
         return VStack(alignment: .leading, spacing: 4) {
-            Text(periodLabel(bucket.start)).font(.system(size: 13, weight: .semibold))
+            Text(periodLabel(bucket)).font(.system(size: 13, weight: .semibold))
             Text(bucketSummary(bucket)).font(.system(size: 12)).foregroundStyle(ReviewTheme.muted)
         }
         .monospacedDigit()
@@ -284,15 +307,20 @@ private struct InsightsActivityBars: View {
         .shadow(color: .black.opacity(0.3), radius: 8, y: 3)
     }
 
-    private func periodLabel(_ date: Date) -> String {
-        switch unit {
-        case .day: date.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day().year())
-        case .week: "Week of \(date.formatted(.dateTime.month(.abbreviated).day().year()))"
-        case .month: date.formatted(.dateTime.month(.wide).year())
+    private func periodLabel(_ bucket: UsageInsightsReport.Bucket) -> String {
+        if bucket.dayCount == 1 {
+            return bucket.start.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day().year())
         }
+        let lastDay = bucket.end.addingTimeInterval(-1)
+        return (bucket.start..<lastDay).formatted(.interval.month(.abbreviated).day().year())
     }
 
     private func bucketSummary(_ bucket: UsageInsightsReport.Bucket) -> String {
-        "\(bucket.wordCount.formatted()) \(bucket.wordCount == 1 ? "word" : "words") · \(bucket.sessionCount.formatted()) \(bucket.sessionCount == 1 ? "dictation" : "dictations")"
+        let totals = "\(bucket.wordCount.formatted()) \(bucket.wordCount == 1 ? "word" : "words") · \(bucket.sessionCount.formatted()) \(bucket.sessionCount == 1 ? "dictation" : "dictations")"
+        return showsDailyAverage && bucket.dayCount > 1 ? "\(totals)\n\(dailyAverageText(bucket)) words/day" : totals
     }
+}
+
+private func dailyAverageText(_ bucket: UsageInsightsReport.Bucket) -> String {
+    bucket.wordsPerDay.formatted(.number.precision(.fractionLength(0...1)))
 }

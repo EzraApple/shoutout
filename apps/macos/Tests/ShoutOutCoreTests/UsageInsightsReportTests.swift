@@ -20,10 +20,9 @@ final class UsageInsightsReportTests: XCTestCase {
 
         XCTAssertEqual(report.periodStart, date(2026, 10, 20))
         XCTAssertEqual(report.periodEnd, now)
-        XCTAssertEqual(report.bucketUnit, .day)
         XCTAssertEqual(report.buckets.map(\.wordCount), [3, 0, 0, 0, 0, 0, 4])
         XCTAssertEqual(report.buckets.map(\.sessionCount), [1, 0, 0, 0, 0, 0, 1])
-        XCTAssertEqual(report.buckets.filter(\.isCurrent).map(\.date), [date(2026, 10, 26)])
+        XCTAssertEqual(report.buckets.filter(\.isCurrent).map(\.start), [date(2026, 10, 26)])
         XCTAssertEqual(report.summary.wordCount, 7)
         XCTAssertEqual(report.previousSummary?.wordCount, 3)
     }
@@ -92,40 +91,44 @@ final class UsageInsightsReportTests: XCTestCase {
         XCTAssertEqual(report.buckets.count, 7)
     }
 
-    func testAllTimeChangesBucketUnitAtCalendarThresholds() {
-        let now = date(2026, 10, 26, 12)
-        let daily = UsageInsightsReport(sessions: [session(2026, 9, 26)],
-                                        range: .allTime, now: now, calendar: utc)
-        XCTAssertEqual(daily.bucketUnit, .day)
-        XCTAssertEqual(daily.buckets.count, 31)
-        XCTAssertNil(daily.previousSummary)
+    func testAllTimeKeepsShortHistoryDailyAndIncludesNowOnABoundary() {
+        let now = date(2026, 10, 26)
+        let sessions = [session(2026, 10, 24, words: 9), session(2026, 10, 26, hour: 0, words: 3)]
+        let report = UsageInsightsReport(sessions: sessions, range: .allTime, now: now, calendar: utc)
 
-        let weekly = UsageInsightsReport(sessions: [session(2026, 9, 25)],
-                                         range: .allTime, now: now, calendar: utc)
-        XCTAssertEqual(weekly.bucketUnit, .week)
-        XCTAssertEqual(weekly.buckets.map(\.start), weekly.buckets.map { utc.dateInterval(of: .weekOfYear, for: $0.start)!.start })
-
-        let monthly = UsageInsightsReport(sessions: [session(2026, 3, 1)],
-                                          range: .allTime, now: now, calendar: utc)
-        XCTAssertEqual(monthly.bucketUnit, .month)
-        XCTAssertEqual(monthly.buckets.count, 8)
-        XCTAssertEqual(monthly.buckets.first?.start, date(2026, 3, 1))
-        XCTAssertEqual(monthly.buckets.last?.start, date(2026, 10, 1))
+        XCTAssertEqual(report.buckets.map(\.wordCount), [9, 0, 3])
+        XCTAssertEqual(report.activityTrend, [9, 4.5, 4])
+        XCTAssertEqual(report.buckets.last?.end, date(2026, 10, 27))
+        XCTAssertNil(report.previousSummary)
     }
 
-    func testWeekAndMonthBucketsCrossYearBoundaries() {
-        let now = date(2027, 1, 4, 12)
-        let weekly = UsageInsightsReport(sessions: [session(2026, 12, 1), session(2027, 1, 4)],
-                                         range: .allTime, now: now, calendar: utc)
-        XCTAssertEqual(weekly.bucketUnit, .week)
-        XCTAssertEqual(weekly.buckets.first?.start, date(2026, 11, 29))
-        XCTAssertEqual(weekly.buckets.last?.start, date(2027, 1, 3))
+    func testMultiYearAllTimeStaysCompactAndPreservesCountsAndCalendarCoverage() throws {
+        let now = date(2027, 1, 1)
+        for year in [2022, 2017] {
+            let sessions = [
+                session(year, 5, 2, words: 25),
+                session(2025, 1, 1, words: 35),
+                session(2027, 1, 1, hour: 0, words: 5),
+            ]
+            let report = UsageInsightsReport(sessions: sessions, range: .allTime, now: now, calendar: utc)
+            let buckets = report.buckets
+            let latest = try XCTUnwrap(buckets.last)
+            XCTAssertTrue((10...32).contains(buckets.count))
+            XCTAssertEqual(buckets.first?.start, date(year, 5, 2))
+            XCTAssertEqual(latest.end, date(2027, 1, 2))
+            XCTAssertTrue(latest.isCurrent)
+            XCTAssertEqual(latest.wordsPerDay, 5)
+            XCTAssertTrue(zip(buckets, buckets.dropFirst()).allSatisfy { $0.end == $1.start })
+            XCTAssertTrue(buckets.contains { $0.wordCount == 0 })
+            XCTAssertEqual(buckets.map(\.wordCount).reduce(0, +), report.summary.wordCount)
+            XCTAssertEqual(buckets.map(\.sessionCount).reduce(0, +), sessions.count)
 
-        let month = UsageInsightsReport(sessions: [session(2026, 5, 1), session(2027, 1, 4)],
-                                        range: .allTime, now: now, calendar: utc)
-        XCTAssertEqual(month.bucketUnit, .month)
-        XCTAssertEqual(month.buckets.count, 9)
-        XCTAssertEqual(month.buckets.last?.start, date(2027, 1, 1))
+            let trailing = buckets.suffix(3)
+            let days = trailing.map(\.dayCount).reduce(0, +)
+            let words = trailing.map(\.wordCount).reduce(0, +)
+            XCTAssertEqual(report.activityTrend.count, buckets.count)
+            XCTAssertEqual(try XCTUnwrap(report.activityTrend.last), Double(words) / Double(days), accuracy: 0.001)
+        }
     }
 
     func testRhythmNeedsTenSessionsAcrossFiveDistinctDays() {
