@@ -3,6 +3,25 @@
     <channel>
         <title>ShoutOut</title>
         <item>
+            <title>0.3.6</title>
+            <pubDate>Tue, 10 Nov 2026 19:10:20 -0800</pubDate>
+            <link>https://shoutout.sh</link>
+            <sparkle:fullReleaseNotesLink>https://shoutout.sh/version-history</sparkle:fullReleaseNotesLink>
+            <sparkle:version>27</sparkle:version>
+            <sparkle:shortVersionString>0.3.6</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <sparkle:releaseNotesLink>https://downloads.shoutout.sh/releases/ShoutOut-0.3.6.md</sparkle:releaseNotesLink>
+            <enclosure url="https://downloads.shoutout.sh/releases/ShoutOut-0.3.6.dmg" length="63897400" type="application/octet-stream" sparkle:edSignature="9rAEf0pXqZhhEoqPM8barLtZw6VoLOtNDufkSV4F6w/c4s14DuII6bSNtW1OPkyF1WUbDFk1WZgSkUYoSS9xBg=="/>
+            <sparkle:deltas>
+                <enclosure url="https://downloads.shoutout.sh/releases/ShoutOut27-26.delta" sparkle:deltaFrom="26" length="1376442" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="7jsC8Ogy5GCBSaDOdI/OozcOiajh74IMsQdUNCP+2jyZIpV9O8FY78hZl4hbPjoOlIp0wL2qCkd4I28VNIqjDA=="/>
+                <enclosure url="https://downloads.shoutout.sh/releases/ShoutOut27-25.delta" sparkle:deltaFrom="25" length="1700898" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="kF1jSEk5ZMKMl/p3/fZUdJGXzRj42Fm4aWGZ5q8RQ5ddC4IwHNl9u7D2g7Oa+h0VOK+yDMQAaeRcVW/SHozOAg=="/>
+                <enclosure url="https://downloads.shoutout.sh/releases/ShoutOut27-24.delta" sparkle:deltaFrom="24" length="1639082" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="XzR58DFEYcZIzZLrwRCt/NaK/Ln14N0gLbplf1fT7ZDhFI3LBvMD6Qv4Vdj6njGGjnIy0DmVSwRUMgh5E7SXBA=="/>
+                <enclosure url="https://downloads.shoutout.sh/releases/ShoutOut27-23.delta" sparkle:deltaFrom="23" length="2353002" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="uoIvNhYooF2v6GKo5OU0T7pNr06dun9TfT9lBC5GcBN4aa31EfOgxK9P8k7QVsyKyWIYs+UfK5/wvXRMIWPLDg=="/>
+                <enclosure url="https://downloads.shoutout.sh/releases/ShoutOut27-22.delta" sparkle:deltaFrom="22" length="2370930" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="+imkJaIhxTN9+uTndPniHCampASqG0imj6/u38/66IyYtZXUH7B4zWTN3yJ3mIdemIm2hj18JgBhZaVmZyXQCw=="/>
+            </sparkle:deltas>
+        </item>
+        <item>
             <title>0.3.5</title>
             <pubDate>Mon, 09 Nov 2026 20:50:25 -0800</pubDate>
             <link>https://shoutout.sh</link>
@@ -11,7 +30,6 @@
             <sparkle:shortVersionString>0.3.5</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <sparkle:releaseNotesLink>https://downloads.shoutout.sh/releases/ShoutOut-0.3.5.md</sparkle:releaseNotesLink>
             <enclosure url="https://downloads.shoutout.sh/releases/ShoutOut-0.3.5.dmg" length="63854200" type="application/octet-stream" sparkle:edSignature="KCSUnGU5TK6II0BCwJPoCAeWPw6CF2XSCz2VGCLTBfacTHfaA+DRFhgRohWZp3taGPhmSZWenYrlLpD4tO0PCw=="/>
             <sparkle:deltas>
                 <enclosure url="https://downloads.shoutout.sh/releases/ShoutOut26-25.delta" sparkle:deltaFrom="25" length="1457474" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="SRR0bZzJBgJw19ZnbTbmc8nmhbU4jY5ER1NJrwrqR3FbgSboR/h8NQFnH9HHBmhGoEFW799Hib1jXECUaOw5Aw=="/>
@@ -30,7 +48,6 @@
             <sparkle:shortVersionString>0.3.4</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <sparkle:releaseNotesLink>https://downloads.shoutout.sh/releases/ShoutOut-0.3.4.md</sparkle:releaseNotesLink>
             <enclosure url="https://downloads.shoutout.sh/releases/ShoutOut-0.3.4.dmg" length="63972472" type="application/octet-stream" sparkle:edSignature="56j1GKFr5AVsKDdLyo/R8xFlsmYshYwKjgFtifS4DB/4uus8v+N6KEl8FW93oh7OEOp1phA1Rsx3qBXfMYe7Cw=="/>
             <sparkle:deltas>
                 <enclosure url="https://downloads.shoutout.sh/releases/ShoutOut25-24.delta" sparkle:deltaFrom="24" length="1207506" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="HNKF/4WfwQ+PaYorIWZs6qpyNz6yNgF28p1Xo5yrg1CQPJBZxsSPNqjU7FzTWWv2Y+XH+V05ok7s9IWZ8G2WDA=="/>
@@ -48,7 +65,6 @@
             <sparkle:shortVersionString>0.3.3</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <sparkle:releaseNotesLink>https://downloads.shoutout.sh/releases/ShoutOut-0.3.3.md</sparkle:releaseNotesLink>
             <enclosure url="https://downloads.shoutout.sh/releases/ShoutOut-0.3.3.dmg" length="64051312" type="application/octet-stream" sparkle:edSignature="41dc6gKJRicds/GHTi6JTo3GK9j/uFt3LuKM3gi2+R5VvJW56Lb4R9jhaBIMf33GbvWopVYztjh0HmhswSuqAA=="/>
             <sparkle:deltas>
                 <enclosure url="https://downloads.shoutout.sh/releases/ShoutOut24-23.delta" sparkle:deltaFrom="23" length="1974494" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="z+IVNppjcSZYsaX99/xz8WBVaWZGWldOsSUx/GTBh27nykgrvYu+PTaKa5TcvnJrKHV/oKtBb4EOkVf5O62oAA=="/>
@@ -69,20 +85,6 @@
             <sparkle:deltas>
                 <enclosure url="https://downloads.shoutout.sh/releases/ShoutOut23-22.delta" sparkle:deltaFrom="22" length="1265938" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="rLlYzS2QpTlJRMZ3tP/12XYnsaHIu/ejCNO1pK0B7mXoYIr+xYIxsJTIziMPu5v8gAXgtdmaJGyok0hktYpcCw=="/>
                 <enclosure url="https://downloads.shoutout.sh/releases/ShoutOut23-21.delta" sparkle:deltaFrom="21" length="1627310" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="49qnedoP+jZKfGNYlbYdH0gGAXrPppr+u6nMEe8dUnrVGWZhGn5m9cnD2raDL8kGfupPa1pq5MSBAxR2SjspBg=="/>
-            </sparkle:deltas>
-        </item>
-        <item>
-            <title>0.3.1</title>
-            <pubDate>Thu, 22 Oct 2026 20:08:13 -0700</pubDate>
-            <link>https://shoutout.sh</link>
-            <sparkle:fullReleaseNotesLink>https://shoutout.sh/version-history</sparkle:fullReleaseNotesLink>
-            <sparkle:version>22</sparkle:version>
-            <sparkle:shortVersionString>0.3.1</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <enclosure url="https://downloads.shoutout.sh/releases/ShoutOut-0.3.1.dmg" length="75203487" type="application/octet-stream" sparkle:edSignature="+yFE4Fh7IuEkZhiY2TnDtNngXA+DTmka6M1N0I9YbKsFuHDOitnVsfBWJJ4wOoUWGH9B+OzrK3Qm/Vg9uO9vCA=="/>
-            <sparkle:deltas>
-                <enclosure url="https://downloads.shoutout.sh/releases/ShoutOut22-21.delta" sparkle:deltaFrom="21" length="1404470" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="atXb6MyfBvGg/CBXuPmGBNlf6/1VWr0qNO+2HA6z5L98MdrJQTMLdmcGVVIuJrC7KUFteH8UpYj1kcTktZCgDQ=="/>
             </sparkle:deltas>
         </item>
     </channel>
