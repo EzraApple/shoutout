@@ -58,7 +58,7 @@ private struct RecordingTailPolicy {
         }
     }
 
-    static let holdRelease = RecordingTailPolicy(name: "holdRelease", graceMilliseconds: 80)
+    static let holdRelease = RecordingTailPolicy(name: "holdRelease", graceMilliseconds: 20)
     static let handsFreeToggle = RecordingTailPolicy(
         name: "handsFreeToggle",
         graceMilliseconds: 120
@@ -666,9 +666,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         longFormWarmupTask?.cancel()
         longFormWarmupTask = nil
         activeDictationMetrics?.stopRequestedAt = Date()
-        let tailPolicy = RecordingTailPolicy.policy(
-            for: activeDictationMetrics?.inputMode ?? .unknown
-        )
+        let inputMode = activeDictationMetrics?.inputMode ?? .unknown
+        if inputMode != .handsFree {
+            audioRecorder.markReleaseForTailDiagnostics()
+        }
+        let tailPolicy = RecordingTailPolicy.policy(for: inputMode)
         activeDictationMetrics?.tailPolicy = tailPolicy.name
         activeDictationMetrics?.tailGraceMs = tailPolicy.graceMilliseconds
         RuntimeLog.write(
@@ -712,7 +714,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         audioLevelCancellable = nil
         latestRecordingLevel = 0
 
-        let recordedSamples = audioRecorder.stopRecording()
+        let recordedSamples = audioRecorder.stopRecording(
+            tailDiagnosticsID: activeDictationMetrics.map { String($0.id) }
+        )
         audioRecorder.onSamples = nil
         let recording = recordingTranscription
         recordingTranscription = nil
@@ -962,7 +966,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     languagePassAccepted: languagePassResult.accepted,
                     languagePassFallbackReason: languagePassResult.fallbackReason,
                     languagePassStyle: languagePassResult.styleRawValue,
-                    languagePassModel: languagePassResult.modelID
+                    languagePassModel: languagePassResult.modelID,
+                    miniCleanupScoreAudit: languagePassResult.miniCleanupScoreAudit
                 )
                 metrics.log(status: "inserted", transcriptionTiming: transcription.timing)
                 showTranscriptionResultIndicator(.done(text: insertedText))

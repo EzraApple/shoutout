@@ -16,8 +16,13 @@ enum RuntimeLog {
     }()
 
     static func write(_ message: String) {
-        let line = "\(Date()) \(message)\n"
+        write { message }
+    }
+
+    static func write(_ message: @escaping @Sendable () -> String) {
+        let timestamp = Date()
         queue.async {
+            let line = "\(timestamp) \(message())\n"
             if ProcessInfo.processInfo.arguments.contains("--cli") {
                 try? FileHandle.standardError.write(contentsOf: Data(line.utf8))
             } else {

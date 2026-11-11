@@ -10,13 +10,28 @@ final class AudioRecorderLifecycleTests: XCTestCase {
 
         recorder.startReplay()
         recorder.appendReplaySamples([1, 2])
-        XCTAssertEqual(recorder.stopRecording(), [1, 2])
+        recorder.markReleaseForTailDiagnostics()
+        recorder.appendReplaySamples([3])
+        XCTAssertEqual(recorder.stopRecording(tailDiagnosticsID: "replay-test"), [1, 2, 3])
+        RuntimeLog.flush()
 
         recorder.startReplay()
-        recorder.appendReplaySamples([3])
-        XCTAssertEqual(recorder.stopRecording(), [3])
-        XCTAssertEqual(streamed, [[1, 2], [3]])
+        recorder.appendReplaySamples([4])
+        XCTAssertEqual(recorder.stopRecording(), [4])
+        XCTAssertEqual(streamed, [[1, 2], [3], [4]])
         recorder.tearDown()
+    }
+}
+
+final class CaptureTailMeasurementTests: XCTestCase {
+    func testZeroCutoffCountsOnlySamplesDeliveredAfterRelease() {
+        let measurement = CaptureTailMeasurement(sampleCountAtRelease: 400)
+        let initial = [Float](repeating: 0.1, count: 400)
+
+        XCTAssertEqual(measurement.logFields(for: initial),
+                       "omittedSamplesAt0Ms=0 omittedRmsAt0Ms=0.000000 speechLikeAt0Ms=false")
+        XCTAssertEqual(measurement.logFields(for: initial + [Float](repeating: 0.02, count: 1_600)),
+                       "omittedSamplesAt0Ms=1600 omittedRmsAt0Ms=0.020000 speechLikeAt0Ms=true")
     }
 }
 

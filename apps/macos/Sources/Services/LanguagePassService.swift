@@ -45,6 +45,7 @@ struct LanguagePassRunResult: Sendable {
     var modelID: String?
     var fallbackReason: String?
     var styleRawValue: String?
+    var miniCleanupScoreAudit: MiniCleanupScoreAudit? = nil
 
     static func passthrough(
         _ text: String,
@@ -412,7 +413,13 @@ final class LanguagePassService: ObservableObject {
             enabled: true, accepted: output.fallbackReason == nil,
             changed: output.finalText != baseText,
             wallMs: Self.elapsedMilliseconds(since: startedAt), modelID: modelID,
-            fallbackReason: output.fallbackReason, styleRawValue: nil
+            fallbackReason: output.fallbackReason, styleRawValue: nil,
+            miniCleanupScoreAudit: output.wordScores.map { scores in
+                MiniCleanupScoreAudit(
+                    deletionThreshold: MiniCleanupEngine.deletionThreshold,
+                    wordScores: scores.map { .init(word: $0.word, deletionScore: $0.deletionScore) }
+                )
+            }
         )
     }
 

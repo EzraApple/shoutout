@@ -14,14 +14,16 @@ public struct MiniCleanupResult: Sendable {
     public let finalText: String
     public let fallbackReason: String?
     public let elapsedMilliseconds: Double
-    public let wordDeleteProbabilities: [Double]?
+    public let wordScores: [(word: String, deletionScore: Double)]?
     public let windows: [MiniCleanupWindow]
 
+    public var wordDeleteProbabilities: [Double]? { wordScores?.map(\.deletionScore) }
     public var windowCount: Int { windows.count }
 }
 
 public actor MiniCleanupEngine {
     public static let modelID = "native-mini-2026-10-21"
+    public static let deletionThreshold = 0.95
 
     typealias Predictor = @Sendable ([Int32], [Int32]) throws -> [Float]
 
@@ -85,7 +87,7 @@ public actor MiniCleanupEngine {
         let start = ContinuousClock.now
         guard !source.isEmpty else {
             return MiniCleanupResult(candidateText: source, finalText: source, fallbackReason: nil,
-                                     elapsedMilliseconds: 0, wordDeleteProbabilities: [], windows: [])
+                                     elapsedMilliseconds: 0, wordScores: [], windows: [])
         }
         do {
             try prepare()
@@ -94,7 +96,7 @@ public actor MiniCleanupEngine {
             guard !words.isEmpty else {
                 return MiniCleanupResult(candidateText: source, finalText: source, fallbackReason: nil,
                                          elapsedMilliseconds: elapsed(since: start),
-                                         wordDeleteProbabilities: [], windows: [])
+                                         wordScores: [], windows: [])
             }
             let windows = try tokenizer.windows(for: words)
             var sums = Array(repeating: 0.0, count: words.count)
@@ -126,15 +128,15 @@ public actor MiniCleanupEngine {
             guard counts.allSatisfy({ $0 > 0 }) else { throw MiniCleanupError.missingPrediction }
             let probabilities = zip(sums, counts).map { $0 / Double($1) }
             let candidate = Self.reconstruct(source: source, words: words,
-                                             delete: probabilities.map { $0 >= 0.98 })
+                                             delete: probabilities.map { $0 >= Self.deletionThreshold })
             return MiniCleanupResult(candidateText: candidate, finalText: candidate, fallbackReason: nil,
                                      elapsedMilliseconds: elapsed(since: start),
-                                     wordDeleteProbabilities: probabilities, windows: windows)
+                                     wordScores: zip(words, probabilities).map { ($0.text, $1) }, windows: windows)
         } catch {
             return MiniCleanupResult(candidateText: nil, finalText: source,
                                      fallbackReason: String(describing: error),
                                      elapsedMilliseconds: elapsed(since: start),
-                                     wordDeleteProbabilities: nil, windows: [])
+                                     wordScores: nil, windows: [])
         }
     }
 

@@ -63,14 +63,17 @@ final class MiniCleanupTests: XCTestCase {
         let engine = MiniCleanupEngine(tokenizer: tokenizer) { ids, _ in
             var logits = Array(repeating: Float(0), count: 512)
             for position in 0..<ids.count where ids[position] == 4 {
-                logits[position * 2 + 1] = 10
+                logits[position * 2 + 1] = 3.5
             }
             return logits
         }
         let result = await engine.cleanup(source: "hello\tCafé")
         XCTAssertEqual(result.finalText, "Café")
         XCTAssertNil(result.fallbackReason)
-        XCTAssertEqual(result.wordDeleteProbabilities?.count, 2)
+        XCTAssertEqual(result.wordScores?.map(\.word), ["hello", "Café"])
+        let scores = try XCTUnwrap(result.wordDeleteProbabilities)
+        XCTAssertEqual(scores[0], 0.971, accuracy: 0.001)
+        XCTAssertEqual(scores[1], 0.5)
 
         let brokenEngine = MiniCleanupEngine(tokenizer: tokenizer) { _, _ in
             Array(repeating: Float.nan, count: 512)

@@ -201,30 +201,34 @@ public enum TextInsertionFormatter {
         }
 
         let firstWord = firstWord(in: text, from: firstLetterIndex)
-        if shouldUppercaseFirstWord(firstWord, context: context) {
+        let firstLetter = text[firstLetterIndex]
+        if startsSentence(after: context.textBefore) {
+            guard firstLetter.isLowercase, firstWord == firstWord.lowercased() else {
+                return text
+            }
             return replacingCharacter(at: firstLetterIndex, in: text) { String($0).uppercased() }
         }
 
-        return text
+        guard firstLetter.isUppercase, firstWord != "I" else {
+            return text
+        }
+
+        let firstToken = text[firstLetterIndex...].prefix { !$0.isInsertionWhitespace }
+        guard !firstToken.dropFirst().contains(where: \.isUppercase) else {
+            return text
+        }
+        return replacingCharacter(at: firstLetterIndex, in: text) { String($0).lowercased() }
     }
 
-    private static func shouldUppercaseFirstWord(
-        _ firstWord: String,
-        context: TextInsertionContext
-    ) -> Bool {
-        guard let first = firstWord.first, first.isLowercase else {
-            return false
-        }
-        guard firstWord == firstWord.lowercased() else {
-            return false
-        }
-        if trailingWhitespaceContainsNewline(context.textBefore) {
+    private static func startsSentence(after text: String) -> Bool {
+        let reversed = text.reversed()
+        if reversed.prefix(while: \.isInsertionWhitespace).contains(where: \.isNewline) {
             return true
         }
-        guard let previous = lastNonWhitespace(in: context.textBefore) else {
-            return true
-        }
-        return sentenceTerminators.contains(previous)
+        let preceding = reversed.drop(while: \.isInsertionWhitespace)
+        guard !preceding.isEmpty else { return true }
+        let beforeClosingDelimiters = preceding.drop { closingSentenceDelimiters.contains($0) }
+        return beforeClosingDelimiters.first.map(sentenceTerminators.contains) ?? false
     }
 
     private static func isLikelyNaturalText(_ text: String) -> Bool {
@@ -271,22 +275,6 @@ public enum TextInsertionFormatter {
         return updated
     }
 
-    private static func lastNonWhitespace(in text: String) -> Character? {
-        text.reversed().first { !$0.isInsertionWhitespace }
-    }
-
-    private static func trailingWhitespaceContainsNewline(_ text: String) -> Bool {
-        for character in text.reversed() {
-            guard character.isInsertionWhitespace else {
-                return false
-            }
-            if character == "\n" {
-                return true
-            }
-        }
-        return text.contains("\n")
-    }
-
     private static let leadingPunctuation: Set<Character> = [
         ".", ",", "?", "!", ":", ";", ")", "]", "}", "%",
     ]
@@ -299,9 +287,8 @@ public enum TextInsertionFormatter {
         "(", "[", "{", "$", "#", "@",
     ]
 
-    private static let sentenceTerminators: Set<Character> = [
-        ".", "?", "!", "\n",
-    ]
+    private static let sentenceTerminators: Set<Character> = [".", "?", "!"]
+    private static let closingSentenceDelimiters: Set<Character> = ["\"", "'", "”", "’", ")", "]"]
 }
 
 private extension Character {

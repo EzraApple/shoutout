@@ -1,4 +1,5 @@
 import Foundation
+import ShoutOutCore
 import XCTest
 @testable import ShoutOut
 
@@ -73,6 +74,37 @@ final class MiniLanguagePassIntegrationTests: XCTestCase {
         XCTAssertNil(defaults.object(forKey: Defaults.languagePassStyle))
         XCTAssertNil(defaults.object(forKey: Defaults.languagePassModel))
         XCTAssertEqual(service.selectedModelID, MiniCleanupConfiguration.modelID)
+    }
+
+    func testMiniScoresPersistWithTheCleanupInputWhenAssetsProvided() async throws {
+        guard let directory = ProcessInfo.processInfo.environment["MINI_CLEANUP_ASSET_DIR"] else {
+            throw XCTSkip("Set MINI_CLEANUP_ASSET_DIR to run with the frozen Mini model.")
+        }
+        let suite = "ShoutOut.MiniScoreAudit.Tests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let service = MiniCleanupConfiguration.makeLanguagePassService(
+            defaults: defaults, miniModelDirectory: URL(fileURLWithPath: directory))
+        let source = "Please keep the word period in this sentence."
+        let result = await service.process(rawText: source, baseText: source)
+        let audit = try XCTUnwrap(result.miniCleanupScoreAudit)
+        XCTAssertTrue(result.accepted)
+        XCTAssertFalse(result.changed)
+        XCTAssertEqual(audit.deletionThreshold, 0.95)
+        XCTAssertEqual(audit.wordScores.map(\.word),
+                       ["Please", "keep", "the", "word", "period", "in", "this", "sentence."])
+        XCTAssertTrue(audit.wordScores.allSatisfy { $0.deletionScore < audit.deletionThreshold })
+
+        let temporaryDirectory = FileManager.default.temporaryDirectory.appendingPathComponent(suite)
+        defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
+        let fileURL = temporaryDirectory.appendingPathComponent("transcription-history.json")
+        try TranscriptionHistoryStore(fileURL: fileURL).record(
+            text: result.finalText, duration: 1, model: "parakeet",
+            languagePassInput: result.inputText, miniCleanupScoreAudit: result.miniCleanupScoreAudit
+        )
+        let entry = try XCTUnwrap(TranscriptionHistoryStore(fileURL: fileURL).recentEntries.first)
+        XCTAssertEqual(entry.languagePassInput, source)
+        XCTAssertEqual(entry.miniCleanupScoreAudit, audit)
     }
 
     func testPrivateDevelopmentReplayThroughAppService() async throws {

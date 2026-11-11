@@ -3,6 +3,19 @@ import AppKit
 import CoreAudio
 import Darwin
 import Foundation
+import ShoutOutCore
+
+/// Measures buffer delivery. A late buffer can contain audio recorded before release.
+struct CaptureTailMeasurement: Sendable {
+    let sampleCountAtRelease: Int
+
+    func logFields(for samples: [Float]) -> String {
+        let signal = AudioSignalAnalysis.analyze(samples: Array(samples.dropFirst(sampleCountAtRelease)))
+        let rms = String(format: "%.6f", locale: Locale(identifier: "en_US_POSIX"), signal.rms)
+        return "omittedSamplesAt0Ms=\(signal.sampleCount) omittedRmsAt0Ms=\(rms) "
+            + "speechLikeAt0Ms=\(signal.hasSpeechLikeAudio)"
+    }
+}
 
 /// Thread-safe audio sample collector used by the real-time audio tap.
 /// The tap callback writes samples from the audio thread; the main thread reads on stop.
@@ -10,6 +23,7 @@ private final class AudioSampleCollector: @unchecked Sendable {
     private let lock = NSLock()
     private var samples: ContiguousArray<Float> = []
     private var level: Float = 0
+    private var tailMeasurement: CaptureTailMeasurement?
 
     var latestLevel: Float {
         lock.lock()
@@ -30,11 +44,18 @@ private final class AudioSampleCollector: @unchecked Sendable {
         return Array(samples.dropFirst(offset))
     }
 
-    func drain() -> [Float] {
+    func markReleaseForTailDiagnostics() {
         lock.lock()
-        let result = Array(samples)
+        defer { lock.unlock() }
+        tailMeasurement = CaptureTailMeasurement(sampleCountAtRelease: samples.count)
+    }
+
+    func drain() -> (samples: [Float], tailMeasurement: CaptureTailMeasurement?) {
+        lock.lock()
+        let result = (Array(samples), tailMeasurement)
         samples.removeAll(keepingCapacity: true)
         level = 0
+        tailMeasurement = nil
         lock.unlock()
         return result
     }
@@ -43,6 +64,7 @@ private final class AudioSampleCollector: @unchecked Sendable {
         lock.lock()
         samples.removeAll(keepingCapacity: true)
         level = 0
+        tailMeasurement = nil
         lock.unlock()
     }
 }
@@ -270,7 +292,11 @@ class AudioRecorder: ObservableObject {
         RuntimeLog.write("record engine prepared")
     }
 
-    func stopRecording() -> [Float] {
+    func markReleaseForTailDiagnostics() {
+        collector.markReleaseForTailDiagnostics()
+    }
+
+    func stopRecording(tailDiagnosticsID: String? = nil) -> [Float] {
         guard isRecording else { return [] }
 
         levelPollTimer?.invalidate()
@@ -286,7 +312,13 @@ class AudioRecorder: ObservableObject {
         isRecording = false
         audioLevel = 0
 
-        return collector.drain()
+        let capture = collector.drain()
+        if let tailDiagnosticsID, let measurement = capture.tailMeasurement {
+            RuntimeLog.write {
+                "record capture tail id=\(tailDiagnosticsID) \(measurement.logFields(for: capture.samples))"
+            }
+        }
+        return capture.samples
     }
 
     func startReplay() {

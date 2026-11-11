@@ -1,6 +1,27 @@
 import Combine
 import Foundation
 
+public struct MiniCleanupScoreAudit: Codable, Equatable, Sendable {
+    public struct WordScore: Codable, Equatable, Sendable {
+        public let word: String
+        public let deletionScore: Double
+
+        public init(word: String, deletionScore: Double) {
+            self.word = word
+            self.deletionScore = deletionScore
+        }
+    }
+
+    public let deletionThreshold: Double
+    /// One entry per source word, in the order it appears in languagePassInput.
+    public let wordScores: [WordScore]
+
+    public init(deletionThreshold: Double, wordScores: [WordScore]) {
+        self.deletionThreshold = deletionThreshold
+        self.wordScores = wordScores
+    }
+}
+
 public struct TranscriptionHistoryEntry: Codable, Equatable, Identifiable, Sendable {
     public var id: UUID
     public var date: Date
@@ -15,6 +36,7 @@ public struct TranscriptionHistoryEntry: Codable, Equatable, Identifiable, Senda
     public var languagePassFallbackReason: String?
     public var languagePassStyle: String?
     public var languagePassModel: String?
+    public var miniCleanupScoreAudit: MiniCleanupScoreAudit?
 
     public init(
         id: UUID = UUID(),
@@ -29,7 +51,8 @@ public struct TranscriptionHistoryEntry: Codable, Equatable, Identifiable, Senda
         languagePassAccepted: Bool? = nil,
         languagePassFallbackReason: String? = nil,
         languagePassStyle: String? = nil,
-        languagePassModel: String? = nil
+        languagePassModel: String? = nil,
+        miniCleanupScoreAudit: MiniCleanupScoreAudit? = nil
     ) {
         self.id = id
         self.date = date
@@ -44,6 +67,7 @@ public struct TranscriptionHistoryEntry: Codable, Equatable, Identifiable, Senda
         self.languagePassFallbackReason = languagePassFallbackReason
         self.languagePassStyle = languagePassStyle
         self.languagePassModel = languagePassModel
+        self.miniCleanupScoreAudit = miniCleanupScoreAudit
     }
 
     public var hasLanguagePassDetails: Bool {
@@ -104,7 +128,8 @@ public final class TranscriptionHistoryStore: ObservableObject {
         languagePassAccepted: Bool? = nil,
         languagePassFallbackReason: String? = nil,
         languagePassStyle: String? = nil,
-        languagePassModel: String? = nil
+        languagePassModel: String? = nil,
+        miniCleanupScoreAudit: MiniCleanupScoreAudit? = nil
     ) throws {
         let normalizedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalizedText.isEmpty else {
@@ -118,13 +143,16 @@ public final class TranscriptionHistoryStore: ObservableObject {
                 wordCount: Self.countWords(in: normalizedText),
                 duration: max(duration, 0),
                 model: model,
-                languagePassInput: Self.normalizedOptionalText(languagePassInput),
+                languagePassInput: miniCleanupScoreAudit == nil
+                    ? Self.normalizedOptionalText(languagePassInput)
+                    : languagePassInput,
                 languagePassCandidate: Self.normalizedOptionalText(languagePassCandidate),
                 languagePassOutput: Self.normalizedOptionalText(languagePassOutput),
                 languagePassAccepted: languagePassAccepted,
                 languagePassFallbackReason: Self.normalizedOptionalText(languagePassFallbackReason),
                 languagePassStyle: Self.normalizedOptionalText(languagePassStyle),
-                languagePassModel: Self.normalizedOptionalText(languagePassModel)
+                languagePassModel: Self.normalizedOptionalText(languagePassModel),
+                miniCleanupScoreAudit: miniCleanupScoreAudit
             ),
             at: 0
         )

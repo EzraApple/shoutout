@@ -67,15 +67,29 @@ final class TranscriptionHistoryStoreTests: XCTestCase {
     func testFormattedTranscriptKeepsRawMiniTraceSeparate() throws {
         let fileURL = temporaryFileURL()
         let store = TranscriptionHistoryStore(fileURL: fileURL)
+        let audit = MiniCleanupScoreAudit(
+            deletionThreshold: 0.95,
+            wordScores: [
+                .init(word: "Um,", deletionScore: 0.97),
+                .init(word: "we", deletionScore: 0.02),
+                .init(word: "should", deletionScore: 0.01),
+                .init(word: "send", deletionScore: 0.04),
+                .init(word: "the", deletionScore: 0.005),
+                .init(word: "notes", deletionScore: 0.001),
+            ]
+        )
         try store.record(text: "We should send the notes", duration: 2, model: "parakeet",
-                         languagePassInput: "Um, we should send the notes",
+                         languagePassInput: "  Um, we should send the notes\n",
                          languagePassCandidate: "we should send the notes",
                          languagePassOutput: "we should send the notes",
                          languagePassAccepted: true,
-                         languagePassModel: "native-mini-2026-10-21")
+                         languagePassModel: "native-mini-2026-10-21",
+                         miniCleanupScoreAudit: audit)
         let entry = try XCTUnwrap(TranscriptionHistoryStore(fileURL: fileURL).recentEntries.first)
         XCTAssertEqual(entry.text, "We should send the notes")
+        XCTAssertEqual(entry.languagePassInput, "  Um, we should send the notes\n")
         XCTAssertEqual(entry.languagePassOutput, "we should send the notes")
+        XCTAssertEqual(entry.miniCleanupScoreAudit, audit)
     }
 
     func testIgnoresBlankTranscriptText() throws {

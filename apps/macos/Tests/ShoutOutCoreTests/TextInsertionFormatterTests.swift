@@ -18,26 +18,34 @@ final class TextInsertionFormatterTests: XCTestCase {
         XCTAssertEqual(format("there", before: "i", after: "f").text, " there ")
     }
 
-    func testMidSentenceInsertionPreservesCapitalization() {
+    func testMidSentenceInsertionLowercasesFirstWordAtCursor() {
         let context = TextInsertionContext(
             text: "I think  would work",
             selectedUTF16Range: NSRange(location: 8, length: 0)
         )
 
-        let result = TextInsertionFormatter.prepare("This is good", context: context)
+        let result = TextInsertionFormatter.prepare("Another option", context: context)
 
-        XCTAssertEqual(result.text, "This is good")
+        XCTAssertEqual(result.text, "another option")
     }
 
-    func testMidSentenceInsertionKeepsLikelyProperNoun() {
-        let context = TextInsertionContext(
-            text: "send it to  today",
-            selectedUTF16Range: NSRange(location: 11, length: 0)
-        )
+    func testConsecutiveDictationsContinueTheSentence() {
+        var field = ""
+        for clip in ["here’s the first part", "Of a sentence", "And here’s me", "Transcribing each part"] {
+            field += inserting(clip, into: field)
+        }
+        XCTAssertEqual(field, "Here’s the first part of a sentence and here’s me transcribing each part")
+    }
 
-        let result = TextInsertionFormatter.prepare("Ezra", context: context)
+    func testMidSentenceInsertionKeepsPronounAndMixedCase() {
+        for text in ["I agree", "I’m ready", "iPhone", "AndThen", "In-N-Out"] {
+            XCTAssertEqual(inserting(text, into: "we said "), text)
+        }
+    }
 
-        XCTAssertEqual(result.text, "Ezra")
+    func testMidSentenceInsertionOnlyChangesFirstLetter() {
+        XCTAssertEqual(inserting("Friends from San Francisco", into: "some "), "friends from San Francisco")
+        XCTAssertEqual(inserting("A sentence", into: "part of "), "a sentence")
     }
 
     func testMidSentenceInsertionKeepsAcronym() {
@@ -133,6 +141,11 @@ final class TextInsertionFormatterTests: XCTestCase {
         XCTAssertEqual(inserting("send the notes", into: "Done. "), "Send the notes")
         XCTAssertEqual(inserting("hello there", into: ""), "Hello there")
         XCTAssertEqual(inserting("hello there", into: "  "), "Hello there")
+    }
+
+    func testNewSentenceKeepsCapitalizedStarterAfterClosingQuote() {
+        XCTAssertEqual(inserting("And that was it", into: "She said “Done.” "), "And that was it")
+        XCTAssertEqual(inserting("and that was it", into: "She said “Done.” "), "And that was it")
     }
 
     func testEndOfExistingSentencePreservesContinuation() {
